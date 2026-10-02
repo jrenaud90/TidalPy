@@ -15,6 +15,7 @@ import TidalPy
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
+from numpy_compat import trapezoid
 
 _EARTH = str(Path(TidalPy.__file__).parent / "WorldPack" / "earth_simple.toml")
 _HOT_MANTLE_TEMPERATURE = 1900.0   # [K] the bundled Earth's mantle 300 K warmer, partially molten through much of it
@@ -59,7 +60,7 @@ def _mantle_capacity(world, result, mantle_i, sensible_only=False):
         heat_capacity = state["heat_capacity"] - (state["latent_heat_capacity"] if sensible_only else 0.0)
         integrand = 4.0 * math.pi * radii**2 * world.get_density(radii) * heat_capacity * sensitivity(
             radii, temperature)
-        total += np.trapezoid(integrand, radii)
+        total += trapezoid(integrand, radii)
     return total
 
 

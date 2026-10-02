@@ -69,6 +69,7 @@ def test_defaults_build():
 @pytest.mark.parametrize("bad, message", [
     (dict(solidus=None), "needs a 'solidus'"),
     (dict(liquid=Phase(eos="murnaghan")), "needs a 'shear_viscosity'"),
+    (dict(liquidus={"model": "constant", "temperature_k": _T_SOL - 1.0}), "liquidus below its solidus at zero"),
 ])
 def test_material_validation(bad, message):
     with pytest.raises(ValueError, match=message):

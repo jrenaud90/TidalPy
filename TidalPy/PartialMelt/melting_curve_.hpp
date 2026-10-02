@@ -4,8 +4,9 @@
  *
  * The Simon and Glatzel (1929) law, T(P) = T0 (1 + (P - P_ref) / a)^(1 / c), fits most planetary melting data with
  * a = c = reference values from the fit; a negative a gives a melting temperature that falls with pressure (ice Ih).
- * Below P_ref the curve holds T0, and where 1 + (P - P_ref) / a reaches zero (past the end of a falling curve) the
- * temperature is zero: a material is only meant to be used inside the pressure range its curve was fitted over.
+ * Below P_ref the curve holds T0, and above its maximum pressure, the end of the range it was fitted over, it holds its
+ * value there. A falling curve reaches 0 K where 1 + (P - P_ref) / a does, at P_ref - a, so it needs a maximum
+ * pressure below that (ice Ih's is its triple point with ice III and liquid water).
  *
  * References
  * ----------
@@ -62,29 +63,33 @@ public:
     }
 };
 
-// T0 (1 + (P - P_ref) / a)^(1 / c), held at T0 below P_ref and zero where the base reaches zero.
+// T0 (1 + (P - P_ref) / a)^(1 / c), held at T0 below P_ref and at its value at the maximum pressure above it; zero
+// where the base reaches zero (a falling curve without a maximum pressure short of P_ref - a).
 inline double c_simon_glatzel(
         double pressure,
         double temperature,
         double simon_a,
         double simon_c,
-        double reference_pressure) noexcept {
+        double reference_pressure,
+        double maximum_pressure = TidalPyConstants::d_INF) noexcept {
     if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
-    const double base = 1.0 + (std::max(pressure, reference_pressure) - reference_pressure) / simon_a;
+    const double held_pressure = std::min(std::max(pressure, reference_pressure), maximum_pressure);
+    const double base = 1.0 + (held_pressure - reference_pressure) / simon_a;
     if (!(base > 0.0)) { return 0.0; }
     return temperature * std::pow(base, 1.0 / simon_c);
 }
 
-// The slope of c_simon_glatzel, dT/dP [K Pa-1]: T0 / (a c) (1 + (P - P_ref) / a)^(1 / c - 1), zero below P_ref and
-// where the base reaches zero, as the curve is held there.
+// The slope of c_simon_glatzel, dT/dP [K Pa-1]: T0 / (a c) (1 + (P - P_ref) / a)^(1 / c - 1), zero below P_ref, above
+// the maximum pressure, and where the base reaches zero, as the curve is held there.
 inline double c_simon_glatzel_slope(
         double pressure,
         double temperature,
         double simon_a,
         double simon_c,
-        double reference_pressure) noexcept {
+        double reference_pressure,
+        double maximum_pressure = TidalPyConstants::d_INF) noexcept {
     if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
-    if (!(pressure > reference_pressure)) { return 0.0; }
+    if (!(pressure > reference_pressure) || (pressure > maximum_pressure)) { return 0.0; }
     const double base = 1.0 + (pressure - reference_pressure) / simon_a;
     if (!(base > 0.0)) { return 0.0; }
     return temperature / (simon_a * simon_c) * std::pow(base, 1.0 / simon_c - 1.0);
@@ -136,6 +141,9 @@ public:
              "Simon-Glatzel c [dimensionless]."},
             {"reference_pressure", "reference_pressure_pa", &Self::p_reference_pressure, 0.0, c_ParamBounds::Finite,
              "Pressure where T0 applies [Pa]."},
+            {"maximum_pressure", "maximum_pressure_pa", &Self::p_maximum_pressure, TidalPyConstants::d_INF,
+             c_ParamBounds::PositiveOrInfinite,
+             "End of the fitted range [Pa]; the curve holds its value there above it. Needed for a negative a."},
         };
         return specs;
     }
@@ -147,17 +155,33 @@ public:
 
     double calc_melting_temperature(double pressure) const noexcept override {
         return c_simon_glatzel(
-            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
+            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure,
+            this->p_maximum_pressure);
     }
     double calc_melting_slope(double pressure) const noexcept override {
         return c_simon_glatzel_slope(
-            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
+            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure,
+            this->p_maximum_pressure);
     }
 
 protected:
+    // A nonzero a, a maximum pressure above the reference pressure, and, for a falling curve, a maximum pressure short
+    // of P_ref - a, where it would reach 0 K.
     void p_validate() const override {
         if (this->p_simon_a == 0.0) {
             throw std::invalid_argument(this->p_describe() + " needs a nonzero 'simon_a_pa'.");
+        }
+        if (!(this->p_maximum_pressure > this->p_reference_pressure)) {
+            throw std::invalid_argument(
+                this->p_describe() + " needs a 'maximum_pressure_pa' above its 'reference_pressure_pa'; got "
+                + c_format_param_value(this->p_maximum_pressure) + " Pa.");
+        }
+        const double zero_kelvin_pressure = this->p_reference_pressure - this->p_simon_a;
+        if ((this->p_simon_a < 0.0) && !(this->p_maximum_pressure < zero_kelvin_pressure)) {
+            throw std::invalid_argument(
+                this->p_describe() + " falls with pressure (negative 'simon_a_pa') and reaches 0 K at "
+                + c_format_param_value(zero_kelvin_pressure) + " Pa; give a 'maximum_pressure_pa' below that, the end "
+                "of the range the curve was fitted over.");
         }
     }
 
@@ -165,6 +189,7 @@ protected:
     double p_simon_a            = 0.0;
     double p_simon_c            = 0.0;
     double p_reference_pressure = 0.0;
+    double p_maximum_pressure   = TidalPyConstants::d_INF;
 };
 
 // Two Simon and Glatzel branches joined at a transition pressure: the low branch below it, the high branch, written

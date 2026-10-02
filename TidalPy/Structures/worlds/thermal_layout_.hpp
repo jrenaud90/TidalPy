@@ -67,6 +67,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "constants_.hpp"
@@ -105,6 +106,10 @@ inline constexpr int d_ADIABAT_MAX_REFINEMENTS = 24;
 inline constexpr int d_MELT_SPLIT_BISECTIONS = 30;
 inline constexpr int d_MELT_SPLIT_MAX_SPLITS = 12;
 inline constexpr int d_CAPACITY_PIECES = 4;
+// The per-layer tidal heating (c_BaseWorld::calc_layer_tidal_heating_radial) cuts each zone of a layer into this many
+// pieces before splitting them where the melt state changes, so a zone the profile crosses a melting curve in twice is
+// split at both crossings.
+inline constexpr int d_TIDAL_HEATING_PIECES = 4;
 // Each part is integrated by adaptive Gauss-Legendre: a part whose rule and the sum of the rule over its two halves
 // differ by more than this tolerance, relative to the integral over the whole stretch, is halved, up to this depth,
 // which resolves a kink in the integrand inside a part (a melting curve changing branch, say). A smooth part is
@@ -163,43 +168,60 @@ double c_adaptive_gauss_legendre(
         + c_adaptive_gauss_legendre(middle, upper, right, tolerance, depth + 1, sample);
 }
 
-// The integral of f(x) over [lower, upper], cut into num_pieces equal pieces, each split where the material's melt
-// state changes (d_MELT_SPLIT_BISECTIONS) and integrated by adaptive Gauss-Legendre on either side.
-// sample(x, melt_state) returns f(x) and sets the melt state at x (0 solid, 1 partially molten, 2 liquid).
-template <class Sample>
-double c_integrate_split_at_melting(double lower, double upper, int num_pieces, const Sample& sample) {
-    if (!(upper > lower)) { return 0.0; }
-    const double tolerance = d_QUADRATURE_TOLERANCE * std::fabs(c_gauss_legendre(lower, upper, sample));
-    const auto gauss = [&](double part_lower, double part_upper) {
-        if (!(part_upper > part_lower)) { return 0.0; }
-        return c_adaptive_gauss_legendre(
-            part_lower, part_upper, c_gauss_legendre(part_lower, part_upper, sample), tolerance, 0, sample);
-    };
+// The parts of [lower, upper] on each of which a material keeps one melt state: num_pieces equal pieces, each split
+// where the state changes. A change is found by d_MELT_SPLIT_BISECTIONS halvings, and the bracket left around it (about
+// 1e-9 of the piece) belongs to neither part. state_at(x) returns the melt state at x (0 solid, 1 partially molten, 2
+// liquid; c_melt_state).
+template <class State>
+std::vector<std::pair<double, double>> c_split_at_melting(
+        double lower,
+        double upper,
+        int num_pieces,
+        const State& state_at) {
+    std::vector<std::pair<double, double>> parts;
+    if (!(upper > lower)) { return parts; }
     const double width = (upper - lower) / static_cast<double>(num_pieces);
-    double total = 0.0;
     for (int piece_i = 0; piece_i < num_pieces; ++piece_i) {
         double piece_lower = lower + piece_i * width;
         const double piece_upper = (piece_i + 1 == num_pieces) ? upper : lower + (piece_i + 1) * width;
-        int lower_state = 0;
-        int upper_state = 0;
-        sample(piece_lower, lower_state);
-        sample(piece_upper, upper_state);
+        int lower_state = state_at(piece_lower);
+        const int upper_state = state_at(piece_upper);
         for (int split_i = 0; (split_i < d_MELT_SPLIT_MAX_SPLITS) && (lower_state != upper_state); ++split_i) {
             double same = piece_lower;
             double changed = piece_upper;
             int changed_state = upper_state;
             for (int bisection_i = 0; bisection_i < d_MELT_SPLIT_BISECTIONS; ++bisection_i) {
                 const double middle = 0.5 * (same + changed);
-                int middle_state = 0;
-                sample(middle, middle_state);
+                const int middle_state = state_at(middle);
                 if (middle_state == lower_state) { same = middle; }
                 else { changed = middle; changed_state = middle_state; }
             }
-            total += gauss(piece_lower, same);
+            parts.emplace_back(piece_lower, same);
             piece_lower = changed;
             lower_state = changed_state;
         }
-        total += gauss(piece_lower, piece_upper);
+        parts.emplace_back(piece_lower, piece_upper);
+    }
+    return parts;
+}
+
+// The integral of f(x) over [lower, upper], cut into the parts of c_split_at_melting and integrated by adaptive
+// Gauss-Legendre on each. sample(x, melt_state) returns f(x) and sets the melt state at x (0 solid, 1 partially
+// molten, 2 liquid).
+template <class Sample>
+double c_integrate_split_at_melting(double lower, double upper, int num_pieces, const Sample& sample) {
+    if (!(upper > lower)) { return 0.0; }
+    const double tolerance = d_QUADRATURE_TOLERANCE * std::fabs(c_gauss_legendre(lower, upper, sample));
+    const auto state_at = [&](double x) {
+        int melt_state = 0;
+        sample(x, melt_state);
+        return melt_state;
+    };
+    double total = 0.0;
+    for (const std::pair<double, double>& part : c_split_at_melting(lower, upper, num_pieces, state_at)) {
+        if (!(part.second > part.first)) { continue; }
+        total += c_adaptive_gauss_legendre(
+            part.first, part.second, c_gauss_legendre(part.first, part.second, sample), tolerance, 0, sample);
     }
     return total;
 }

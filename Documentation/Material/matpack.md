@@ -62,7 +62,7 @@ Constant density, moduli, and viscosity, and no melting. They are quick to evalu
 
 Each material is one phase assemblage at one composition:
 
-- An ice polymorph is valid only in its own pressure band; a deep water layer is one layer per polymorph. Past the end of its band a melting curve can fall to zero (ice Ih's above 415 MPa), so the material reads as fully molten there when melting and pressure melting are on.
+- An ice polymorph is valid only in its own pressure band; a deep water layer is one layer per polymorph. Past the end of its band a melting curve holds its value there (ice Ih's about 251 K above its 208.566 MPa triple point), so a layer of ice Ih deeper than that stays ice Ih with that melting temperature.
 - Water's expansivity changes sign near 277 K at 1 bar; `water` uses a positive value, as in a pressurized ocean.
 - Materials whose melt composition changes with temperature (`iron_sulfide`, `ammonia_water`) fix the bulk composition, and their melt is one composition.
 - `serpentinite` and `methane_clathrate` decompose rather than melt, so they ship without melting.

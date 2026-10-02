@@ -124,6 +124,7 @@ cdef class System:
     def __cinit__(self, *args, **kwargs):
         self._world_wrappers = []
         self.source_config = None
+        self.source_dir = None
 
     def __init__(self, str name=""):
         # The owning member is this same type, so make_unique's result moves straight in.
@@ -492,7 +493,7 @@ cdef class System:
         Each member world is inlined with its own live configuration (its ``get_config_dict``) under its
         system name, together with its tidal host, its star role, and its orbital elements, so
         ``build_system_from_dict`` rebuilds the system as it stands now and not as it was first described.
-        Used by :meth:`save_to_toml` when no ``source_config`` was retained.
+        :meth:`get_save_config` builds on it, keeping each unchanged member's original reference.
 
         Returns
         -------
@@ -531,23 +532,72 @@ cdef class System:
             worlds_table[world.name] = entry
         return {"schema_version": SCHEMA_VERSION, "name": self.name, "worlds": worlds_table}
 
-    def save_to_toml(self, str file_path, overwrite=True):
-        """Write this system's configuration to a TOML file.
+    def get_save_config(self, destination_dir=None) -> dict:
+        """The configuration :meth:`save_to_toml` writes: the system as it is now.
 
-        Uses the retained build configuration (:attr:`source_config`) when present for a faithful
-        round-trip of the original description (world references intact), otherwise falls back to the
-        self-contained live-state expansion :meth:`get_config_dict`.
+        Every member carries its current tidal host, star role, and orbital elements. A member built from a world
+        reference (a bundled name or a file) and unchanged since its build keeps that reference, a relative file path
+        rewritten to find the same file from ``destination_dir``; any other member is written inline, as its
+        :meth:`~TidalPy.Structures.worlds.base.BaseWorld.get_save_config` gives it, so a change made to a world after
+        the build is saved too.
 
         Parameters
         ----------
-        file_path : str
+        destination_dir : str or os.PathLike, optional
+            The folder the configuration will be saved into. Default None: references as given.
+
+        Returns
+        -------
+        dict
+            A system configuration (``name`` and a ``worlds`` table) that builds this system.
+        """
+        from TidalPy.Structures.configs.config_writer import relocated_path, state_changed_since_build
+        cdef dict live = self.get_config_dict()
+        cdef dict source_worlds = (self.source_config or {}).get("worlds", {})
+        cdef object target_dir = None if destination_dir is None else os.fspath(destination_dir)
+        cdef dict worlds_table = {}
+        cdef dict entry
+        cdef object given
+        cdef object world
+        # The live table lists the members in system order, so its i-th entry is the i-th wrapper.
+        for world, (world_key, live_entry) in zip(self._world_wrappers, live["worlds"].items()):
+            entry = {key: value for key, value in live_entry.items() if key != "world"}
+            given = source_worlds.get(world_key, {}).get("world")
+            if isinstance(given, str) and not state_changed_since_build(world.built_config, live_entry["world"]):
+                if ((target_dir is not None) and (self.source_dir is not None) and not os.path.isabs(given)
+                        and os.path.isfile(os.path.join(self.source_dir, given))):
+                    given = relocated_path(given, os.path.join(self.source_dir, given), target_dir)
+                entry["world"] = given
+            else:
+                entry["world"] = world.get_save_config(target_dir)
+            worlds_table[world_key] = entry
+        return {"name": live["name"], "worlds": worlds_table}
+
+    def save_to_toml(self, file_path, overwrite=True):
+        """Write this system's configuration, as it is now, to a TOML file.
+
+        Writes :meth:`get_save_config`: the current orbits and roles, each member by its original reference when it
+        is unchanged since the build, and inline otherwise. Relative references are rewritten to find the same files
+        from the folder saved into.
+
+        Parameters
+        ----------
+        file_path : str or os.PathLike
             Destination ``.toml`` path.
         overwrite : bool, optional
             Overwrite an existing file. Default True.
+
+        Raises
+        ------
+        ValueError
+            The path does not end in ``.toml``, or a member's live configuration fails the world schema.
+        FileExistsError
+            The file exists and ``overwrite`` is False.
         """
         from TidalPy.Structures.configs.config_writer import save_system_to_toml
-        cdef dict config = self.source_config if self.source_config is not None else self.get_config_dict()
-        return save_system_to_toml(config, file_path, overwrite=overwrite)
+        cdef str path = os.fspath(file_path)
+        cdef dict config = self.get_save_config(os.path.dirname(os.path.abspath(path)))
+        return save_system_to_toml(config, path, overwrite=overwrite)
 
     cdef void _rebuild_world_wrappers(self):
         """Rebuild the Python world-wrapper list around the C++ system's current worlds.
@@ -598,6 +648,7 @@ cdef class System:
         # Only a successful load replaces the worlds, so only then do the wrappers follow the new ones.
         self._rebuild_world_wrappers()
         self.source_config = None
+        self.source_dir = None
 
     # World identification: accept an index (int), a world name (str), or the world wrapper object.
     cdef Py_ssize_t _resolve_index(self, object world) except *:

@@ -17,7 +17,7 @@ import os
 from typing import Union
 
 from TidalPy.Structures.system.system import System
-from TidalPy.Structures.configs.world_builder import build_world
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.configs import worldpack
 from TidalPy.Structures.configs.toml_loader import validate_system_config
 
@@ -43,7 +43,7 @@ def _member_source(source, base_dir):
 def construct_system(config: dict, force: bool = False, base_dir: str = None):
     """Construct a ``System`` from a validated system configuration dict.
 
-    Member worlds are built with :func:`build_world` and added in declaration order; their tidal hosts are
+    Member worlds are built with :meth:`BaseWorld.build` and added in declaration order; their tidal hosts are
     named once every world is in, so a host may be declared after the worlds it hosts.
 
     Parameters
@@ -70,7 +70,9 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
 
     system = System(config.get("name", ""))
     for world_key, world_cfg in config["worlds"].items():
-        world_obj = build_world(_member_source(world_cfg["world"], base_dir), force=force)
+        # A world given inline finds a relative data file beside the system file, as one given by path does beside
+        # its own file.
+        world_obj = BaseWorld.build(_member_source(world_cfg["world"], base_dir), force=force, base_dir=base_dir)
         # The ``[worlds.<name>]`` table key is the world's identity within the system (so a bundled world
         # template can be reused under different names, and members are referenced by their system key
         # rather than the source world's own name).
@@ -89,8 +91,9 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
         if "tidal_host" in world_cfg:
             system.set_tidal_host(world_key, world_cfg["tidal_host"])
 
-    # Retain the normalized config on the system for a faithful save_to_toml round-trip.
+    # Retained for save_to_toml, which keeps each unchanged member's reference as the file gave it.
     system.source_config = config
+    system.source_dir = base_dir
     return system
 
 

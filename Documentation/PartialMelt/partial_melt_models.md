@@ -59,7 +59,7 @@ The Simon and Glatzel (1929) law,
 
 $$T_m(P) = T_0 \left(1 + \frac{P - P_\mathrm{ref}}{a}\right)^{1/c},$$
 
-fits most planetary melting data. $T_0$ is the melting temperature at the reference pressure $P_\mathrm{ref}$ (usually zero), $a$ \[Pa\] sets the pressure at which the curve begins to rise, and $c$ sets how quickly the rise flattens. A negative $a$ gives a curve that falls with pressure, as ice Ih's does: MatPack's `ice_ih` uses $T_0$ = 273.16 K, $a$ = -415 MPa, and $c$ = 8.25. Below $P_\mathrm{ref}$ the curve holds $T_0$.
+fits most planetary melting data. $T_0$ is the melting temperature at the reference pressure $P_\mathrm{ref}$ (usually zero), $a$ \[Pa\] sets the pressure at which the curve begins to rise, and $c$ sets how quickly the rise flattens. A negative $a$ gives a curve that falls with pressure, as ice Ih's does: MatPack's `ice_ih` uses $T_0$ = 273.16 K, $a$ = -415 MPa, and $c$ = 8.25. Below $P_\mathrm{ref}$ the curve holds $T_0$, and above `maximum_pressure_pa` (default: none), the end of the range the curve was fitted over, it holds its value there. A falling curve would reach 0 K at $P_\mathrm{ref} - a$, so it needs a `maximum_pressure_pa` below that; `ice_ih` ends at its triple point with ice III and liquid water, 208.566 MPa, where it holds about 251 K.
 
 `simon_glatzel_2` joins two branches at a transition pressure $P_t$:
 
@@ -95,9 +95,9 @@ The experiments reach about 140 GPa, so the curves are extrapolated in the deepe
 ### Behavior at the Limits
 
 - Tension ($P < P_\mathrm{ref}$), which the structure solve's trial central pressures can reach, holds the reference temperature $T_0$.
-- Where $1 + (P - P_\mathrm{ref}) / a$ reaches zero, past the end of a falling curve, the melting temperature is zero, so a material reads as fully molten there. A material is meant to be used only inside the pressure range its curves were fitted over.
+- Past `maximum_pressure_pa` a Simon and Glatzel curve holds its value at that pressure, and a falling curve without one, or with one at or past $P_\mathrm{ref} - a$ where it would reach 0 K, raises `ValueError`. A material is still meant to be used inside the pressure range its curves were fitted over.
 - A non-finite pressure gives a NaN melting temperature and slope, and a material then stays solid.
-- The two curves are independent. Where the liquidus falls to or below the solidus, the material melts as a step at the solidus.
+- The two curves are independent, but a material refuses a liquidus below its solidus at zero pressure, where every layer reads them without `use_pressure_melting` (`ValueError`). Deeper, where the liquidus falls to or below the solidus, the material melts as a step at the solidus.
 - An `a` of 0 is refused when the curve is built.
 
 ### Choosing Melting Curves
@@ -246,12 +246,13 @@ solidus = make_melting_curve(
 print(solidus.calc_melting_temperature(135.0e9))   # [K] about 4150 at Earth's core-mantle boundary
 print(solidus.calc_melting_slope(5.0e9))           # [K Pa-1] dT_m/dP at 5 GPa
 
-# Ice Ih's melting curve falls with pressure
+# Ice Ih's melting curve falls with pressure, held past its triple point with ice III
 ice_melting = SimonGlatzelCurve(
     temperature=273.16,
     simon_a=-4.15e8,
-    simon_c=8.25)
-print(ice_melting.calc_melting_temperature(np.array([0.0, 1.0e8, 2.0e8])))   # [K]
+    simon_c=8.25,
+    maximum_pressure=2.08566e8)
+print(ice_melting.calc_melting_temperature(np.array([0.0, 1.0e8, 2.0e8, 5.0e8])))   # [K]
 
 # The aggregate's shear modulus and viscosity a quarter of the way through the melting range
 weakening = HenningMeltWeakening()

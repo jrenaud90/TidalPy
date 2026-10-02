@@ -10,6 +10,68 @@ import os
 
 from TidalPy.configurations import write_config_toml
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION
+from TidalPy.Structures.configs.worldpack import resolve_data_file
+
+
+def state_changed_since_build(built_config, live_config: dict) -> bool:
+    """Whether a world's live configuration differs from the one it had when it was built.
+
+    Two parts of the live configuration change without the user changing the world, so they are left out: its
+    ``name`` (a system names each member after its key) and the ``mass_kg`` of a layer with a fixed volume, which every
+    EOS solve sets from the solved profile. A world without a record of its build counts as changed.
+
+    Parameters
+    ----------
+    built_config : dict or None
+        The world's ``get_config_dict()`` at the end of its build.
+    live_config : dict
+        Its ``get_config_dict()`` now.
+    """
+    if built_config is None:
+        return True
+    return _comparable_state(built_config) != _comparable_state(live_config)
+
+
+def _comparable_state(config: dict) -> dict:
+    """A world configuration without its name and the masses the EOS solve sets (see state_changed_since_build)."""
+    state = {key: value for key, value in config.items() if key != "name"}
+    layers = state.get("layers")
+    if isinstance(layers, dict):
+        state["layers"] = {
+            layer_name: {
+                key: value for key, value in layer.items()
+                if not ((key == "mass_kg") and layer.get("is_volume_fixed", True))}
+            for layer_name, layer in layers.items()}
+    return state
+
+
+def relocated_path(given: str, resolved: str, destination_dir: str) -> str:
+    """A file reference as a configuration saved in ``destination_dir`` should write it.
+
+    The reference as given (``"PREM.csv"``, say) when it still finds the same file from the new folder, which keeps a
+    bundled name a name; otherwise the path relative to the new folder, or the absolute path when there is none (a
+    file on another drive).
+
+    Parameters
+    ----------
+    given : str
+        The reference as the source configuration wrote it.
+    resolved : str
+        The file it named, as the build found it.
+    destination_dir : str
+        The folder the configuration is saved into.
+    """
+    resolved = os.path.abspath(resolved)
+    try:
+        if os.path.normcase(resolve_data_file(given, destination_dir)) == os.path.normcase(resolved):
+            return given
+    except FileNotFoundError:
+        pass
+    try:
+        return os.path.relpath(resolved, destination_dir).replace(os.sep, "/")
+    except ValueError:
+        # No relative path between two drives.
+        return resolved
 
 
 def _save_config(config: dict, file_path: str, overwrite: bool, kind: str) -> str:

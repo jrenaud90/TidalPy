@@ -131,7 +131,7 @@ A layer has two more switches that a material does not see: `use_heating` (the w
 - A phase with no shear-modulus law has a shear modulus of 0, and one with no viscosity law a NaN viscosity. A viscoelastic rheology applied to a NaN viscosity returns NaN, so a phase that a layer tides through needs a viscosity law unless its rheology is elastic.
 - A shear-modulus law's value is floored at `[numerical] minimum_modulus`.
 - A NaN melting temperature leaves the material solid.
-- A melting curve fitted over a limited pressure range can fall to zero past its end (ice Ih's above 415 MPa), and the material then reads as fully molten there.
+- A melting curve fitted over a limited pressure range holds its value past the end of that range (`maximum_pressure_pa` of a Simon and Glatzel curve; ice Ih's is 208.566 MPa). A material refuses a liquidus below its solidus at zero pressure; deeper, a liquidus at or below the solidus melts as a step at the solidus.
 - The switches do nothing for a material with one phase.
 
 ## Python API

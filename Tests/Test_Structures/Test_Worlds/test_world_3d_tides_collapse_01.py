@@ -13,6 +13,7 @@ from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 
 from shared_materials import constant_solid
+from numpy_compat import trapezoid
 
 
 _R = 1.0e6
@@ -152,7 +153,7 @@ def test_profile_integrates_to_total(axis_name, axis, summed):
 
     prof = world.calc_3d_tides(*_args(spin, sma), **{axis_name: axis}, **summed)
     assert prof['heating'].shape == axis.shape
-    integ = np.trapezoid(prof['heating'], axis)
+    integ = trapezoid(prof['heating'], axis)
     assert math.isclose(integ, total, rel_tol=2e-2), f"integrated profile {integ:.4e} != total {total:.4e}"
 
 
@@ -176,7 +177,7 @@ def test_instantaneous_time_average_matches_secular():
                               radii=np.array([r]), colatitudes=np.array([colat]),
                               longitudes=np.array([lon]), times=times, orbit_averaged=False)
     p = res['heating'][0, 0, 0, :]
-    avg = np.trapezoid(p, times) / period
+    avg = trapezoid(p, times) / period
     assert math.isclose(avg, h_bar, rel_tol=1e-8), f"time-avg {avg:.4e} != secular {h_bar:.4e}"
 
 
@@ -205,7 +206,7 @@ def test_instantaneous_total_time_average_matches_1d():
     res = world.calc_3d_tides(*_args(spin, sma), times=times, orbit_averaged=False, **_SUMMED)
     total_t = res['total']
     assert total_t.shape == times.shape
-    avg = np.trapezoid(total_t, times) / period
+    avg = trapezoid(total_t, times) / period
     assert math.isclose(avg, h_1d, rel_tol=3e-2), f"time-avg total {avg:.4e} != 1D {h_1d:.4e}"
 
 

@@ -2716,6 +2716,13 @@ protected:
         this->write_solver_overrides(out);
         // Each layer writes its own complete record, its models included.
         for (const auto& layer : this->p_layers) { layer->write_binary(out); }
+        // The prescribed heating, one (power, specific rate) pair per layer (NaN for none), as it changes the solve.
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            const c_PrescribedLayerHeating prescribed = (layer_i < this->p_prescribed_heating.size())
+                ? this->p_prescribed_heating[layer_i] : c_PrescribedLayerHeating();
+            const double pair[2] = {prescribed.power, prescribed.specific_rate};
+            out.write(reinterpret_cast<const char*>(pair), sizeof(pair));
+        }
     }
 
     // The layers are read whole before they replace the world's, so a corrupt record leaves the stack whole.
@@ -2752,17 +2759,27 @@ protected:
                 loaded_layers.push_back(c_layer_from_binary(in, force));
                 loaded_layers.back()->set_owner(this, this->p_call_mutex.get());
             }
+            std::vector<c_PrescribedLayerHeating> loaded_prescribed(static_cast<std::size_t>(n_layers));
+            for (c_PrescribedLayerHeating& prescribed : loaded_prescribed) {
+                double pair[2] = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
+                in.read(reinterpret_cast<char*>(pair), sizeof(pair));
+                prescribed.power         = pair[0];
+                prescribed.specific_rate = pair[1];
+            }
+            if (!in) {
+                throw std::runtime_error("TidalPy: failed to read world binary data (prescribed heating)");
+            }
             this->p_layers = std::move(loaded_layers);
+            this->p_prescribed_heating = std::move(loaded_prescribed);
         } catch (...) {
             // The world fields may already hold the new record's values, so nothing solved describes this world.
             this->p_reset_solved_state();
             throw;
         }
-        // Nothing solved describes the loaded layers, and the masses floating layers held, the tides, and the heating
-        // prescribed belong to the old ones.
+        // Nothing solved describes the loaded layers, and the masses floating layers held and the tides belong to the
+        // old ones.
         this->p_reference_mass.clear();
         this->p_tidal_heating_record = c_TidalHeatingRecord();
-        this->p_prescribed_heating.clear();
         this->p_reset_solved_state();
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
     }

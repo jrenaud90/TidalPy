@@ -11,7 +11,9 @@ methods on this class. TerrestrialWorld, GasGiantWorld, and StarWorld subclass i
 cimport numpy as cnp
 cnp.import_array()
 
+import copy
 import math
+import os
 import weakref
 
 import numpy as np
@@ -607,10 +609,11 @@ cdef class BaseWorld(StructureBase):
         The load replaces the world's layers, so layer views taken from this world before it (``world.<name>``,
         ``get_layer``, iteration) no longer refer to a layer of this world and raise if used; take new ones.
         Nothing solved survives the load: run ``solve_eos`` again. The configurations the world was built from
-        (:attr:`source_config` and :attr:`portable_config`) describe it before the load, so a load that succeeds
-        clears them and :meth:`save_to_toml` then writes the loaded world's own :meth:`get_config_dict`. A load that
-        fails leaves the world as it was, its layers, views, solved state, and configurations included: the file is
-        read into a new world first and reaches this one only once that read succeeded.
+        (:attr:`source_config`, :attr:`portable_config`, and :attr:`built_config`) describe it before the load, so a
+        load that succeeds clears them and :meth:`save_to_toml` then writes the loaded world's own
+        :meth:`get_config_dict`. A load that fails leaves the world as it was, its layers, views, solved state, and
+        configurations included: the file is read into a new world first and reaches this one only once that read
+        succeeded.
 
         Parameters
         ----------
@@ -631,6 +634,7 @@ cdef class BaseWorld(StructureBase):
         StructureBase.load_binary(self, path, force)
         self.source_config   = None
         self.portable_config = None
+        self.built_config    = None
         # Every view handed out points at a C++ layer the load replaced: detach them, so a held view raises instead
         # of reading freed memory. The load holds the GIL, so no view is used between the load and this.
         if self._issued_views is not None:
@@ -895,7 +899,7 @@ cdef class BaseWorld(StructureBase):
         return PyComplex_FromDoubles(k.real(), k.imag())
 
     @staticmethod
-    def build(source, force=False):
+    def build(source, force=False, base_dir=None):
         """Build a world from a configuration source (the public builder entry point).
 
         This is a factory: the concrete subclass returned (``BaseWorld``, ``TerrestrialWorld``,
@@ -909,6 +913,10 @@ cdef class BaseWorld(StructureBase):
             A bundled world name, a path to a ``.toml`` file, or a configuration dict.
         force : bool, optional
             If True, bypass the schema-version compatibility warning. Default False.
+        base_dir : str, optional
+            The folder a relative ``data_file`` of a configuration dict is relative to (a system file's folder, for a
+            world given inline in it). A file source uses its own folder. Default None: the search of
+            ``resolve_data_file`` alone.
 
         Returns
         -------
@@ -917,7 +925,6 @@ cdef class BaseWorld(StructureBase):
         """
         # Deferred imports: the builder helpers import the world subclasses, so
         # importing them at module load would be circular.
-        import os
         from TidalPy.Structures.configs.world_builder import (
             _construct_owned_world,
             _resolve_source)
@@ -932,7 +939,7 @@ cdef class BaseWorld(StructureBase):
         cdef object resolved = _resolve_source(source)
         cdef dict config = load_toml(resolved)
         cdef object given_data_file = None
-        cdef str base_dir
+        cdef object data_base_dir
         cdef BaseWorld world
         # Checked before the defaults fill a missing version in, so a file without one says so.
         validate_schema_version(config, force=force)
@@ -941,8 +948,8 @@ cdef class BaseWorld(StructureBase):
         # file's directory so the builder can open it directly.
         if "data_file" in config:
             given_data_file = config["data_file"]
-            base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else None
-            config["data_file"] = resolve_data_file(config["data_file"], base_dir)
+            data_base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else base_dir
+            config["data_file"] = resolve_data_file(config["data_file"], data_base_dir)
         # load_toml made this config a private copy, so the world keeps it without copying again.
         world = _construct_owned_world(config)
         if given_data_file is not None and world.portable_config is not None:
@@ -1001,32 +1008,70 @@ cdef class BaseWorld(StructureBase):
             out["love_fixed_dt_s"] = cfg.love_fixed_dt
         return out
 
-    def save_to_toml(self, str file_path, overwrite=True):
-        """Write this world's configuration to a TOML file.
+    def get_save_config(self, destination_dir=None) -> dict:
+        """The configuration :meth:`save_to_toml` writes: the world as it is now.
 
-        Writes :meth:`get_config_dict`, the world as it is now (a change made after the build, a new obliquity
-        say, is saved), validated against the world schema first so the file builds or this raises
-        ``ValueError``. A world built from a ``data_file`` writes :attr:`portable_config` instead: the file
-        reference as given and the tables that refined its layers, so the saved file builds anywhere the data
-        file resolves (changes made to that world after the build are not saved). The file starts with a comment header naming
-        the TidalPy, SciPy, and CyRK versions that wrote it.
+        A world built from a ``data_file`` and unchanged since its build gives :attr:`portable_config`, the file
+        reference and the tables that refined its layers, with the reference rewritten to find the same file from
+        ``destination_dir``. Any other world, a data-file world changed after its build included, gives
+        :meth:`get_config_dict`, validated against the world schema. The layer masses an EOS solve sets and the
+        world's name do not count as changes; the name written is the current one.
 
         Parameters
         ----------
-        file_path : str
+        destination_dir : str or os.PathLike, optional
+            The folder the configuration will be saved into. Default None: the data-file reference as given.
+
+        Returns
+        -------
+        dict
+            A world configuration that builds this world.
+
+        Raises
+        ------
+        ValueError
+            The live configuration fails the world schema.
+        """
+        from TidalPy.Structures.configs.config_writer import relocated_path, state_changed_since_build
+        from TidalPy.Structures.configs.toml_loader import validate_world_config
+        cdef dict live = self.get_config_dict()
+        cdef dict config
+        if (self.portable_config is not None) and not state_changed_since_build(self.built_config, live):
+            config = copy.deepcopy(self.portable_config)
+            config["name"] = live["name"]
+            if (destination_dir is not None) and ("data_file" in (self.source_config or {})):
+                config["data_file"] = relocated_path(
+                    config["data_file"], self.source_config["data_file"], os.fspath(destination_dir))
+            return config
+        validate_world_config(live)
+        return live
+
+    def save_to_toml(self, file_path, overwrite=True):
+        """Write this world's configuration, as it is now, to a TOML file.
+
+        Writes :meth:`get_save_config`: every change made after the build is saved (a new obliquity, a layer's
+        model, its temperature). A world built from a ``data_file`` and unchanged since writes the file reference
+        instead of the expanded profile, rewritten so it finds the same file from the folder saved into. The file
+        starts with a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it.
+
+        Parameters
+        ----------
+        file_path : str or os.PathLike
             Destination ``.toml`` path.
         overwrite : bool, optional
             Overwrite an existing file. Default True.
+
+        Raises
+        ------
+        ValueError
+            The path does not end in ``.toml``, or the live configuration fails the world schema.
+        FileExistsError
+            The file exists and ``overwrite`` is False.
         """
         from TidalPy.Structures.configs.config_writer import save_world_to_toml
-        cdef dict config
-        if self.portable_config is not None:
-            config = self.portable_config
-        else:
-            from TidalPy.Structures.configs.toml_loader import validate_world_config
-            config = self.get_config_dict()
-            validate_world_config(config)
-        return save_world_to_toml(config, file_path, overwrite=overwrite)
+        cdef str path = os.fspath(file_path)
+        cdef dict config = self.get_save_config(os.path.dirname(os.path.abspath(path)))
+        return save_world_to_toml(config, path, overwrite=overwrite)
 
     cdef void _track_view(self, Layer view) except *:
         """Remember a view this world handed out (weakly), so a load that replaces the layers can detach it."""
@@ -2077,7 +2122,8 @@ cdef class BaseWorld(StructureBase):
 
         It acts in a layer with ``use_heating``, through a :meth:`solve_eos` that carries temperature, beside the
         layer's radiogenics and the tidal heat source. The EOS solve reads it, so the world forgets its solved
-        structure. It is not saved with the world.
+        structure. It is saved with the world: :meth:`get_config_dict` writes it in a ``[prescribed_heating]`` table and
+        the binary record holds it.
 
         Parameters
         ----------
@@ -2731,7 +2777,8 @@ cdef class BaseWorld(StructureBase):
             Keys: ``schema_version``, ``name``, ``type``, ``radius_m``, ``mass_kg``, ``albedo``, ``emissivity``,
             ``obliquity_rad``, ``spin_frequency_rad_s``, ``moment_of_inertia_factor`` (the attached spin model's),
             ``tides`` when set, the ``eos_solver`` and ``radial_solver`` tables when the world pins any solver key
-            (:meth:`set_solver_defaults`), and ``layers`` when there are any.
+            (:meth:`set_solver_defaults`), ``layers`` when there are any, and ``prescribed_heating`` (by layer name,
+            ``power_w`` or ``specific_rate_w_kg``) when a layer has prescribed heating.
 
         Raises
         ------
@@ -2775,4 +2822,10 @@ cdef class BaseWorld(StructureBase):
             layers[layer_name] = layer_config
         if layers:
             config["layers"] = layers
+        cdef dict prescribed = self.prescribed_heating
+        if prescribed:
+            config["prescribed_heating"] = {
+                name: ({"power_w": heating["power"]} if "power" in heating
+                       else {"specific_rate_w_kg": heating["specific_rate"]})
+                for name, heating in prescribed.items()}
         return config

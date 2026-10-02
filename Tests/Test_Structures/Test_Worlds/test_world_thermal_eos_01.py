@@ -9,6 +9,7 @@ import pytest
 from TidalPy.Structures.configs import build_world
 from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Viscosity import make_viscosity
+from numpy_compat import trapezoid
 
 _RADIUS = 2.0e6           # [m]
 _MASS = 4.0e22            # [kg]
@@ -239,7 +240,7 @@ def test_layer_temperature_is_the_top_of_the_adiabat():
     assert world.get_temperature(interior_top) == pytest.approx(1600.0, rel=1e-6)
     radii = np.linspace(interior_base, interior_top, 2001)
     gravity = world.get_gravity(radii)
-    exponent = np.trapezoid(gravity, radii) * _EXPANSION / _HEAT_CAPACITY
+    exponent = trapezoid(gravity, radii) * _EXPANSION / _HEAT_CAPACITY
     assert result["layer_base_temperature"][1] == pytest.approx(1600.0 * np.exp(exponent), rel=1e-6)
     assert world.get_temperature(interior_base) == pytest.approx(result["layer_base_temperature"][1], rel=1e-6)
 

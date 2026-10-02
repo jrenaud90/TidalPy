@@ -35,14 +35,14 @@ jobs:
     name: Make SDist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
       - name: Build SDist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: dist/*.tar.gz
           name: artifact_sdist
@@ -56,12 +56,12 @@ jobs:
     needs: [make_sdist]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: artifact_sdist
           path: dist
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -86,7 +86,7 @@ jobs:
           - windows-latest
           - macos-latest  # arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: 'true'
@@ -98,7 +98,7 @@ jobs:
       - name: Build wheels
         run: pipx run "cibuildwheel~=4.0"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: ./wheelhouse/*.whl
           name: artifact_${{ matrix.platform }}_whls
@@ -108,7 +108,7 @@ jobs:
     needs: [make_sdist, test_sdist, build_wheels]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist
@@ -132,7 +132,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist

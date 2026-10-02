@@ -28,6 +28,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "base_.hpp"
@@ -93,6 +94,59 @@ inline size_t c_resolve_num_threads(int num_threads) {
 // Defined with the 3D orchestration below; calc_tides also spreads its Love-number solves with it.
 template <typename Body>
 inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& body);
+
+// Radial Gauss-Legendre nodes for a volume integral over each layer of a solved world. The heating density steps where
+// a layer changes zone or melt state (its moduli do), so each layer is cut at the boundaries of the solve's zones
+// inside it and, inside each zone, where its melt state changes (c_split_at_melting on the solved melt fraction, from
+// d_TIDAL_HEATING_PIECES pieces), and each part takes nodes_per_part nodes. No node sits on a boundary, where the
+// modulus and radial-solution lookups take the side below. Appends each node's radius [m], its radial weight [m]
+// (without the r^2 Jacobian), and its layer index, layer by layer from the center out.
+inline void c_layer_quadrature_nodes(
+        const c_BaseWorld& world,
+        int nodes_per_part,
+        std::vector<double>& radii,
+        std::vector<double>& weights,
+        std::vector<size_t>& node_layer) {
+    std::vector<double> unit_nodes;
+    std::vector<double> unit_weights;
+    tides::c_gauss_legendre_nodes(nodes_per_part, unit_nodes, unit_weights);
+    const auto melt_state_at = [&world](double radius) { return c_melt_state(world.get_melt_fraction(radius)); };
+    const size_t num_layers = world.get_num_layers();
+    for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
+        const c_Layer* layer = world.get_layer(layer_i);
+        const double radius_inner = layer->get_radius_inner();
+        const double radius_outer = layer->get_radius_outer();
+        std::vector<double> zone_bounds = {radius_inner};
+        for (const c_EOSZone& zone : world.get_zones()) {
+            if ((zone.layer_index == layer_i) && (zone.radius_outer > radius_inner)
+                    && (zone.radius_outer < radius_outer)) {
+                zone_bounds.push_back(zone.radius_outer);
+            }
+        }
+        zone_bounds.push_back(radius_outer);
+        std::sort(zone_bounds.begin(), zone_bounds.end());
+        for (size_t zone_i = 0; zone_i + 1 < zone_bounds.size(); ++zone_i) {
+            // The pieces c_split_at_melting searches meet without a gap, where the state does not change, so they are
+            // joined again; a zone that keeps one melt state is one part.
+            std::vector<std::pair<double, double>> parts;
+            for (const std::pair<double, double>& piece : c_split_at_melting(
+                    zone_bounds[zone_i], zone_bounds[zone_i + 1], d_TIDAL_HEATING_PIECES, melt_state_at)) {
+                if (!parts.empty() && (parts.back().second == piece.first)) { parts.back().second = piece.second; }
+                else { parts.push_back(piece); }
+            }
+            for (const std::pair<double, double>& part : parts) {
+                const double r_mid  = 0.5 * (part.second + part.first);
+                const double r_half = 0.5 * (part.second - part.first);
+                if (!(r_half > 0.0)) { continue; }
+                for (int node = 0; node < nodes_per_part; ++node) {
+                    radii.push_back(r_mid + r_half * unit_nodes[node]);
+                    weights.push_back(r_half * unit_weights[node]);
+                    node_layer.push_back(layer_i);
+                }
+            }
+        }
+    }
+}
 }  // namespace tides3d
 
 // The heating [W] each layer takes depends on where the Love numbers come from:
@@ -307,17 +361,18 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
 
 // Each layer's orbit-averaged heating [W] from the radial solution: the secular heating density integrated over
 // the layer's volume, with the analytic colatitude integral, the 2 pi longitude integral, and Gauss-Legendre nodes
-// inside each layer (the integral calc_3d_tides takes with every axis summed). The shell power dP/dr at the nodes is
-// what it sums, so `record_out`, when given, takes the heating density dP/dr / (4 pi r^2) there as each layer's
-// radial profile (at x = (r - r_inner) / (r_outer - r_inner)). A layer that is not tidal (use_tides off) was solved
-// with purely real moduli (c_Layer::share_tidal_shear_rheology), so it dissipates nothing and its heat is in neither the
-// total nor any layer; it takes 0. The tidal layers are scaled so they sum to `total_heating`, the 1D global result,
-// which removes the small radial-quadrature residual between the two; the profiles take the same scale. A liquid layer carries no
-// shear dissipation and takes 0; with no usable integral every layer is NaN. A node with no radial solution (below the
-// radial solver's starting radius) is left out of its layer's integral, with the warning calc_3d_tides gives a volume
-// integral when such nodes hold more of the body's volume than the radial solver's rtol. `retained_solves`, when
-// given, are the radial solves the 1D pass already ran; the integral reuses them instead of solving its (degree,
-// |omega|) groups again, which would double the cost of calc_tides.
+// placed by tides3d::c_layer_quadrature_nodes (the integral calc_3d_tides takes with every axis summed). The shell
+// power dP/dr at the nodes is what it sums, so `record_out`, when given, takes the heating density dP/dr / (4 pi r^2)
+// there as each layer's radial profile (at x = (r - r_inner) / (r_outer - r_inner)). A layer that is not tidal
+// (use_tides off) was solved with purely real moduli (c_Layer::share_tidal_shear_rheology), so it dissipates nothing
+// and its heat is in neither the total nor any layer; it takes 0. The tidal layers are scaled so they sum to
+// `total_heating`, the 1D global result, which removes the small radial-quadrature residual between the two; the
+// profiles take the same scale. A liquid layer carries no shear dissipation and takes 0; with no usable integral every
+// layer is NaN. A node with no radial solution (below the radial solver's starting radius) is left out of its layer's
+// integral, with the warning calc_3d_tides gives a volume integral when such nodes hold more of the body's volume
+// than the radial solver's rtol. `retained_solves`, when given, are the radial solves the 1D pass already ran; the
+// integral reuses them instead of solving its (degree, |omega|) groups again, which would double the cost of
+// calc_tides.
 inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         const c_TideSolveConfig& state,
         double total_heating,
@@ -341,21 +396,15 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         ~c_RetainedSolvesLoan() { slot = nullptr; }
     } loan(this->p_retained_radial_solves, retained_solves);
     
-    // Gauss-Legendre nodes inside each layer: no node sits on a layer boundary, where the modulus and radial-solution
-    // lookups take the layer below. The node count is the [numerical] tides_3d_radial_slices of the configuration.
-    const std::size_t nodes_per_layer = static_cast<std::size_t>(std::max(cfg.radial_slices, 1));
-    std::vector<double> unit_nodes;
-    std::vector<double> unit_weights;
-    tides::c_gauss_legendre_nodes(static_cast<int>(nodes_per_layer), unit_nodes, unit_weights);
+    // The node count per part is the [numerical] tides_3d_radial_slices of the configuration.
     std::vector<double> radii;
-    radii.reserve(n_layers * nodes_per_layer);
-    for (std::size_t i = 0; i < n_layers; ++i) {
-        const double r_mid  = 0.5 * (this->p_layers[i]->get_radius_outer() + this->p_layers[i]->get_radius_inner());
-        const double r_half = 0.5 * (this->p_layers[i]->get_radius_outer() - this->p_layers[i]->get_radius_inner());
-        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
-            radii.push_back(r_mid + r_half * unit_nodes[node]);
-        }
-    }
+    std::vector<double> node_weights;       // [m], the radial quadrature weight of each node
+    std::vector<std::size_t> node_layer;
+    tides3d::c_layer_quadrature_nodes(*this, std::max(cfg.radial_slices, 1), radii, node_weights, node_layer);
+    // Each layer's nodes run from layer_first_node[i] to layer_first_node[i + 1] (they come layer by layer).
+    std::vector<std::size_t> layer_first_node(n_layers + 1, 0);
+    for (const std::size_t layer_i : node_layer) { ++layer_first_node[layer_i + 1]; }
+    for (std::size_t i = 0; i < n_layers; ++i) { layer_first_node[i + 1] += layer_first_node[i]; }
 
     // The shell power dP/dr [W m-1] at each node: the heating density summed over the sphere of that radius.
     const c_Heating3DCollapsed integrated = this->calc_3d_tides(
@@ -377,10 +426,8 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
     double total_volume = 0.0;
     double missing_radius = 0.0;
     for (std::size_t i = 0; i < n_layers; ++i) {
-        const double r_half = 0.5 * (this->p_layers[i]->get_radius_outer() - this->p_layers[i]->get_radius_inner());
-        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
-            const std::size_t node_i = i * nodes_per_layer + node;
-            const double node_volume = r_half * unit_weights[node] * radii[node_i] * radii[node_i];
+        for (std::size_t node_i = layer_first_node[i]; node_i < layer_first_node[i + 1]; ++node_i) {
+            const double node_volume = node_weights[node_i] * radii[node_i] * radii[node_i];
             total_volume += node_volume;
             const double shell_power = integrated.values[node_i];
             if (!std::isfinite(shell_power)) {
@@ -389,7 +436,7 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
                 missing_radius = std::max(missing_radius, radii[node_i]);
                 continue;
             }
-            layer_totals[i] += r_half * unit_weights[node] * shell_power;
+            layer_totals[i] += node_weights[node_i] * shell_power;
         }
         if (this->p_layers[i]->get_use_tides()) { integral_sum += layer_totals[i]; }
     }
@@ -417,10 +464,11 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
     record_out->profile_density.assign(n_layers, std::vector<double>());
     for (std::size_t i = 0; i < n_layers; ++i) {
         if (!this->p_layers[i]->get_use_tides()) { continue; }
-        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
-            const std::size_t node_i = i * nodes_per_layer + node;
+        const double radius_inner = this->p_layers[i]->get_radius_inner();
+        const double thickness = this->p_layers[i]->get_radius_outer() - radius_inner;
+        for (std::size_t node_i = layer_first_node[i]; node_i < layer_first_node[i + 1]; ++node_i) {
             const double shell_power = integrated.values[node_i];
-            record_out->profile_fraction[i].push_back(0.5 * (1.0 + unit_nodes[node]));
+            record_out->profile_fraction[i].push_back((radii[node_i] - radius_inner) / thickness);
             record_out->profile_density[i].push_back(std::isfinite(shell_power)
                 ? scale * shell_power / (4.0 * TidalPyConstants::d_PI * radii[node_i] * radii[node_i]) : 0.0);
         }
@@ -1111,24 +1159,15 @@ inline c_CollapseGrids3D c_collapse_grids_3d(
     grids.instantaneous = !cfg.orbit_averaged;
     grids.any_summed = cfg.latitude_summed || cfg.longitude_summed || cfg.radial_summed;
 
-    // Radius: the user array, or Gauss-Legendre nodes inside each layer with r_wsum carrying the r^2
-    // Jacobian. No node sits on a layer boundary, where the modulus and radial-solution lookups take the
-    // layer below, so no node can weigh the lower layer's heating into the upper layer's integral.
+    // Radius: the user array, or Gauss-Legendre nodes inside each part of each layer (c_layer_quadrature_nodes) with
+    // r_wsum carrying the r^2 Jacobian. No node sits on a boundary, so no node can weigh the lower layer's heating into
+    // the upper layer's integral.
     if (cfg.radial_summed) {
-        const size_t num_layers = world.get_num_layers();
-        const int nodes_per_layer = (cfg.radial_slices > 0) ? cfg.radial_slices : 16;
-        std::vector<double> gl_r, gl_w;
-        tides::c_gauss_legendre_nodes(nodes_per_layer, gl_r, gl_w);
-        for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
-            const c_Layer* layer = world.get_layer(layer_i);
-            const double r_mid  = 0.5 * (layer->get_radius_outer() + layer->get_radius_inner());
-            const double r_half = 0.5 * (layer->get_radius_outer() - layer->get_radius_inner());
-            for (int node = 0; node < nodes_per_layer; ++node) {
-                const double rr = r_mid + r_half * gl_r[node];
-                grids.r_grid.push_back(rr);
-                grids.r_wsum.push_back(r_half * gl_w[node] * rr * rr);  // Gauss-Legendre weight x r^2
-                grids.r_layer.push_back(layer_i);
-            }
+        const int nodes_per_part = (cfg.radial_slices > 0) ? cfg.radial_slices : 16;
+        c_layer_quadrature_nodes(world, nodes_per_part, grids.r_grid, grids.r_wsum, grids.r_layer);
+        for (size_t node_i = 0; node_i < grids.r_grid.size(); ++node_i) {
+            // Gauss-Legendre weight x r^2
+            grids.r_wsum[node_i] = grids.r_wsum[node_i] * grids.r_grid[node_i] * grids.r_grid[node_i];
         }
     } else {
         grids.r_grid.assign(radii, radii + num_radii);

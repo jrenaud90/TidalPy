@@ -103,7 +103,7 @@ system.save_to_toml("my_system.toml")
 system_cfg = system.get_config_dict()
 ```
 
-`save_to_toml` writes the retained `source_config` when present (the original world references). For a system assembled directly in Python it falls back to `get_config_dict`, the self-contained expansion that inlines each world's full config together with its roles and orbital elements. Each inlined world is its live `get_config_dict()`, which is builder-valid, so the expansion rebuilds through `build_system`.
+`save_to_toml` writes the system as it is now (`get_save_config(destination_dir)`): every member's current tidal host, star role, and orbital elements, so an orbit changed after the build is saved. A member built from a world reference (a bundled name or a file) and unchanged since its build keeps that reference, and a relative file path is rewritten to find the same file from the folder saved into. Any other member, a system assembled directly in Python included, is written inline as its world's `get_save_config()`. `get_config_dict` is the self-contained expansion that inlines every world's live `get_config_dict()` with its roles and orbital elements; it rebuilds through `build_system` too. A world given inline in a system file finds a relative `data_file` beside the system file.
 
 ## Worlds, Host, and Identification
 

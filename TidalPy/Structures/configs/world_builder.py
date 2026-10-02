@@ -899,6 +899,9 @@ def _construct_owned_world(config: dict):
     # A star may have no layers; every other type has at least one (validate_world_config).
     _add_layers(world, config.get("layers") or {}, world_radius)
     _attach_tides(world, config)
+    for layer_name, heating in (config.get("prescribed_heating") or {}).items():
+        world.set_prescribed_heating(
+            layer_name, power=heating.get("power_w"), specific_rate=heating.get("specific_rate_w_kg"))
     # The world's own solver settings, if its file pins any. A world built from a radial profile takes
     # RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is about
     # 2.8 times faster than DOP853 at equal accuracy, the profile's kinks defeating the high order.
@@ -914,6 +917,8 @@ def _construct_owned_world(config: dict):
     # rather than the expanded profile and the path the file resolved to here.
     world.source_config = config
     world.portable_config = copy.deepcopy(given) if "data_file" in given else None
+    # What the world was at the end of its build; save_to_toml compares the live state against it.
+    world.built_config = world.get_config_dict()
     return world
 
 

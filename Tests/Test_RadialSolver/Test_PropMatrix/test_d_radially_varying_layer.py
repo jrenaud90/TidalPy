@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from TidalPy.RadialSolver.solver import radial_solver
+from numpy_compat import trapezoid
 
 PLANET_RADIUS = 6.0e6                      # [m]
 FORCING_FREQUENCY = 2.0 * np.pi / 86400.0  # [rad s-1]
@@ -17,7 +18,7 @@ def _profiles(case, num_slices):
     else:
         shear = np.full(num_slices, 5.0e10)
         density = 7000.0 - 4000.0 * fraction
-    bulk_density = 3.0 * np.trapezoid(density * radius ** 2, radius) / PLANET_RADIUS ** 3
+    bulk_density = 3.0 * trapezoid(density * radius ** 2, radius) / PLANET_RADIUS ** 3
     return radius, np.ascontiguousarray(density), np.ascontiguousarray(shear + 0j), bulk_density
 
 

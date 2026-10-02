@@ -321,7 +321,7 @@ schema_version = "{SCHEMA_VERSION}"
 # `isotopes` is the dataset an isotope radiogenics model takes when its table (or make_radiogenics) gives none.
 #
 # User-defined isotope datasets, each a table named after the dataset. A layer's radiogenics table selects one with
-# `isotopes = "<dataset name>"`; the built-in datasets ("modern_day_chondritic", "llri_and_slri",
+# `isotopes = "<dataset name>"`; the built-in datasets ("modern_day_chondritic", "llri", "slri", "llri_and_slri",
 # "bulk_silicate_earth") are always available and take precedence over a dataset here with the same name. Each
 # isotope is a sub-table; half lives and the reference time (when the abundances apply, measured forward in time)
 # are in Myr, the heat production rate (hpr) in W/kg. For example:

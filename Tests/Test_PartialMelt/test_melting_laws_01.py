@@ -35,16 +35,31 @@ def test_two_branch_simon_glatzel(pressure):
     assert curve.calc_melting_temperature(pressure) == pytest.approx(expected, rel=1e-14)
 
 
+_FALLING = {"temperature_k": 273.16, "simon_a_pa": -4.0e8, "simon_c": 9.0, "reference_pressure_pa": 611.0}
+_FALLING_END = 2.5e8   # [Pa] the end of the falling curve's fitted range, short of P_ref - a
+
+
 def test_reference_pressure_and_a_falling_curve():
-    """A reference pressure shifts the law; a negative a gives a curve that falls with pressure and reaches 0 K where
-    its base does (ice Ih's melting curve falls with pressure)."""
-    curve = make_melting_curve(
-        "simon_glatzel", {"temperature_k": 273.16, "simon_a_pa": -4.0e8, "simon_c": 9.0, "reference_pressure_pa": 611.0})
+    """A reference pressure shifts the law; a negative a gives a curve that falls with pressure (ice Ih's melting curve
+    does), held at its value past the end of its fitted range."""
+    curve = make_melting_curve("simon_glatzel", {**_FALLING, "maximum_pressure_pa": _FALLING_END})
     assert curve.calc_melting_temperature(0.0) == pytest.approx(273.16)
     assert curve.calc_melting_temperature(2.0e8) == pytest.approx(
         _simon_glatzel(2.0e8, 273.16, -4.0e8, 9.0, 611.0), rel=1e-14)
     assert curve.calc_melting_temperature(2.0e8) < 273.16
-    assert curve.calc_melting_temperature(5.0e8) == 0.0
+    held = curve.calc_melting_temperature(_FALLING_END)
+    assert curve.calc_melting_temperature(5.0e8) == held > 0.0
+    assert curve.calc_melting_slope(5.0e8) == 0.0
+
+
+def test_a_falling_curve_needs_an_end_short_of_zero_kelvin():
+    """Without a maximum pressure, or with one past P_ref - a, a falling curve would reach 0 K."""
+    with pytest.raises(ValueError, match="reaches 0 K"):
+        make_melting_curve("simon_glatzel", _FALLING)
+    with pytest.raises(ValueError, match="reaches 0 K"):
+        make_melting_curve("simon_glatzel", {**_FALLING, "maximum_pressure_pa": 5.0e8})
+    with pytest.raises(ValueError, match="above its 'reference_pressure_pa'"):
+        make_melting_curve("simon_glatzel", {**_FALLING, "maximum_pressure_pa": 100.0})
 
 
 def test_constant_and_interpolated_curves():

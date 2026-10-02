@@ -14,6 +14,7 @@ from TidalPy.Rheology.rheology import Maxwell, Elastic
 from TidalPy.Tides.classes.tide import make_tide
 
 from shared_materials import constant_solid
+from numpy_compat import trapezoid
 
 _R = 1.0e6
 _DENSITY = 5000.0
@@ -92,7 +93,7 @@ def test_equatorial_band_profile():
         radii=radii, latitude_summed=True, longitude_summed=True,
         latitude_analytic=False, latitude_nodes=32,
         colatitude_min=1.0, colatitude_max=np.pi - 1.0, **_STATE)["heating"]
-    integrated = np.trapezoid(profile, radii)
+    integrated = trapezoid(profile, radii)
     total = _band_total(world, 1.0, np.pi - 1.0)
     assert math.isclose(integrated, total, rel_tol=2e-2)
 

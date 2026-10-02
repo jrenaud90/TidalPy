@@ -81,17 +81,7 @@ def test_every_material_has_a_physical_state(name):
             assert state["shear_viscosity"] > 0.0
 
 
-# Materials whose melting curves are known to fail the check below, each with its tracked reason. Strict, so a fix
-# shows up as an unexpected pass to remove from here.
-_KNOWN_MELTING_CURVE_FAILURES = {
-    "ice_ih": "the Simon-Glatzel solidus with a negative a reaches 0 K past about 0.42 GPa, so ice Ih reads fully "
-              "liquid at depth (task list R25 (e))",
-}
-
-
-@pytest.mark.parametrize("name", [
-    pytest.param(name, marks=pytest.mark.xfail(reason=_KNOWN_MELTING_CURVE_FAILURES[name], strict=True))
-    if name in _KNOWN_MELTING_CURVE_FAILURES else name for name in _ALL])
+@pytest.mark.parametrize("name", _ALL)
 def test_melting_curves_are_positive_and_do_not_cross(name):
     material = load_material(name)
     if not material.can_melt:
@@ -119,6 +109,9 @@ def test_values_match_their_sources():
     ice = load_material("ice_ih")
     assert ice.calc_melting_range(0.0)[0] == 273.16
     assert ice.calc_melting_range(1.0e8)[0] < 273.16
+    # Past the ice Ih, ice III, and liquid triple point (IAPWS R14-08: 251.165 K at 208.566 MPa) the curve holds.
+    assert ice.calc_melting_range(2.08566e8)[0] == pytest.approx(251.165, abs=0.2)
+    assert ice.calc_melting_range(1.0e9)[0] == ice.calc_melting_range(2.08566e8)[0]
     water = load_material("water").calc_state(0.0, 273.15)
     assert water["density"] == pytest.approx(999.84)
     # K_S / K_T = 1 + alpha gamma T reproduces Anderson and Ahrens (1994).

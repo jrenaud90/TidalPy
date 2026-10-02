@@ -2,7 +2,7 @@
 
 Tutorial notebooks for TidalPy's API. We recommend starting at the top of `Basics/` and working your way down through `Physics/` and `Systems/`, with each notebook building on the ones before it. Each notebook covers one to three concepts.
 
-These demos use the Python API. TidalPy's C++ API is exposed via headers that can be imported and used by other packages. If there is interest we can develop demos describing showcasing this API in the future, for now there are no C++ demonstrations.
+These demos use the Python API. TidalPy's C++ API is exposed through headers that other packages can include, and it has no demonstrations here.
 
 ## Order
 
@@ -19,7 +19,7 @@ These demos use the Python API. TidalPy's C++ API is exposed via headers that ca
 8. `08_love_numbers_1d`: the 1D radial solver for global Love numbers of multi-layer terrestrial worlds, and how static vs dynamic and compressible vs incompressible assumptions change them; Love numbers solved on a built world with each Love method; tidal, loading, and free Love numbers; the radial functions, the solution diagnostics, and the frequency dependence of $k_2$.
 9. `09_tidal_heating_3d`: the secular 3D tidal heating of a homogeneous Io, with profiles in colatitude and depth, a longitude-resolved surface map, and the volume integral checked against the 1D total.
 10. `10_thermal_eos`: changing a world's equation of state and temperature profile, and how each reshapes the interior structure.
-
+13. `13_tidal_maps_3d`: maps of the 3D tidal response of a homogeneous Io, covering secular heating across eccentricity, spin, and obliquity; stress through an orbit; the largest tension over an orbit; stress-strain loops and where dissipation appears; the surface displacement; and the same grids timed on one thread and on every core.
 14. `14_bundled_worlds`: a tour of the bundled worlds, checking each solved interior's mass, moment of inertia, and Love number against the observations it was fitted to or predicts; Jupiter's layered interior, Pluto's ocean, Io's heat budget, and the TRAPPIST-1 planets.
 15. `15_thermal_interior`: the cooling and radiogenic model families, the temperature and heat-flow profile carried through the equation-of-state solve, tidal heating by layer, and a simple heat budget.
 17. `17_tidal_truncations`: the eccentricity and obliquity truncation levels; heating and $\dot{e}$ against eccentricity at each level and with the exact eccentricity functions, and the error of each; how many modes the exact functions need; the cost of each level with closed-form and radial-solver Love numbers; and the helpers that pick a level.
@@ -31,9 +31,6 @@ These demos use the Python API. TidalPy's C++ API is exposed via headers that ca
 11. `11_multi_world`: constructing systems of multiple worlds, changing tidal hosts, adding planets and dropping one by rebuilding the system, saving and loading systems, and the instantaneous spin, semi-major axis, and eccentricity derivatives.
 12. `12_thermal_orbital_evolution`: a simple ODE for a system's coupled thermal and orbital evolution (spin, eccentricity, semi-major axis, mantle temperature, tidal heating) integrated over roughly a billion years with CyRK.
 16. `16_earth_moon_sun`: a star that is nobody's tidal host, a mutual Earth-Moon pair with single-body and dual-body evolution, the orbit about the star used for insolation, and obliquity tides.
-
-### Three-Dimensional Maps
-13. `13_tidal_maps_3d` (in `Physics/`): maps of the 3D tidal response of a homogeneous Io, covering secular heating across eccentricity, spin, and obliquity; stress through an orbit; the largest tension over an orbit; stress-strain loops and where dissipation appears; the surface displacement; and the same grids timed on one thread and on every core.
 
 ## Running the Notebooks
 

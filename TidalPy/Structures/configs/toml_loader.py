@@ -47,6 +47,7 @@ from TidalPy.schema import (
     _SOLVER_KEY_RULES,
     _REQUIRED_WORLD_KEYS,
     DEFAULT_TIDE_MODELS,
+    PRESCRIBED_HEATING_KEYS,
 )
 
 
@@ -223,6 +224,32 @@ def load_toml(source: Union[str, dict]) -> dict:
 # =====================================================================================================================
 # Validation
 # =====================================================================================================================
+def _validate_prescribed_heating(table, layers) -> None:
+    """Check a world's ``[prescribed_heating]`` table: one entry per layer it names, each holding exactly one of
+    :data:`TidalPy.schema.PRESCRIBED_HEATING_KEYS` with a finite number.
+
+    Raises
+    ------
+    ValueError
+        The table is not a table, names a layer the world does not hold, or an entry is malformed.
+    """
+    if not isinstance(table, dict):
+        raise ValueError("The '[prescribed_heating]' entry must be a table keyed by layer name.")
+    for layer_name, entry in table.items():
+        where = f"[prescribed_heating.{layer_name}]"
+        if isinstance(layers, dict) and (layer_name not in layers):
+            raise ValueError(
+                f"{where} names no layer of this world. "
+                f"Layers: {', '.join(layers)}.")
+        if not isinstance(entry, dict) or (len(entry) != 1) or (next(iter(entry)) not in PRESCRIBED_HEATING_KEYS):
+            raise ValueError(
+                f"{where} must hold exactly one of {', '.join(PRESCRIBED_HEATING_KEYS)} (a power [W] spread over the "
+                "layer by mass, or a specific rate [W kg-1]).")
+        value = next(iter(entry.values()))
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{where} takes a finite number; got {value!r}.")
+
+
 def validate_world_config(config: dict) -> None:
     """Validate the world-level portion of a configuration dictionary.
 
@@ -282,6 +309,9 @@ def validate_world_config(config: dict) -> None:
                         f"Allowed keys: {sorted(ALLOWED_TIDES_KEYS)}.")
             continue
         if key in structural:
+            continue
+        if key == "prescribed_heating":
+            _validate_prescribed_heating(value, config.get("layers"))
             continue
         if key in WORLD_MODEL_SECTIONS:
             if world_type not in WORLD_MODEL_SECTIONS[key]:

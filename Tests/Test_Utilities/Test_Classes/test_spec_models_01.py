@@ -70,6 +70,9 @@ def _valid_change(entry):
     default = entry["default"]
     if entry["bounds"] == "unit interval":
         return 0.5 if default != 0.5 else 0.25
+    if default is not None and math.isinf(default):
+        # An open limit (a curve's maximum pressure, say) takes a large finite one.
+        return 1.0e12
     if default is None or not math.isfinite(default) or default == 0.0:
         return 1.0
     return default * 2.0

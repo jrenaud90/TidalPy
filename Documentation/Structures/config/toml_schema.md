@@ -71,6 +71,7 @@ print(available_worlds())      # data-dir worlds unioned with packaged worlds
 | `spin_frequency_rad_s` | optional | all | Rotation rate \[rad/s\]. |
 | `effective_temperature_k` | optional | `star` | Effective temperature \[K\]. |
 | `luminosity_w` | optional | `star` | Luminosity \[W\]. |
+| `[prescribed_heating]` | optional | all | A layer's prescribed internal heating, keyed by layer name: `power_w` \[W\] spread over the layer by mass, or `specific_rate_w_kg` \[W kg$^{-1}$\], exactly one per layer (`BaseWorld.set_prescribed_heating`). It acts in a layer with `use_heating` during a thermal EOS solve. |
 | `[luminosity]` | optional | `star` | The star's mass-to-luminosity model: `model` (`fixed`, `mass_to_luminosity`, or `power_law`) plus that model's parameters, as `Stellar.make_luminosity` takes them. Attaching it does not change the stored `luminosity_w`. |
 | `moment_of_inertia_factor` | optional | all | $C/(MR^2)$ of the world's spin model, within $(0, 2/3]$. It gives the moment of inertia until the EOS is solved. Left out, it comes from `[worlds]` in `TidalPy_Configs.toml`: 0.4 (a uniform sphere), or 0.0754 for a star (an $n = 3$ polytrope). |
 | `[layers.<name>]` | **yes** (optional for a star) | all | One table per layer (see below). |
@@ -432,7 +433,7 @@ The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s it
 
 The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack` (see [`worldpack.md`](worldpack.md)). A world built this way pins `integration_method = "RK45"` in its `[eos_solver]` table unless the file sets that key, and `get_solver_defaults()` reports it. On an interpolated profile RK45 is about 2.8 times faster than DOP853 at equal accuracy, because the profile's kinks defeat the higher order.
 
-The world keeps the configuration as given (the `data_file` reference as written and the refining tables) on `portable_config`, and `save_to_toml` writes it. The saved file therefore builds anywhere the data file resolves, without the expanded profile or a machine-specific path. `source_config` holds the expanded form.
+The world keeps the configuration as given (the `data_file` reference as written and the refining tables) on `portable_config`. While the world is unchanged since its build, `save_to_toml` writes that form, with the reference rewritten to find the same file from the folder saved into, so the saved file holds no expanded profile. A world changed after its build is saved as its live `get_config_dict()`, the expanded profile included, so the change is kept. `source_config` holds the expanded form as built.
 
 ## System Schema
 
@@ -482,10 +483,10 @@ Every entry point below is exported from `TidalPy.Structures.configs`, and the m
 
 * `build_world(source, force=False) -> BaseWorld`: resolve `source` (bundled name, file path, or dict), validate it, and return the built Cython world. `force=True` bypasses the schema-version warning. A thin wrapper over `BaseWorld.build(source, force=False)`, which returns the type-appropriate subclass.
 * `load_radial_data(source, surface_radius=None) -> dict`: read a radial profile (a data-file path or a mapping of arrays) into MKS arrays ascending in radius, the same reader `data_file` and `data` worlds use. `detect_layer_boundaries(radius, shear_modulus)` returns the `(start, end, is_solid)` runs it splits into.
-* `world.save_to_toml(path, overwrite=True)`: write the retained build configuration, stamped with the current `schema_version` under a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it. A world built from a `data_file` writes its `portable_config`. A world constructed directly rather than through `build_world` falls back to `get_config_dict()`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
+* `world.save_to_toml(path, overwrite=True)`: write the world as it is now (`world.get_save_config(destination_dir)`), stamped with the current `schema_version` under a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it. That is the live `get_config_dict()`, validated against this schema first so it writes a buildable file or raises `ValueError`, except for a world built from a `data_file` and unchanged since its build, which writes its `portable_config` with the file reference rewritten for the destination folder. The layer masses an EOS solve sets and the world's name do not count as changes. `path` may be a string or a `pathlib.Path`.
 * `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with each layer's scalars, `material` table, and model sub-tables, `tides`, `schema_version`).
 * `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> Layer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
-* `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly). `world.portable_config`: for a world built from a `data_file`, the configuration as given (`None` otherwise). A successful `load_binary` clears both, since they describe the world before the load, and `save_to_toml` then writes `get_config_dict()`.
+* `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly). `world.portable_config`: for a world built from a `data_file`, the configuration as given (`None` otherwise). `world.built_config`: the world's `get_config_dict()` at the end of its build, which `save_to_toml` compares the live state against. A successful `load_binary` clears all three, since they describe the world before the load, and `save_to_toml` then writes `get_config_dict()`.
 * `EOS_SOLVER_KEYS`, `RADIAL_SOLVER_KEYS`, and `validate_solver_table(section, table, where)`: the keys a world's `[eos_solver]` and `[radial_solver]` tables may pin, and the check the loader and `set_solver_defaults` apply to them.
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir unioned with packaged `WorldPack`). Bundled system files share that directory and are listed by `available_systems()` instead. `build_world` on a system config raises a `ValueError` naming `build_system`, and the reverse holds too.
 * `install_worldpack(force=False) -> str`: copy the packaged `WorldPack` worlds into the user data directory (copy-if-absent unless `force`); returns that directory.
@@ -510,7 +511,7 @@ From `TidalPy.Structures.configs.toml_loader`:
 
 ## Round Trip
 
-`build_world` retains the exact normalized configuration it built from, so a `build -> save_to_toml -> build` cycle reproduces the same world.
+`save_to_toml` writes the world as it is now, so a `build -> change -> save_to_toml -> build` cycle reproduces the changed world.
 
 ```python
 world = build_world("earth_simple")

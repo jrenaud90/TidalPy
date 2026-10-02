@@ -13,6 +13,7 @@ from TidalPy.Cooling import make_cooling
 from TidalPy.Material import Material, Phase
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
+from numpy_compat import trapezoid
 
 _RADIUS = 1.8e6                 # [m]
 _CORE_RADIUS = 0.5 * _RADIUS    # [m]
@@ -86,7 +87,7 @@ def _integrated_mass(layer, num=2001):
     """The mass under a layer's reported density, read through the layer so an interface takes its own side."""
     radius = np.linspace(layer.radius_inner, layer.radius_outer, num)
     density = np.array([layer.get_density(r) for r in radius])
-    return 4.0 * math.pi * np.trapezoid(radius ** 2 * density, radius)
+    return 4.0 * math.pi * trapezoid(radius ** 2 * density, radius)
 
 
 @pytest.mark.parametrize("solve_temperature", [False, True])

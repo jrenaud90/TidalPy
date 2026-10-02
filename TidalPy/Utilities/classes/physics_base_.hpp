@@ -61,7 +61,7 @@ public:
             "TidalPy: model '" + this->p_model_name + "' has no parameter '" + name_or_key + "'");
     }
 
-    // An independent copy that observes no layer.
+    // An independent copy of the model.
     virtual std::unique_ptr<c_PhysicsBase> clone_physics() const {
         throw std::runtime_error("TidalPy: model '" + this->p_model_name + "' cannot be copied (it has no spec)");
     }

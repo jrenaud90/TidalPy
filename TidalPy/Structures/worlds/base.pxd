@@ -511,6 +511,9 @@ cdef class BaseWorld(StructureBase):
     cdef public dict source_config
     # A data-file world's config as given, for save_to_toml, or None.
     cdef public dict portable_config
+    # The world's get_config_dict() at the end of its build, which save_to_toml compares the live state against, or
+    # None.
+    cdef public dict built_config
     # Cached non-owning layer views, built once (lazily) and invalidated by add_layer so the wrappers are not rebuilt
     # on every world.<layer> / get_layer access.
     cdef list _layer_views

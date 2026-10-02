@@ -11,7 +11,9 @@
 # Their basal-slip, grain-boundary-sliding, and dislocation mechanisms are not included. Tidal rheology: Andrade.
 #
 # Melting: a fit to the IAPWS R14-08 (2011) ice Ih curve from 0 to 208.6 MPa (maximum error 0.17 K); it falls with
-# pressure. A single melting temperature, and the IAPWS latent heat. Liquid: water.
+# pressure, and above 208.566 MPa, the triple point with ice III and liquid water, it holds its value there (about 251
+# K), where ice III's curve takes over and rises slowly. A single melting temperature, and the IAPWS latent heat.
+# Liquid: water.
 schema_version = "0.2.0"
 description = "Water ice Ih (IAPWS-06) with diffusion creep, melting into liquid water."
 category = "icy"
@@ -64,9 +66,11 @@ model = "simon_glatzel"
 temperature_k = 273.16
 simon_a_pa = -4.15e8
 simon_c = 8.25
+maximum_pressure_pa = 2.08566e8
 
 [melting.liquidus]
 model = "simon_glatzel"
 temperature_k = 273.16
 simon_a_pa = -4.15e8
 simon_c = 8.25
+maximum_pressure_pa = 2.08566e8

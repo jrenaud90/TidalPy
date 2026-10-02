@@ -115,6 +115,10 @@ DEFAULT_TIDE_MODELS = {
 }
 
 # World-level model tables, and the world types that may carry each.
+# The world-level [prescribed_heating] table: one entry per layer name holding exactly one of these keys (a power
+# spread over the layer by mass, or a specific rate), as BaseWorld.set_prescribed_heating takes them.
+PRESCRIBED_HEATING_KEYS = ("power_w", "specific_rate_w_kg")
+
 WORLD_MODEL_SECTIONS = {
     "luminosity": ("star",),   # a star's mass-to-luminosity model (Stellar.make_luminosity)
 }

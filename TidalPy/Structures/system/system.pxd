@@ -114,6 +114,7 @@ cdef class System(TidalPyBaseClass):
     cdef unique_ptr[c_System] _system
     cdef list _world_wrappers   # Python list of the added BaseWorld wrappers (co-own the C++ worlds)
     cdef public dict source_config   # system config the system was built from (or None if built directly)
+    cdef public object source_dir    # folder of the system file its relative paths are relative to, or None
     cdef Py_ssize_t _resolve_index(self, object world) except *
     cdef void _rebuild_world_wrappers(self)
     cpdef dict get_config_dict(self)

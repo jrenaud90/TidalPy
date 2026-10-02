@@ -243,8 +243,8 @@ public:
         mat.degree_l            = degree_l;
 
         // The solve reads no stored profile, but the solution still reports the planet's scalars and
-        // find_love runs only on a solution marked solved. Same values inject_from_world_eos used to take
-        // off the ends of the arrays it copied, in the units the methods work in.
+        // find_love runs only on a solution marked solved: the values at the ends of the structure arrays, in the
+        // units the methods work in.
         c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
         const auto to_nd = [nondimensionalize](double value, double conv) {
             return nondimensionalize ? value / conv : value;

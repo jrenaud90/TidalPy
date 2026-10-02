@@ -13,6 +13,7 @@ from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 
 from shared_materials import constant_solid
+from numpy_compat import trapezoid
 
 
 _R = 1.0e6
@@ -93,7 +94,7 @@ def test_secular_grid_is_time_average_of_instantaneous(max_degree_l):
     times = np.linspace(0.0, period, 2001)
     inst = world.calc_3d_tides(*_SYNC, radii=np.array([r]), colatitudes=np.array([colat]),
                                longitudes=lons, times=times, orbit_averaged=False)['heating'][0, 0, :, :]
-    averaged = np.trapezoid(inst, times, axis=-1) / period
+    averaged = trapezoid(inst, times, axis=-1) / period
     np.testing.assert_allclose(averaged, secular, rtol=1.0e-8)
 
 

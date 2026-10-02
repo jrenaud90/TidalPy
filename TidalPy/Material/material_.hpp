@@ -672,11 +672,25 @@ protected:
                     "with a solid phase never uses: a layer takes its rheology from the solid phase (or its own "
                     "override). Move the rheology to the solid phase, or to the layer.");
             }
+            this->p_check_melting_curves_do_not_cross();
         } else if (components.solidus || components.liquidus || components.weakening
                    || components.bulk_modulus_mixing || components.bulk_viscosity_mixing) {
             throw std::invalid_argument(
                 this->p_describe() + " has melting laws but not both a solid ('solid') and a liquid ('liquid') phase "
                 "for them to melt between.");
+        }
+    }
+
+    // The liquidus at or above the solidus at zero pressure, where every layer reads them without pressure melting.
+    // Deeper, a liquidus at or below the solidus melts as a step at the solidus (c_Material::calc_state).
+    void p_check_melting_curves_do_not_cross() const {
+        const double solidus_temperature  = this->p_components.solidus->calc_melting_temperature(0.0);
+        const double liquidus_temperature = this->p_components.liquidus->calc_melting_temperature(0.0);
+        if (liquidus_temperature < solidus_temperature) {
+            throw std::invalid_argument(
+                this->p_describe() + " has its liquidus below its solidus at zero pressure ("
+                + c_format_param_value(liquidus_temperature) + " K against " + c_format_param_value(solidus_temperature)
+                + " K).");
         }
     }
 

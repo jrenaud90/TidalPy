@@ -10,6 +10,7 @@ import pytest
 from TidalPy.Material.laws import make_eos
 from TidalPy.Structures import build_world
 from TidalPy.Structures.worlds import TerrestrialWorld
+from numpy_compat import trapezoid
 
 # Monteux et al. (2016) peridotite melting curves.
 _MONTEUX_SOLIDUS = {
@@ -117,7 +118,7 @@ def test_adiabat_base_follows_the_compressed_expansivity():
     bulk_modulus = law.calc_eos(
         earth.get_pressure(radii), temperature, thermal=earth.mantle.use_thermal_expansion)["bulk_modulus"]
     alpha = alpha0 * solid["eos"]["reference_bulk_modulus_pa"] / bulk_modulus
-    exponent = np.trapezoid(alpha * earth.get_gravity(radii), radii) / heat_capacity
+    exponent = trapezoid(alpha * earth.get_gravity(radii), radii) / heat_capacity
     assert result["layer_base_temperature"][2] == pytest.approx(_MANTLE_TEMPERATURE * math.exp(exponent), rel=1e-5)
 
 

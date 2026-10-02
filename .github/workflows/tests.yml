@@ -228,13 +228,13 @@ jobs:
     name: Lint TidalPy with ruff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: 'true'
           ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -276,13 +276,13 @@ jobs:
           - {os: macos-latest,   os-name: MacOS}
           - {os: windows-latest, os-name: Windows}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: 'true'
           ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 

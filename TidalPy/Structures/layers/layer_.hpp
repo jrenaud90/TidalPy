@@ -740,7 +740,7 @@ protected:
 
     // Shared and immutable, like the rheologies.
     std::shared_ptr<const c_CoolingBase> p_cooling;
-    // Owned, observing this layer.
+    // Shared and immutable, like the cooling model.
     std::shared_ptr<const c_RadiogenicsBase> p_radiogenics;
 };
 
