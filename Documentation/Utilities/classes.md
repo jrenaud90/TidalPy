@@ -1,6 +1,6 @@
 # Base Classes (`Utilities.classes`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 Three C++ base classes underlie every object TidalPy builds. They give a rheology model, a cooling model, a layer, and a world the same methods for saving and restoring themselves, so a new physics model needs no serialization code of its own.
 
@@ -86,7 +86,7 @@ PhysicsBase(model_name: str)
 | `.model_name` | `str` | The physics model's resolved name. |
 | `get_config_dict()` | `dict` | `{"model": ...}` plus the model's own parameters. |
 
-Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name. Each concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
+Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name. A model declared through a parameter table (`c_SpecModel`, `spec_model_.hpp`) appends each parameter from its table, and any other concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. A model with a parameter table also has `parameters`, `get_parameter(name)`, `get_parameter_info()`, and `with_parameters(**changes)` in Python. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
 
 The keys are the ones the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model. A world's configuration therefore round-trips. The world collects the configuration of each layer, each layer collects the configuration of each attached model, and every result is valid builder input.
 
@@ -94,25 +94,27 @@ The config entries are not part of the binary format. They are a separate, human
 
 ## Checking Physics-Model Config Keys
 
-`check_config_keys(config, accepted_keys, family)` is the guard every `make_*` factory runs before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. The most common mistake is a missing unit suffix, such as `solidus` for `solidus_k`.
+A model declared through a parameter table (`c_SpecModel`: rheology, viscosity, cooling, and the material and melting laws) checks its own keys when it is built: a key it does not read raises `ValueError` naming the closest one it does. `check_config_keys(config, accepted_keys, family)` is the same guard for the families without a parameter table (radiogenics, tides, luminosity), whose `make_*` factories run it before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. The most common mistake is a missing unit suffix, such as `heat_production` for `heat_production_w_kg`.
 
 ```python
 from TidalPy.Utilities.classes import check_config_keys
 
 check_config_keys(
-    {"model": "henning", "solidus_k": 1500.0},
-    {"solidus_k", "liquidus_k"},
-    "partial-melt"
+    {"model": "fixed", "fixed_heat_production_w_kg": 1.0e-11},
+    {"fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"},
+    "radiogenics"
 )
-check_config_keys(
-    {"solidus": 1500.0},
-    {"solidus_k", "liquidus_k"},
-    "partial-melt"
-)
-# ValueError: TidalPy: unrecognized partial-melt config key(s): 'solidus' (did you mean 'solidus_k'?). ...
+try:
+    check_config_keys(
+        {"fixed_heat_production": 1.0e-11},
+        {"fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"},
+        "radiogenics"
+    )
+except ValueError as error:
+    print(error)   # ... 'fixed_heat_production' (did you mean 'fixed_heat_production_w_kg'?) ...
 ```
 
-The check is per family rather than per model. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family. Only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
+The check is per family rather than per model, since these factories take one table for every model of their family (a tide table can carry both `fixed_q` and `fixed_dt`). Only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.radiogenics]`, so the offending line can be found in the TOML file.
 
 ## C++ API
 
@@ -138,15 +140,15 @@ restored.load_binary("body.tpyb");
 ### `config_entry_.hpp`
 
 ```cpp
-// A concrete model reports its parameters by extending its parent's entries.
+// A model without a parameter table reports its parameters by extending its parent's entries.
 void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-    c_RheologyBase::append_config_entries(out);   // pushes {"model": "andrade"}
-    out.push_back(c_config_double("alpha", this->p_alpha));
-    out.push_back(c_config_double("zeta",  this->p_zeta));
+    c_LuminosityBase::append_config_entries(out);   // pushes {"model": "power_law"}
+    out.push_back(c_config_double("power_law_coeff", this->p_coeff));
+    out.push_back(c_config_double("power_law_exponent", this->p_exponent));
 }
 ```
 
-`c_ConfigEntry` carries a key, a kind tag, and one payload: a double, a 64-bit integer, a bool, a string, a list of doubles, or a list of strings. The builders `c_config_double`, `c_config_int`, `c_config_bool`, `c_config_string`, `c_config_doubles`, and `c_config_strings` construct them. `c_PhysicsBase::get_config_entries()` returns the filled vector.
+A model declared through a parameter table gets this override from the table, and a composite (a phase or a material) adds one nested table per filled slot. `c_ConfigEntry` carries a key, a kind tag, and one payload: a double, a 64-bit integer, a bool, a string, a list of doubles, a list of strings, a nested table, or a list of tables. The builders `c_config_double`, `c_config_int`, `c_config_bool`, `c_config_string`, `c_config_doubles`, `c_config_strings`, `c_config_table`, and `c_config_table_list` construct them. `c_PhysicsBase::get_config_entries()` returns the filled vector.
 
 ### `structure_base_.hpp` and `physics_base_.hpp`
 

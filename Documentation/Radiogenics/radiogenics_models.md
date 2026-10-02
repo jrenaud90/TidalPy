@@ -1,6 +1,6 @@
 # Radiogenic Models (`Radiogenics`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-02_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
@@ -17,7 +17,7 @@ c_TidalPyBaseClass
               └── c_FixedRadiogenics     alias "constant"
 ```
 
-The abstract base declares `calc_heating(time, mass)` and supplies the three vectorized wrappers, so a new model only has to implement the heating law.
+The abstract base declares `calc_heating(time, mass)` and supplies one vectorized method, `calc_heating_vectorize(time, mass, out)`, that loops over it, so a new model only has to implement the heating law. A model may override the vectorized method; the isotope model does, forming each decay constant once per sweep.
 
 ## Models
 
@@ -45,7 +45,7 @@ Applies one lumped specific rate to the whole layer, optionally with a single ef
 
 ### Behavior at the Limits
 
-A half life at or below zero is treated as infinite, not zero. This allows the constant-rate case to use the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
+A `fixed` model's average half life at or below zero is treated as infinite, not zero, so the constant-rate case uses the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
 
 Evaluating a model far before its reference time asks for an exponential that would overflow. Both decaying models guard against this and return NaN, so a bad epoch shows up as NaN heating.
 
@@ -144,25 +144,44 @@ model = make_radiogenics("isotope", {"isotopes": "bulk_silicate_earth"})
 ### Attaching a Model to a `Layer`
 
 ```python
-layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
-layer.radiogenics_set                         # True
-layer.calc_radiogenic_heating(time, mass)     # [W] for the mass supplied
-world.calc_internal_heating(time)             # [W] summed over all layers
+from TidalPy.Radiogenics import IsotopeRadiogenics
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds import TerrestrialWorld
+
+radiogenics = IsotopeRadiogenics.from_dataset("modern_day_chondritic")
+time = radiogenics.ref_time                          # [s] the dataset's reference time
+
+mantle = Layer(
+    "mantle",
+    0,
+    0.0,
+    1.8e6,
+    material="simple_rock",
+    temperature=1600.0,
+    use_heating=True)                                # Heated by its model in a thermal solve
+mantle.set_radiogenics(radiogenics)
+mantle.radiogenics_set                               # True
+mantle.calc_radiogenic_heating(time, 8.0e22)         # [W] for the mass supplied
+
+world = TerrestrialWorld("Io-like", 1.8e6, 8.0e22)
+world.add_layer(mantle)
+world.solve_eos()                                    # Sets each layer's mass
+world.calc_internal_heating(time)                    # [W] summed over all layers
 ```
 
-`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports the total as `layer_heating` (see [Worlds](../Structures/worlds/worlds.md)).
+`set_radiogenics` gives the layer its own copy of the model, built from the model's parameters, so one model can be attached to several layers and stays usable afterwards; a later change to it does not reach the layers. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports it as `layer_heating_radiogenic`, part of `layer_heating` (see [Heat Sources](../Structures/worlds/worlds.md#heat-sources)).
 
 The mass is an argument so the caller can choose which mass is radiogenic. This is usually the layer's own mass, but possibly one differentiated part of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solves, so solve the world's structure first.
 
 ### Vectorized Evaluation
 
-Three vectorized entry points are defined once on the base class, so every model inherits them.
+Three vectorized Python methods are defined once on the base class, so every model inherits them. They differ only in which argument they take as an array.
 
 - `calc_heating_vectorize_time(time[], mass)`: a time sweep at constant mass.
 - `calc_heating_vectorize_mass(time, mass[])`: a mass sweep at constant time.
 - `calc_heating_vectorize_all(time[], mass[])`: element-wise over two equal-length arrays.
 
-The Cython wrappers accept any array-like and return a `float64` NumPy array. At the C++ level each fills a caller-supplied `std::vector<double>&`, and mismatched lengths throw `std::invalid_argument`.
+Each accepts any array-like and returns a `float64` NumPy array. All three call the one C++ method, `calc_heating_vectorize(time, mass, out)`, which broadcasts a length-one input against the other and fills the caller-supplied `std::vector<double>&`. Mismatched lengths raise `ValueError`.
 
 ```python
 import numpy as np
@@ -181,6 +200,8 @@ For a single number without keeping a model around, each model has a lower-case 
 import numpy as np
 from TidalPy.Radiogenics import off, isotope, fixed
 
+mass = 1.0e22   # [kg]
+time = 1.0e17   # [s]
 heating = fixed(time, mass, fixed_heat_production=1.0e-11)
 
 # time and mass may each be a float or an array and are broadcast together.
@@ -188,7 +209,7 @@ curve = fixed(np.linspace(0.0, 1.0e18, 50), mass,
               fixed_heat_production=1.0e-11, average_half_life=4.47e17)
 ```
 
-Signatures: 
+Signatures:
 
 - `off(time, mass)`;
 - `isotope(time, mass, heat_production, half_lives, mass_fracs, concentrations, ref_time=0.0, names=None)`;
@@ -220,7 +241,7 @@ std::unique_ptr<c_RadiogenicsBase> model = c_find_radiogenics(model_id, config);
 const double heating = model->calc_heating(time, mass);   // [W]
 ```
 
-- `c_RadiogenicsBase : c_PhysicsBase`: abstract, with `calc_heating(time, mass)` pure virtual plus the three vectorized wrappers.
+- `c_RadiogenicsBase : c_PhysicsBase`: abstract, with `calc_heating(time, mass)` pure virtual and the virtual `calc_heating_vectorize(time, mass, out_heating)`, which loops over it.
 - Concrete models `c_OffRadiogenics`, `c_IsotopeRadiogenics`, and `c_FixedRadiogenics`, along with the `c_Isotope` value type.
 - `enum class c_RadiogenicsModel { Off, Isotope, Fixed }`.
 - `c_radiogenics_model_from_name(name)`: name or alias to enum, throwing `std::invalid_argument` on an unknown name.
@@ -245,13 +266,14 @@ const double heating = model->calc_heating(time, mass);   // [W]
 **Cython (`radiogenics.pxd` and `radiogenics.pyx`)**
 
 6. Declare the C++ class and the new enum value in the `.pxd`.
-7. Add the `cdef class` wrapper with parameter properties, the adoption branch in `make_radiogenics`, and the lower-case convenience function. The config dict comes from the C++ `append_config_entries` override, not from Python.
+7. Add the `cdef class` wrapper with parameter properties, its entry in `_RADIOGENICS_CLASSES` (in enum order, since `make_radiogenics` indexes it by the enum value), and the lower-case convenience function. The config dict comes from the C++ `append_config_entries` override, not from Python.
+8. Add the model's config keys to `RADIOGENICS_CONFIG_KEYS`, which `make_radiogenics` checks every key against, and read them into `c_RadiogenicsConfig` in `make_radiogenics`.
 
 **Package, tests, and docs**
 
-8. Export the class and the function from `__init__.py`, and the C++ names from `__init__.pxd`.
-9. Extend `Tests/Test_Radiogenics/test_radiogenics_01.py`: model name, heating against an independent reference, factory and aliases, vectorization, config dict, and binary round trip.
-10. Document the model here and add a changelog entry.
+9. Export the class and the function from `__init__.py`, and the C++ names from `__init__.pxd`.
+10. Extend `Tests/Test_Radiogenics/test_radiogenics_01.py`: model name, heating against an independent reference, factory and aliases, vectorization, config dict, and binary round trip.
+11. Document the model here and add a changelog entry.
 
 No build-system change is needed; `Radiogenics.radiogenics` is already registered in `cython_extensions.json`.
 

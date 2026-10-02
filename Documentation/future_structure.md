@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-02_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each.
 
@@ -22,7 +22,8 @@ conda install -c conda-forge "tidalpy<0.8"
 - Classes store configuration and return results from explicit `solve_*`, `get_*`, and `calc_*` calls. Changing an attribute no longer updates the world, its layers, and its orbit.
 - Orbital state no longer lives on a world. A `System` holds the orbits and passes them to each tidal calculation.
 - Worlds and systems are described by TOML files that carry a `schema_version`, or by the equivalent Python dict.
-- Every physics family (rheology, viscosity, partial melt, cooling, radiogenics, material equations of state, tides, stellar luminosity) follows one pattern: model classes, a `make_<family>(name, config)` factory, direct functions, vectorized `calc_*` methods, and binary save and load.
+- Every physics family (rheology, viscosity, equations of state, shear-modulus laws, melting curves, melt weakening, bulk mixing, cooling, radiogenics, tides, stellar luminosity) follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, and binary save and load. Most also have direct functions, and those declared through a parameter table have `parameters`, `get_parameter`, and `with_parameters`.
+- A layer's interior is a material composed of these laws: a `Phase` (an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) and a `Material` (a solid and a liquid phase with melting curves, melt weakening, and latent heat). MatPack ships 29 named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
 - One configuration file, `TidalPy_Configs.toml`, in a data directory scoped to the minor version (`<Documents>/TidalPy/0.8.X/`).
 - One logger, written in C++ with spdlog.
 - The new code raises the built-in `ValueError`, `RuntimeError`, `TypeError`, and `NotImplementedError` instead of TidalPy's own exception classes.
@@ -37,10 +38,10 @@ Imports are case-sensitive on every operating system, so `import TidalPy.rheolog
 |---|---|---|
 | `TidalPy.structures` (worlds, layers, `Orbit`) | `TidalPy.Structures` (worlds, layers, `System`) | [Structures](Structures/index.md), [System](Structures/system/system.md), [TOML schema](Structures/config/toml_schema.md) |
 | `TidalPy.RadialSolver` | `TidalPy.RadialSolver` | [RadialSolver](RadialSolver/index.md) |
-| `TidalPy.Material.eos` | `TidalPy.Material.eos` (material EOS models and the whole-planet solver) | [Material and EOS](Material/index.md) |
+| `TidalPy.Material.eos` | `TidalPy.Material` (equation-of-state and shear-modulus laws, `Phase`, `Material`, MatPack); `TidalPy.Material.eos` holds the whole-planet solver | [Materials](Material/index.md), [MatPack](Material/matpack.md) |
 | `TidalPy.rheology` | `TidalPy.Rheology` | [Rheology](Rheology/index.md) |
 | `TidalPy.rheology.viscosity` | `TidalPy.Viscosity` | [Viscosity](Viscosity/index.md) |
-| `TidalPy.rheology.partial_melt` | `TidalPy.PartialMelt` | [Partial Melting](PartialMelt/index.md) |
+| `TidalPy.rheology.partial_melt` | `TidalPy.PartialMelt` (melting curves, melt weakening, and bulk mixing, which a material combines) | [Partial Melting](PartialMelt/index.md) |
 | `TidalPy.cooling` | `TidalPy.Cooling` | [Cooling](Cooling/index.md) |
 | `TidalPy.radiogenics` | `TidalPy.Radiogenics` | [Radiogenics](Radiogenics/index.md) |
 | `TidalPy.tides` | `TidalPy.Tides` (mostly used through world methods) | [Tides](Tides/index.md) |
@@ -78,7 +79,7 @@ TidalPy 0.8.0 keeps its settings in `TidalPy_Configs.toml` in `<Documents>/Tidal
 | `[tides.modes] min_spin_orbital_diff` | Removed, with `TidalPy.constants.MIN_SPIN_ORBITAL_DIFF`; `minimum_frequency` is the only zero-frequency floor. |
 | `[tides.models.*] eccentricity_truncation_lvl`, `max_tidal_order_l`, `obliquity_tides_on` | `[tides] eccentricity_trunc_lvl`, `max_degree_l`, `obliquity_trunc_lvl`. |
 | `[tides.models.global_approx] fixed_q`, `static_k2`, `fixed_dt`, `use_ctl` | `[tides] fixed_q`, `fixed_k`, `fixed_dt_s` (lists indexed from $l = 2$), and the model named in `[tides.default_model]`. |
-| `[layers.ice]`, `[layers.rock]`, `[layers.iron]` | `[layers.ice]`, `[layers.mantle_rock]`, `[layers.iron]`, plus `hp_ice`, `gas`, and `default`, each with one table per physics model. |
+| `[layers.ice]`, `[layers.rock]`, `[layers.iron]` | Removed. Materials come from MatPack (see [Layers and Materials](#layers-and-materials)). `[layers]` holds only `material`, the MatPack material of a layer that names none (default `simple_rock`). |
 | `[worlds.types.*]` | Removed. `[worlds]` now holds default world properties (albedo, emissivity, obliquity, spin). |
 | `[physics.radiogenics.known_isotope_data]` | `[radiogenics.known_isotope_data]`. |
 | `[graphics.planet_plots]` | `[graphics.interior]`. |
@@ -116,8 +117,9 @@ Handlers attached to Python's `logging` (including pytest's `caplog`) do not see
 
 The bundled worlds are new TOML files, and the set changed:
 
-- `earth` is replaced by `earth_prem` (built from the PREM profile) beside `earth_simple`.
-- `jupiter_simple` is new.
+- `earth` is replaced by `earth_prem` (built from the PREM profile) beside `earth_simple`, and `earth_prem_q` takes its loss from PREM's quality factors.
+- `jupiter_simple` is new, and so are `europa_dynamic`, `luna_dynamic`, `mercury_dynamic`, and `pluto_dynamic`, which solve a liquid layer (an ocean or a fluid outer core) as a dynamic, compressible liquid.
+- The warm silicate mantles of the bundled worlds melt: they use the peridotite melting curves, with melting and pressure melting on.
 - `io_simple`, `triton_simple`, `55cnc`, `55cnce`, `55cnce_simple`, and `nereid_dev` are removed.
 
 `TidalPy.Structures.available_worlds()` lists the bundled worlds. The bundled files are copied to `<Documents>/TidalPy/0.8.X/Worlds`, where they can be edited. `TidalPy.Structures.install_worldpack(force=True)` restores the packaged copies and discards those edits.
@@ -167,6 +169,74 @@ config = world.get_config_dict()
 config["name"] = "Earth-Cold-Mantle"
 config["layers"]["mantle"]["temperature_k"] = 1200.0
 modified = build_world(config)
+```
+
+## Layers and Materials
+
+0.7.X built a layer's interior from a material `type` (`rock`, `ice`, `iron`) whose defaults lived in the configuration file, optionally through BurnMan. 0.8.0 has one layer class, `Layer` (`TidalPy.Structures.layers`), and gives each layer a material: a MatPack name, a MatPack preset with overrides, or a full material table of phases and melting laws (see [Materials](Material/index.md) and [Layer](Structures/layers/layer.md)). The layer's physics switches (`use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, and `use_tides`) say how much of the material it uses, and each is off by default except `use_tides`.
+
+| 0.7.X layer key | 0.8.0 |
+|---|---|
+| `PhysicsLayer`, `GasLayer`, `LayerBase` | `Layer`, one class for every layer |
+| `type` (`rock`, `ice`, `iron`) and its `[layers.<type>]` defaults | `material = "<MatPack name>"` (`TidalPy.Material.available_materials()`), or a `[layers.<name>.material]` table |
+| `radius` (the outer radius) | one of `radius_outer_m`, `radius_fraction`, or `volume_fraction` |
+| BurnMan `material`, `material_source`, `material_fractions` | the equation-of-state law of the material's phases (`birch_murnaghan`, `vinet`, `murnaghan`, `polytrope`, `modified_polytrope`, or a tabulated `interpolate` profile) |
+| `density` | a `constant` equation of state, or the `simple_*` MatPack materials |
+| `is_tidal` | `use_tides` |
+| `temperature_mode = "user-defined"`, `temperature_fixed` | `temperature_k` with no cooling model: one temperature throughout |
+| `temperature_mode = "adiabatic"`, `temperature_top` | `temperature_k` with a `convection` cooling model, in a solve with `solve_temperature=True`: the layer's temperature applies at the top of its adiabatic interior |
+| `shear_modulus`, `thermal_conductivity`, `thermal_expansion`, `heat_fusion` | the phase's `shear_modulus` law and `thermal_conductivity_w_mk`, the equation of state's `thermal_expansion_1_k`, and the material's `latent_heat_j_kg` |
+| `solid_viscosity`, `liquid_viscosity` | the `shear_viscosity` of the material's `solid` and `liquid` phases |
+| `partial_melting` (`model`, `solidus`, `liquidus`) | the material's `melting` table (`solidus` and `liquidus` curves and a `weakening` law), used when the layer sets `use_melting` |
+| `rheology` | the layer's `shear_rheology` table, or the default `shear_rheology` of the material's phase |
+| `radiogenics`, `cooling` | `[layers.<name>.radiogenics]` and `[layers.<name>.cooling]` tables, or the layer's `set_radiogenics` and `cooling` in Python |
+
+```python
+from TidalPy.Material import available_materials, load_material
+from TidalPy.Structures import build_world
+from TidalPy.Structures.layers import Layer
+
+print(available_materials("rocky"))                 # The MatPack names in one category
+
+# A world from a dict, in place of a 0.7.X world config
+io_like = build_world({
+    "schema_version": "0.2.0",
+    "name": "Io-like",
+    "type": "terrestrial",
+    "radius_m": 1.8215e6,
+    "mass_kg": 8.93e22,
+    "layers": {
+        "core": {
+            "radius_fraction": 0.45,
+            "material": "simple_iron_core",           # A MatPack name
+            "use_tides": False,                       # Was is_tidal
+            "temperature_k": 1800.0},
+        "mantle": {
+            "radius_fraction": 1.0,
+            "material": {
+                "preset": "peridotite",               # A MatPack material with an override
+                "solid": {"shear_rheology": {"model": "maxwell"}}},
+            "temperature_k": 1600.0,
+            "use_melting": True,                      # Its melting curves and weakening take part
+            "use_pressure_melting": True,
+            "cooling": {"model": "convection"}}}})
+io_like.solve_eos(
+    solve_temperature=True,
+    surface_temperature=110.0)                        # An adiabatic mantle under a conducting boundary layer
+
+# The same mantle built in Python
+mantle = Layer(
+    "mantle",
+    1,
+    8.2e5,
+    1.8215e6,
+    material=load_material(
+        "peridotite",
+        solid={"shear_rheology": {"model": "maxwell"}}),
+    temperature=1600.0,
+    use_melting=True,
+    use_pressure_melting=True,
+    cooling="convection")
 ```
 
 ## Systems
@@ -271,18 +341,19 @@ target = build_world({
         "obliquity_trunc_lvl": "off"},
     "layers": {
         "interior": {
-            "class": "solidliquid",
             "radius_fraction": 1.0,
             "temperature_k": 1600.0,
             "material": {
-                "model": "constant",
-                "reference_density_kg_m3": density,
-                "shear_modulus_static_pa": 6.0e10,
-                "shear_viscosity": {
-                    "model": "constant",
-                    "reference_viscosity_pas": 1.0e19},
-                "partial_melt": {
-                    "model": "off"}},
+                "solid": {
+                    "eos": {
+                        "model": "constant",
+                        "reference_density_kg_m3": density},
+                    "shear_modulus": {
+                        "model": "constant",
+                        "shear_modulus_pa": 6.0e10},
+                    "shear_viscosity": {
+                        "model": "constant",
+                        "reference_viscosity_pas": 1.0e19}}},
             "shear_rheology": {
                 "model": "maxwell"}}}})
 target.solve_eos()                     # Surface gravity and moment of inertia
@@ -311,7 +382,7 @@ result = system.calc_world_evolution(target)
 print(result["tidal_heating"])  # [W], equals (21/2)(k_2/Q_2) G M^2 R^5 n e^2 / a^6
 ```
 
-For dual-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each body the other's tidal host with `system.set_tidal_host(host, target)` and call `system.calc_pair_evolution(target)`. Each body dissipates through its own tide model. A gas giant built from a file carries a `fixed_dt` model by default. The per-degree Love numbers that `quick_tidal_dissipation` returned come from `target.get_tidal_love_k(l, m, p, q)` after a `calc_tides` call, or from the closed-form functions in `TidalPy.Tides.love`.
+For dual-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each body the other's tidal host with `system.set_tidal_host(host, target)` and call `system.calc_pair_evolution(target)`. Each body dissipates through its own tide model. A gas giant built from a file whose `[tides]` table names no model takes the builder default, `fixed_dt`; the bundled gas giants (`jupiter`, `jupiter_simple`, `neptune`) set `fixed_q`. The per-degree Love numbers that `quick_tidal_dissipation` returned come from `target.get_tidal_love_k(l, m, p, q)` after a `calc_tides` call, or from the closed-form functions in `TidalPy.Tides.love`.
 
 ## Radial Solver
 
@@ -372,7 +443,7 @@ The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity func
 | `Newton`, `SundbergCooper`; the names `voigtkelvin` and `sundbergcooper` | `Viscous`, `Sundberg`; the factory takes `newton`, `voigt-kelvin`, and `sundberg-cooper` as aliases |
 | the complex compliance functions (`rheology.complex_compliance`) | removed: the models return the complex modulus, whose reciprocal is the compliance |
 | `rheology.viscosity` functions (`arrhenius`, `reference`, `constant`) | `make_viscosity(name, config)` and `calc_viscosity(temperature, pressure)` |
-| `rheology.partial_melt` (`spohn`, `henning`, `calculate_melt_fraction`) | `make_partial_melt(name, config)`, `calc_melt_fraction`, `calc_partial_melt` |
+| `rheology.partial_melt` (`spohn`, `henning`, `calculate_melt_fraction`) | `make_melting_curve(name, config)` for the solidus and liquidus and `make_melt_weakening(name, config)` (`none`, `spohn`, `henning`), combined in a `Material`; `Material.calc_state(pressure, temperature, use_melting=True)` returns the melt fraction and the weakened shear modulus and viscosity. Both laws are continuous where 0.7.X stepped: across the breakdown band (`crit_melt_frac` to `crit_melt_frac + crit_melt_frac_width`) the aggregate blends into the liquid's values instead of jumping to them at the band's end, and Spohn starts from the solid's own values at the solidus unless given the absolute anchors `fs_visc_log10_at_solidus = 15.875` and `fs_shear_log10_at_solidus = 10.65` of the 0.7.X fit |
 | `cooling` functions (`convection`, `conduction`, `off`) | `make_cooling(name, config)` and `calc_cooling`, or the direct functions `convective`, `conductive`, `cooling_off` |
 | `radiogenics` functions (`isotope`, `fixed`, `off`) with times in Myr | `make_radiogenics(name, config)` and `calc_heating(time, mass)` with times in seconds; isotope sets are named datasets |
 | `stellar.luminosity_from_mass` | `TidalPy.Stellar.mass_to_luminosity(mass)` or `make_luminosity("mass_to_luminosity")` |
@@ -413,9 +484,9 @@ A world attaches these models to its layers from its TOML file or dict, so most 
 
 ## Tides
 
-- The eccentricity functions are unsquared: `TidalPy.Tides.eccentricity_func(eccentricity, degree_l, truncation)`, with `eccentricity_squared_func` for the squares. 0.7.X tabulated the squared functions per degree and level (`eccentricity_funcs_l2_trunc10` and so on).
+- The eccentricity functions are unsquared: `TidalPy.Tides.eccentricity_func(eccentricity, degree_l, truncation)`, with `TidalPy.Tides.eccentricity.eccentricity_squared_func` for the squares. 0.7.X tabulated the squared functions per degree and level (`eccentricity_funcs_l2_trunc10` and so on).
 - As in 0.7.X, truncation level $N$ keeps every product of two eccentricity functions, and so every heating term, through $e^N$. Levels 2 to 10 and 20 keep the same terms in both versions.
-- 0.8.0 tabulates levels 2, 4, 6, 8, 10, 20, and 50, plus `"exact"`. A configured level of 12 to 18 or 22 is promoted to the next tabulated level with a warning, and the direct functions raise `NotImplementedError` for it. The default level is now 10 (it was 6). `recommend_eccentricity_truncation` picks a level for a given eccentricity.
+- 0.8.0 tabulates levels 2, 4, 6, 8, 10, 20, and 50, plus `"exact"`. A configured level of 12 to 18 or 22 is promoted to the next tabulated level with a warning, and the direct functions raise `NotImplementedError` for it. The default level is now 10 (it was 6). `TidalPy.Tides.eccentricity.recommend_eccentricity_truncation` picks a level for a given eccentricity.
 - Obliquity was on or off in 0.7.X. 0.8.0 offers `"off"`, levels 2 and 4, and the general functions `"gen"`.
 - Degrees 2 to 10 are supported (2 to 7 in 0.7.X).
 - Tidal modes are keyed by $(l, m, p, q)$ instead of names such as `'2o-n'`: `world.get_tidal_love_k(l, m, p, q)`.
@@ -498,7 +569,7 @@ The global tidal heating rows use the homogeneous Love method, which solves the 
 
 ### Where It Is the Same or Slower
 
-`radial_solver` actually gets about 3x faster but we took this opportunity to introduce some functionalities which make it much more accurate, including using more accurate EOS. This increases accuracy caused that 3x improvement to be lost. So the speed is about the same between 0.7.X and 0.8.0.
+The `radial_solver` core is about 3x faster than in 0.7.X. It now also runs a more accurate EOS solve, which takes that gain back, so the speed is about the same between 0.7.X and 0.8.0.
 
 | Task | 0.7.X | 0.8.0 | Change |
 |---|---|---|---|

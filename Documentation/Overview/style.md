@@ -28,7 +28,7 @@ Docstrings should largely follow [numpy](https://numpydoc.readthedocs.io/en/late
 # Correct
 x     = 1
 blue  = 2
-blie += 1
+blue += 1
 
 # Incorrect
 x = 1

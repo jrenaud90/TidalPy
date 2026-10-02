@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -29,7 +29,7 @@ The file holds all of TidalPy's settings, with comments giving context for each 
 
 The packaged defaults are the string in ["defaultc.py"](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/defaultc.py) (`TidalPy.configurations.get_packaged_config()` returns them as a dict). The first time TidalPy is imported it writes them, headed by a comment naming the TidalPy, SciPy, and CyRK versions, to `TidalPy_Configs.toml`. Developers who want to change or add a configuration should edit the string in `defaultc.py`.
 
-TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A physics-model table merges the same way when it names a different `model` than the default: a key the new model does not read is ignored by it. The exception is a key whose meaning depends on the model reading it (`configurations.MODEL_SPECIFIC_KEYS`, the radiogenics `ref_time_s`), which is dropped from the default table first.
+TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A key that nothing reads is warned about (see [Warnings](#warnings)), and the per-material `[layers.<type>]` tables of older files are dropped with one warning (see [Layer Defaults](#layer-defaults)).
 
 The file has these sections:
 
@@ -43,9 +43,9 @@ The file has these sections:
 | `[tides]` | Default tidal model per world family, harmonic degrees, truncation levels, and per-degree fixed parameters. |
 | `[warnings]` | Switches for the Python warnings of the configuration and world-building code. |
 | `[worlds]` | Default world properties (albedo, emissivity, obliquity, spin, and the star-only values). |
-| `[radiogenics.known_isotope_data]` | User-defined radiogenic isotope datasets. |
+| `[radiogenics]` | The isotope dataset an isotope radiogenics model takes by default, and user-defined isotope datasets. |
 | `[graphics]` | Styling of the plotting helpers. |
-| `[layers.<type>]` | Per-material layer defaults used by the world builder and the model factories. |
+| `[layers]` | The material of a layer that names none. |
 
 ## Overriding Settings for a Session
 
@@ -56,9 +56,12 @@ import TidalPy
 
 print(TidalPy.config["radial_solver"]["rtol"])  # 1e-06 unless your file changes it
 
-# A configuration file (e.g., "TidalPy_Config2.toml") holding any number of settings. Only those present
-# override the loaded configuration.
-TidalPy.reinit(provided_config="TidalPy_Config2.toml")
+# A configuration file holding any number of settings. Only those present override the loaded configuration.
+# "TidalPy_Config2.toml" stands for your own file; this one is written here so that the example runs.
+with open("TidalPy_Config2.toml", "w") as config_file:
+    config_file.write("[radial_solver]\nrtol = 1.0e-7\n")
+TidalPy.reinit(provided_config="TidalPy_Config2.toml")  # Override from the file
+print(TidalPy.config["radial_solver"]["rtol"])  # 1e-07
 
 # The same with a dictionary.
 TidalPy.reinit(provided_config={"radial_solver": {"rtol": 1.0e-8}})
@@ -125,6 +128,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | `pressure_tol` | `1.0e-8` (relative to the central-pressure scale) | |
 | `max_iters` | `100` | |
 | `solve_temperature` | `true` | |
+| `max_thermal_passes`, `thermal_tol` | `12`, `1.0e-8` | |
 | `slices_per_layer` | `100` | |
 | `nondimensionalize` | `true` | `true` |
 | `use_kamata` | | `false` |
@@ -132,7 +136,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | `scale_rtols` | | `false` |
 | `max_num_steps`, `expected_size`, `max_ram_mb` | | `500000`, `128`, `500` |
 
-`solve_temperature` carries temperature and heat flow through the structure solve, so each layer's profile follows its cooling model; its viscosity and melt models see the local temperature (see [Worlds](../Structures/worlds/worlds.md)). `slices_per_layer` only sets the number of radial samples in the profile a solve reports. The Love solves and the profile getters read the solve's dense output at the exact radius.
+`solve_temperature` carries temperature and heat flow through the structure solve, so each layer's profile follows its cooling model, and its material is evaluated at the local temperature (see [Worlds](../Structures/worlds/worlds.md#temperature-and-heat-flow)). Such a solve relaxes its thermal network against the structure in passes, one structure integration each, until the interface temperatures and heat flows change by less than `thermal_tol` (relative) between passes, or `max_thermal_passes` is reached. `slices_per_layer` only sets the number of radial samples in the profile a solve reports. The Love solves and the profile getters read the solve's dense output at the exact radius, and the integration finds the edges of the solid and liquid zones itself.
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same thing for every planet. The packaged values come from a convergence study over the bundled worlds and synthetic homogeneous, rocky, icy-ocean, and liquid-core models at degrees 2 and 3 and periods from a day to a hundred days. DOP853 gave the most accuracy per millisecond at every tolerance on both solves: RK45 needs a hundred times tighter `rtol` for the same Love-number error, RK23 far more, and the implicit methods are slower without being more accurate here.
 
@@ -140,7 +144,7 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 
 ## Numerical Settings
 
-`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, below which a tidal mode counts as static, and `maximum_frequency`), the material floor `minimum_modulus`, `minimum_solid_rigidity` (the rigidity $\mu / (\bar{\rho} g R)$ below which a melt-weakened solid is solved by the radial solver as a static liquid, applied when the EOS is solved), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol` (also how far past a layer end a profile read snaps onto the end), `max_start_radius_fraction`, `minimum_surface_rcond` (the reciprocal condition number below which a radial solve's surface boundary-condition system counts as singular and the solve fails), `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), `minimum_nusselt` (the floor of the convection cooling model), `maximum_eos_mass_ratio` (the largest factor by which a world's solved mass may differ from its stated mass before its EOS solve fails), `eos_invert_rtol` and `eos_invert_max_iters` (the density-from-pressure inversion of the Birch-Murnaghan and Vinet material models, used by any model built without its own `invert_rtol` or `invert_max_iters`), and the quadrature resolutions of the 3D tidal heating integrals (`tides_3d_latitude_nodes`, `tides_3d_longitude_nodes`, `tides_3d_radial_slices`, the defaults of the matching `calc_3d_tides` arguments), the fewest radii each thread takes in the analytic colatitude integral of `calc_3d_tides` and of the per-layer heating (`tides_3d_min_radii_per_thread`), and the threads of the Love-number solves and the per-layer heating in `calc_tides` (`love_solve_threads`, where 0 uses `max(num_logical_processors - 4, 1)` see [Parallel Love Solves](../RadialSolver/parallel.md)). `test_constant` is read only by the test suite. `TidalPy.constants.update_constants()` pushes an edited value into the C++ side without a restart (see [Constants](../Utilities/constants.md)).
+`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, below which a tidal mode counts as static, and `maximum_frequency`), the material floor `minimum_modulus`, `minimum_solid_rigidity` (the post-melt rigidity $\mu / (\bar{\rho} g R)$, with the world's stated bulk density, surface gravity, and radius, at or below which a layer that can change state is liquid: the EOS solve splits the layer into solid and liquid zones there, the radial solver takes each liquid zone as a liquid, and a convecting interior that is liquid there takes the magma-ocean scaling; see [Worlds](../Structures/worlds/worlds.md#pieces-and-zones)), `minimum_zone_fraction` (the thinnest solid or liquid zone, as a fraction of the world radius, that the radial solver takes as a layer of its own; a thinner zone takes the state of its thicker neighbor), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol` (also how far past a layer end a profile read snaps onto the end), `max_start_radius_fraction`, `minimum_surface_rcond` (the reciprocal condition number below which a radial solve's surface boundary-condition system counts as singular and the solve fails), `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), `minimum_nusselt` (the floor of the convection cooling model), `maximum_eos_mass_ratio` (the largest factor by which a world's solved mass may differ from its stated mass before its EOS solve fails), `eos_invert_rtol` and `eos_invert_max_iters` (the density-from-pressure inversion of the Birch-Murnaghan and Vinet equation-of-state laws, used by any law built without its own `invert_rtol` or `invert_max_iters`), and the quadrature resolutions of the 3D tidal heating integrals (`tides_3d_latitude_nodes`, `tides_3d_longitude_nodes`, `tides_3d_radial_slices`, the defaults of the matching `calc_3d_tides` arguments), the fewest radii each thread takes in the analytic colatitude integral of `calc_3d_tides` and of the per-layer heating (`tides_3d_min_radii_per_thread`), the threads of the Love-number solves and the per-layer heating in `calc_tides` (`love_solve_threads`, where 0 uses `max(num_logical_processors - 4, 1)`; see [Parallel Love Solves](../RadialSolver/parallel.md)), and the fewest unique Love solves `calc_tides` spreads over threads (`love_solve_min_parallel`; fewer run on the calling thread). `test_constant` is read only by the test suite. `TidalPy.constants.update_constants()` pushes an edited value into the C++ side without a restart (see [Constants](../Utilities/constants.md)).
 
 ## Tides
 
@@ -156,9 +160,11 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 
 ## Worlds
 
-`[worlds]` holds the default world properties: `albedo = 0.3`, `emissivity = 1.0`, `obliquity_rad = 0.0`, and `spin_frequency_rad_s = 0.0`. `[worlds.star]` adds the star-only `effective_temperature_k = 5772.0` and `luminosity_w = 0.0` (zero derives the luminosity from the effective temperature). A world's own table wins over these, and they win over the class default.
+`[worlds]` holds the default world properties: `albedo = 0.3`, `emissivity = 1.0`, `obliquity_rad = 0.0`, `spin_frequency_rad_s = 0.0`, and `moment_of_inertia_factor = 0.4` (the spin model's $C/(M R^2)$, the world's moment of inertia until its EOS is solved). `[worlds.star]` adds the star-only `effective_temperature_k = 5772.0` and `luminosity_w = 0.0` (zero derives the luminosity from the effective temperature) and sets `albedo = 0.0` and `moment_of_inertia_factor = 0.0754` (an $n = 3$ polytrope). A world's own table wins over these, and they win over the class default. A world built by hand (`TerrestrialWorld(name, radius, mass)` and the other classes) takes the same defaults for every property it is not given.
 
 ## Radiogenic Isotope Datasets
+
+`[radiogenics]` `isotopes = "modern_day_chondritic"` is the dataset an isotope radiogenics model takes when its table (or `make_radiogenics("isotope")`) names neither a dataset nor its own isotope arrays.
 
 `[radiogenics.known_isotope_data]` is empty by default. Each table inside it is a user-defined isotope dataset that a radiogenics model selects by name, the same way it selects the built-in `modern_day_chondritic`, `llri_and_slri`, and `bulk_silicate_earth` sets. Half lives and the reference time are in Myr and the heat production rate `hpr` in \[W kg$^{-1}$\]:
 
@@ -178,11 +184,13 @@ A layer then uses it with `[layers.<name>.radiogenics]` `model = "isotope"` and 
 
 `[graphics.interior]` restyles `plot_interior` (see [graphics](../Utilities/graphics.md)): the matplotlib colors of each profile, the line styles and markers of real and imaginary parts, the marker size, the panel size in inches, and the label and title font sizes. The table is read when `TidalPy.Utilities.graphics` is imported.
 
-## Layer Material Defaults
+## Layer Defaults
 
-Every section of `[layers]` is keyed by a material `type`: the packaged types are `iron`, `mantle_rock`, `ice`, `hp_ice`, and `gas`. A layer that names no `type` takes the `[layers.default]` block, a copy of `[layers.mantle_rock]`, and the same block is the fallback for factories that do not know a layer type. A layer written by `get_config_dict` or `save_to_toml` carries `type = "none"`, which applies no material defaults: the saved layer already lists every model it holds.
+`[layers]` holds one key, `material = "simple_rock"`: the material of a layer whose world-file table names none, as a MatPack name (`TidalPy.Material.available_materials()`) or a material table. Everything else a layer leaves out takes the `Layer` default, the simplest case: no thermal expansion or melting, no heating, the material's own rheology, and no cooling or radiogenics model. A material's values live in its MatPack file in the `Materials` folder of the data directory (`TidalPy.Material.material_info(name)["path"]`), or in the layer's own material table (see the [TOML schema](../Structures/config/toml_schema.md#the-material-table)).
 
-The `[layers.default]` model tables are also what a physics-model factory (`make_rheology`, `make_viscosity`, `make_partial_melt`, `make_cooling`, `make_radiogenics`, `make_material_eos`, and `make_tide` from `[tides]`) takes when it is called with no config at all, so a model built by hand and the same model attached by the world builder read one file. Pass an empty dict to get the model's own defaults instead. A factory follows the builder's model-switch rule: a model the table does not name still takes its parameters, except the few keys another model of the family would read with a different meaning (a radiogenic dataset's `ref_time_s`, which a fixed rate would take as its own reference time). With a `[layers.default.material.shear_viscosity]` table that names the `reference` law, `make_viscosity("constant")` takes its reference viscosity too, and a key a model does not read is ignored by it. The names are matched through the family's own aliases, so `make_radiogenics("isotopes")` counts as the table's `isotope` model. Inside a world the layer's table is merged over its material block key by key whatever models the two name; each model is then built from its own keys, so a `fixed` radiogenics table over the `isotope` defaults takes no dataset.
+A table under `[layers]` other than `material` in your file (the per-material blocks of older files, such as `[layers.mantle_rock]`) is not read: it is dropped at load with one warning naming it, under the `unknown_config_key` switch. Delete it from the file to silence the warning.
+
+A physics-model factory called with no config takes the model's own defaults (`make_rheology("andrade")`, `make_viscosity("arrhenius")`, `make_cooling("convection")`), with two exceptions: `make_radiogenics("isotope")` takes the `[radiogenics] isotopes` dataset, and the tide factories (`make_tide`) take the per-degree lists of `[tides]`.
 
 ## Warnings
 
@@ -194,8 +202,6 @@ The `[layers.default]` model tables are also what a physics-model factory (`make
 - `truncation_promotion`: a `[tides]` truncation level is not tabulated and is promoted to the next tabulated one.
 - `short_degree_list`: a `[tides]` per-degree list (`fixed_k`, `fixed_q`, `fixed_dt_s`) the tide model reads stops short of `max_degree_l`, so its missing degrees are zero and dissipate nothing.
 - `unknown_config_key`: a key of `TidalPy_Configs.toml` (or of a configuration passed to `TidalPy.reinit`) that nothing reads, which is how a misspelled or outdated key shows itself.
-
-A `[layers.<type>]` block of your own is allowed; its keys are checked against the layer schema, and what its model tables hold is checked when a layer is built from it.
 
 ## Reproducing a Run
 
@@ -223,7 +229,7 @@ Every saved world, system, and configuration file begins with a comment header r
 
 Each minor version of TidalPy has its own data directory, so old ones build up if you often install different versions.
 
-To clear them, delete the "TidalPy" directory (and all subdirectories) mentioned at the top of this page. `TidalPy.clear_data()` deletes the `Config`, `Logs`, and `Worlds` folders of the installed version after asking for confirmation. TidalPy builds a new directory with the latest config file the next time it is imported.
+To clear them, delete the "TidalPy" directory (and all subdirectories) mentioned at the top of this page. `TidalPy.clear_data()` deletes the `Config`, `Logs`, `Worlds`, and `Materials` folders of the installed version after asking for confirmation. TidalPy builds a new directory with the latest config file the next time it is imported.
 
 > [!WARNING]
-> If you made changes to the config file or to the world files in `Worlds`, back them up before deleting.
+> If you made changes to the config file, to the world files in `Worlds`, or to the material files in `Materials`, back them up before deleting.

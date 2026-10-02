@@ -1,6 +1,6 @@
 # Binary Serialization (`Utilities.binary`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 TidalPy writes worlds, layers, systems, and physics models to a compact binary format. This page describes that format and how a class takes part in it. The other pages only list each class's id. A TOML configuration is the readable, editable way to describe a world. The binary format saves and restores an object structure as it stands, including every attached sub-model, without going back through the builders.
 
@@ -55,11 +55,13 @@ A load that raises an error leaves every setting the object had before the call.
 ## Python API
 
 ```python
+from TidalPy.Structures.worlds import TerrestrialWorld
 from TidalPy.Utilities.binary import check_binary_file, get_current_schema_version
 
+TerrestrialWorld("world", 1.0e6, 1.0e22).save_binary("world.tpyb")   # A world with no layers yet
 info = check_binary_file("world.tpyb")
 # {'schema_major': 0, 'schema_minor': 2, 'schema_patch': 0,
-#  'schema_version': '0.2.0', 'class_id': 201, 'payload_size': 87}
+#  'schema_version': '0.2.0', 'class_id': 201, 'payload_size': 148}
 
 get_current_schema_version()   # '0.2.0'
 ```
@@ -80,17 +82,16 @@ get_current_schema_version()   # '0.2.0'
 | `p_write_payload(out)`, `p_read_payload(in, force)` | The class's payload. An override calls its parent's first, then writes or reads its own fields and the records of the sub-objects it owns, so a record holds its parent's payload followed by its own additions. |
 | `make_binary_scratch()` | Optional: a new object of the class that `load_binary` reads a file into first (see [Integrity Checks](#integrity-checks)). |
 
-A physics model (`c_PhysicsBase`) writes its model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and reads them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`. A model with parameters overrides the pair. A model that also holds tables or sub-models (the isotope list, the interpolated EOS tables, the material viscosity and melt models) extends `p_write_payload` and `p_read_payload`.
+A physics model declared through a parameter table (`c_SpecModel`, `Utilities/classes/spec_model_.hpp`: rheology, viscosity, cooling, the material laws, melting laws, phases, and materials) writes its model name and then each parameter by key: the key, a kind byte, a value count, and the values. Reading goes through the same validation as construction, and a key the record does not hold reads at its default, so adding a parameter never changes how older records are read. A composite (a phase or a material) then writes one optional record per slot. The other physics models (radiogenics, tides, luminosity) write their model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and read them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`, and one that also holds a list (the isotope list) extends `p_write_payload` and `p_read_payload`.
 
 ```cpp
-// A rheology with two parameters.
-uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Burgers); }
+// A luminosity model with one scalar parameter.
+uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::FixedLuminosity); }
 std::vector<double> get_binary_params() const override {
-    return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
+    return {this->p_luminosity};
 }
 void set_binary_params(const std::vector<double>& params) override {
-    this->p_voigt_modulus_frac   = params[0];
-    this->p_voigt_viscosity_frac = params[1];
+    this->p_luminosity = params[0];
 }
 ```
 
@@ -139,29 +140,29 @@ On read, the owning class reads the flag and, when set, calls a binary-dispatch 
 |---|---|
 | `Rheology` | `c_rheology_from_binary` |
 | `Viscosity` | `c_viscosity_from_binary` |
-| `PartialMelt` | `c_partial_melt_from_binary` |
+| `PartialMelt` | `c_melting_curve_from_binary`, `c_melt_weakening_from_binary`, `c_bulk_modulus_mixing_from_binary`, `c_bulk_viscosity_mixing_from_binary` |
 | `Cooling` | `c_cooling_from_binary` |
 | `Radiogenics` | `c_radiogenics_from_binary` |
-| `Material.eos` | `c_material_eos_from_binary` |
+| `Material` | `c_eos_from_binary`, `c_shear_modulus_from_binary`, `c_phase_from_binary`, `c_material_from_binary` |
 | `Stellar` | `c_luminosity_from_binary` |
 | `Tides` | `c_tide_from_binary` |
 | `Structures.layers` | `c_layer_from_binary` |
 
 ```cpp
-// Writing, in c_BaseLayer::p_write_payload.
+// Writing, in c_Layer::p_write_payload.
 write_optional_binary(out, this->p_shear_rheology);
 
-// Reading, in c_BaseLayer::p_read_payload.
+// Reading, in c_Layer::p_read_payload.
 this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
 ```
 
-The sub-objects each layer class carries:
+The sub-objects a layer and its material carry:
 
-| Layer | Recursively serialized sub-objects |
+| Class | Recursively serialized sub-objects |
 |---|---|
-| `c_BaseLayer` | material EOS model (with its shear and bulk viscosity and partial-melt models), shear rheology, bulk rheology |
-| `c_GasLayer` | the same, inherited |
-| `c_SolidLiquidLayer` | the same, plus cooling and radiogenics |
+| `c_Layer` | material, shear rheology override, bulk rheology override, cooling, radiogenics (after its geometry, switches, and flags) |
+| `c_Material` | solid phase, liquid phase, solidus, liquidus, melt weakening, bulk-modulus mixing, bulk-viscosity mixing (after its parameters) |
+| `c_Phase` | equation of state, shear modulus, shear viscosity, bulk viscosity, shear rheology, bulk rheology (after its thermal parameters) |
 
 Worlds carry their layers and world-scale models the same way:
 
@@ -171,7 +172,7 @@ Worlds carry their layers and world-scale models the same way:
 | `c_StarWorld` | the `c_BaseWorld` sub-objects, then the luminosity model |
 
 > [!NOTE]
-> The equation-of-state profile data is never serialized, because it is derived from the attached model. Run `solve_eos` on a loaded world to regenerate it.
+> The equation-of-state profile data is never serialized, because it is derived from the layers' materials. Run `solve_eos` on a loaded world to regenerate it.
 
 ## Class Type IDs
 
@@ -180,14 +181,14 @@ Each concrete class needs a unique id so the dispatch factories can reconstruct 
 | Range | Family | Members |
 |---|---|---|
 | 1-3 | Base classes | `TidalPyBase` 1, `StructureBase` 2, `PhysicsBase` 3 |
-| 100-199 | Layers | `BaseLayer` 100, `SolidLiquidLayer` 102, `GasLayer` 103 |
+| 100-199 | Layers | `Layer` 100 |
 | 200-299 | Worlds and systems | `BaseWorld` 200, `TerrestrialWorld` 201, `GasGiantWorld` 202, `StarWorld` 203, `System` 210 |
 | 300-399 | Rheology | `RheologyBase` 300, `Elastic` 301, `Viscous` 302, `Voigt` 303, `Maxwell` 304, `Burgers` 305, `Andrade` 306, `Sundberg` 307, `Zener` 308, `SeismicQ` 309 |
 | 400-499 | Cooling | `CoolingBase` 400, `OffCooling` 401, `ConvectiveCooling` 402, `ConductiveCooling` 403 |
 | 500-599 | Radiogenics | `RadiogenicsBase` 500, `OffRadiogenics` 501, `IsotopeRadiogenics` 502, `FixedRadiogenics` 503 |
-| 600-699 | Material EOS | `MaterialEOSBase` 600, `ConstantDensityEOS` 601, `BirchMurnaghanEOS` 602, `VinetEOS` 603, `InterpolatedEOS` 604 |
-| 700-799 | Partial melt | `PartialMeltBase` 700, `OffPartialMelt` 701, `SpohnPartialMelt` 702, `HenningPartialMelt` 703 |
-| 800-899 | Viscosity | `ViscosityBase` 800, `ArrheniusViscosity` 801, `ReferenceViscosity` 802, `ConstantViscosity` 803 |
+| 600-699 | Materials | Equation-of-state laws: `ConstantEOSLaw` 610, `BirchMurnaghanEOSLaw` 611, `VinetEOSLaw` 612, `MurnaghanEOSLaw` 613, `PolytropeEOSLaw` 614, `ModifiedPolytropeEOSLaw` 615, `InterpolatedEOSLaw` 616; shear-modulus laws: `ConstantShearModulus` 620, `LinearShearModulus` 621, `InterpolatedShearModulus` 622; `Phase` 630, `Material` 631 |
+| 700-799 | Melting laws | Melting curves: `ConstantMeltingCurve` 710, `SimonGlatzelCurve` 711, `SimonGlatzel2Curve` 712, `InterpolatedMeltingCurve` 713; weakening: `NoMeltWeakening` 720, `SpohnMeltWeakening` 721, `HenningMeltWeakening` 722; `HashinShtrikmanMixing` 730; `CompactionViscosity` 740 |
+| 800-899 | Viscosity | `ViscosityBase` 800, `ArrheniusViscosity` 801, `ReferenceViscosity` 802, `ConstantViscosity` 803, `InterpolatedViscosity` 804, `CompositeViscosity` 805 |
 | 900-999 | Tide models | `TideBase` 900, `RheologyTide` 901, `FixedQTide` 902, `FixedLagTide` 903, `CTLQTide` 904 |
 | 1000-1099 | Luminosity | `LuminosityBase` 1000, `FixedLuminosity` 1001, `MassToLuminosity` 1002, `PowerLawLuminosity` 1003 |
 

@@ -3,9 +3,9 @@
 # A system names its member worlds, says which of them is the star (the insolation source), which world raises
 # each member's tides (`tidal_host`), and the orbit of each member about its host and about the star. A world
 # with no `tidal_host` is not tidally forced. Each member's `world` is one of three things: the name of a bundled
-# world, a path to a world file, or an inline world table; a path is passed to build_world as written, so a
-# relative one resolves against the working directory. The table key ([worlds.<key>]) is the world's name inside
-# the system, whatever its file calls it, so one file can serve as several members.
+# world, a path to a world file, or an inline world table; a relative path resolves against this file's folder
+# first, then the working directory. The table key ([worlds.<key>]) is the world's name inside the system,
+# whatever its file calls it, so one file can serve as several members.
 
 schema_version = "0.2.0"
 name = "Example System"
@@ -17,7 +17,7 @@ is_star = true                      # at most one member; the insolation source 
 
 # A planet from a world file, tidally forced by the star.
 [worlds.planet]
-world = "example_world.toml"        # a path: relative to the working directory, or absolute
+world = "example_world.toml"        # a path: relative to this file's folder (then the working directory), or absolute
 tidal_host = "star"                 # the key of the member that raises this world's tides
 semi_major_axis_m = 1.5e11          # orbit about the tidal host
 eccentricity = 0.02
@@ -34,6 +34,7 @@ stellar_semi_major_axis_m = 1.5e11
 stellar_eccentricity = 0.02
 
 [worlds.moon.world]
+schema_version = "0.2.0"
 name = "Example-Moon"
 type = "terrestrial"
 radius_m = 1.6e6

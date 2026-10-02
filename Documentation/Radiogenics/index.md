@@ -1,6 +1,6 @@
 # Radiogenics (`Radiogenics`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 `TidalPy.Radiogenics` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ \[W\] released inside that layer.
 
@@ -16,9 +16,9 @@ Radiogenic Models <radiogenics_models.md>
 
 ## Where Radiogenics is Used
 
-A radiogenics model is attached to a `SolidLiquidLayer` with `set_radiogenics`, alongside the layer's cooling model. See [SolidLiquidLayer](../Structures/layers/solidliquid_layer.md). The layer then provides `calc_radiogenic_heating(time, mass)`, and `BaseWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising.
+A radiogenics model is attached to a `Layer` with `set_radiogenics` (or the `radiogenics` argument), alongside the layer's cooling model. See [Layer](../Structures/layers/layer.md). The layer then provides `calc_radiogenic_heating(time, mass)`, and `BaseWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising. In a world's thermal solve the model heats its layer when the layer sets `use_heating`, as the world's radiogenic heat source (see [Heat Sources](../Structures/worlds/worlds.md#heat-sources)).
 
-When a world is built from a TOML file or a config dict, the `[layers.<name>.radiogenics]` table names the model and its parameters, and anything the user omits falls back to the material defaults in `TidalPy_Configs.toml`. The shipped defaults give a rock mantle the chondritic isotopes and turn radiogenics off in iron cores and ice shells. See the [TOML schema](../Structures/config/toml_schema.md).
+When a world is built from a TOML file or a config dict, the `[layers.<name>.radiogenics]` table names the model and its parameters, and a layer without one has no radiogenics. An `isotope` table that names neither a dataset nor isotope arrays takes the `[radiogenics] isotopes` dataset of `TidalPy_Configs.toml` (`modern_day_chondritic` by default). See the [TOML schema](../Structures/config/toml_schema.md).
 
 ## References
 

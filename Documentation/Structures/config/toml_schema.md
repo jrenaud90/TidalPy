@@ -1,10 +1,10 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 Schema version `0.2.0`.
 
-The `Structures` configuration system builds a world (the world object, its inner-to-outer stack of layers, and each layer's attached physics models) from a TOML file or an equivalent Python `dict`, and writes a world back out to TOML. It is the user-facing entry point to TidalPy's class system.
+The `Structures` configuration system builds a world (the world object, its inner-to-outer stack of layers, and each layer's material and attached physics models) from a TOML file or an equivalent Python `dict`, and writes a world back out to TOML. It is the user-facing entry point to TidalPy's class system.
 
 C++ never touches TOML. The `toml` package reads and writes files at the Python/Cython level. The resulting `dict` is validated against the schema and passed to the builder, which calls the layer and world constructors and the physics-model factories.
 
@@ -23,32 +23,32 @@ Pass `force=True` (to `build_world`, `BaseWorld.build`, or `validate_schema_vers
 from TidalPy.Structures import build_world, available_worlds
 
 # Build one of the bundled example worlds by name.
-print(available_worlds())            # 21 names, from 'charon' to 'triton' (see the WorldPack page)
+print(available_worlds())            # 26 names, from 'charon' to 'triton' (see the WorldPack page)
 earth = build_world("earth_simple")  # returns the Cython world (a BaseWorld subclass)
 
 # build_world returns the world object directly, so its methods are immediate.
 earth.solve_eos()
 print(earth.surface_gravity_eos, earth.planet_mass_eos)
 
-# Build from a file path or an in-memory dict instead.
-world = build_world("/path/to/my_world.toml")
-world = build_world(my_config_dict)
-
 # Save a (possibly modified) world back out; schema_version is included on write.
 earth.save_to_toml("earth_copy.toml")
+
+# Build from a file path or an in-memory dict instead.
+world = build_world("earth_copy.toml")
+world = build_world(earth.get_config_dict())
 ```
 
 `build_world(source)` returns a `BaseWorld`: a `TerrestrialWorld`, `GasGiantWorld`, `StarWorld`, or, for the `layered` type, the `BaseWorld` class itself (see [Python API](#python-api)).
 
 ## Bundled Worlds (`WorldPack`)
 
-The [Schema Examples](schema_examples.md) page has five commented files that together use every key of this schema. Example worlds ship in the package directory `TidalPy/WorldPack/`. On first use they are copied into a version-scoped, user-editable data directory ([`worldpack.md`](worldpack.md) covers the install and resolution mechanism):
+The [Schema Examples](schema_examples.md) page has six commented files that together use every key of this schema. Example worlds ship in the package directory `TidalPy/WorldPack/`. On first use they are copied into a version-scoped, user-editable data directory ([`worldpack.md`](worldpack.md) covers the install and resolution mechanism):
 
 ```
-<user documents>/TidalPy/<TidalPy version>/Worlds/
+<user documents>/TidalPy/<major>.<minor>.X/Worlds/
 ```
 
-A world requested by bare name is read from the data directory before the package. Editing the installed TOML (_e.g._, `.../TidalPy/<TidalPy version>/Worlds/earth_simple.toml`) therefore changes what `build_world("earth_simple")` returns. A file is copied only if the data directory lacks a file of that name, so user edits are never overwritten and new packaged worlds appear on the next run. `install_worldpack(force=True)` re-copies the packaged versions and discards local edits.
+A world requested by bare name is read from the data directory before the package. Editing the installed TOML (_e.g._, `.../TidalPy/<major>.<minor>.X/Worlds/earth_simple.toml`) therefore changes what `build_world("earth_simple")` returns. A file is copied only if the data directory lacks a file of that name, so user edits are never overwritten and new packaged worlds appear on the next run. `install_worldpack(force=True)` re-copies the packaged versions and discards local edits.
 
 ```python
 from TidalPy.Structures import available_worlds, install_worldpack
@@ -89,43 +89,35 @@ An omitted optional key falls back to the `[worlds]` block of `TidalPy_Configs.t
 
 ## Layer-Level Schema
 
-Each world other than a star declares one or more `[layers.<layer_name>]` tables (a star may declare them too), keyed by the layer's name. Layers are ordered inner-to-outer by `layer_index` when given, otherwise by declaration order ([Geometry](#geometry) covers the radii).
+Each world other than a star declares one or more `[layers.<layer_name>]` tables (a star may declare them too), keyed by the layer's name. Layers are ordered inner-to-outer by `layer_index` when given, otherwise by declaration order ([Geometry](#geometry) covers the radii). Each table builds one [`Layer`](../layers/layer.md), and every key the table leaves out takes the layer's default, which is the simplest case.
 
-The material defaults for a layer's `type` come from the `[layers.<type>]` blocks of `TidalPy_Configs.toml` (see [Default Configuration Resolution](#default-configuration-resolution)).
+| Key | Required | Description |
+|-----|----------|-------------|
+| `layer_index` | optional | Inner-to-outer position (0 = innermost). Falls back to declaration order. |
+| `radius_outer_m` | one-of | Outer radius \[m\] (absolute). |
+| `radius_fraction` | one-of | Outer radius as a fraction of the world radius (`radius_outer_m = radius_fraction * world radius_m`). |
+| `volume_fraction` | one-of | Layer shell volume as a fraction of the whole-world volume; the outer radius is solved from it. |
+| `material` | optional | The layer's material: a MatPack name (`material = "peridotite"`) or a `[layers.<name>.material]` table (see [The Material Table](#the-material-table)). Absent takes `[layers] material` of `TidalPy_Configs.toml` (`simple_rock`). |
+| `mass_kg` | optional | Layer mass \[kg\]. Defaults to 0.0; every successful EOS solve overwrites it with the solved layer mass. A layer that holds its mass holds this one. |
+| `use_tides` | optional | Whether the layer takes part in the tides: its share in the quasi-homogeneous Love methods and of the tidal heating. Default `true`. |
+| `tidal_scale` | optional | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Absent takes the layer's volume over the planet's. The radial solver resolves the layers directly and does not use it. |
+| `is_volume_fixed` | optional | `false` makes the layer hold its mass rather than its volume: the EOS solve ends it where it encloses that mass, and the layers above it move with it. Default `true`. |
+| `state` | optional | `"auto"` (the material decides, and a melting layer splits into solid and liquid zones), `"solid"`, or `"liquid"`. Default `"auto"`. |
+| `is_static` | optional | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer or liquid zone is a static liquid unless this is `false`. |
+| `is_incompressible` | optional | Incompressible approximation in the radial solve. Default `false`. |
+| `temperature_k` | optional | Layer temperature \[K\]. Default `0.0`, the cold rigid limit of the viscosity laws; a layer at 0 K takes no part in a thermal solve, and a solve warns once when it leaves the layer rigid. |
+| `use_thermal_expansion` | optional | Let the material's density follow the temperature. Default `false`. |
+| `use_melting` | optional | Let the material melt: its liquid phase, melt fraction, and weakening. Default `false`. |
+| `use_pressure_melting` | optional | Let the material's melting curves follow the pressure (off: their zero-pressure values). Default `false`. |
+| `use_melt_density` | optional | Mix the melt's density in by melt fraction (off: the solid's density). Default `false`. |
+| `use_heating` | optional | Let the world's heat sources (the layer's radiogenics, the tides, and prescribed heating) act inside the layer during a thermal EOS solve. Default `false`. |
+| `[layers.<name>.shear_rheology]`, `[layers.<name>.bulk_rheology]` | optional | Override the rheology the material's phase carries (see [Attached Physics Models](#attached-physics-models)). |
+| `[layers.<name>.cooling]` | optional | The layer's cooling model. Absent leaves the layer isothermal. |
+| `[layers.<name>.radiogenics]` | optional | The layer's radiogenics model. Absent gives it none. |
 
-_Most layers for rocky or icy planets and moons should use the `solidliquid` class._
+The [Layer](../layers/layer.md#physics-switches-and-flags) page describes what each switch does. The static moduli, the density laws, the thermal constants, and the viscosity and melting laws are material properties, not layer keys. They live in the layer's material, so the layer and the solve read the same numbers.
 
-| Key | Required | Layer classes | Description |
-|-----|----------|---------------|-------------|
-| `class` | **yes** | all | `base`, `solidliquid`, or `gas`. Selects the layer class. |
-| `type` | optional | all | Material type for default lookup: `gas`, `mantle_rock`, `ice`, `hp_ice`, `iron`, `default` (the block a layer without a type takes, a copy of `mantle_rock`), or `none` (no material defaults at all; `get_config_dict` writes this because it lists every model explicitly). |
-| `layer_index` | optional | all | Inner-to-outer position (0 = innermost). Falls back to declaration order. |
-| `radius_outer_m` | one-of | all | Outer radius \[m\] (absolute). |
-| `radius_fraction` | one-of | all | Outer radius as a fraction of the world radius (`radius_outer_m = radius_fraction * world radius_m`). |
-| `volume_fraction` | one-of | all | Layer shell volume as a fraction of the whole-world volume; the outer radius is solved from it. |
-| `mass_kg` | optional | all | Layer mass \[kg\]. Defaults to 0.0; every successful EOS solve overwrites it with the solved layer mass. |
-| `material_name` | optional | all | Free-form material label. |
-| `is_tidal` | optional | all | Whether the layer participates in tides. |
-| `is_volume_fixed` | optional | all | `false` lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior; the layers above it move with it. Default `true`. |
-| `tidal_scale` | optional | all | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Absent takes the layer's volume over the planet's. The radial solver resolves the layers directly and does not use it. |
-| `is_solid` | optional | all | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
-| `is_static` | optional | all | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
-| `is_incompressible` | optional | all | Incompressible approximation in the radial solve. Default `false`. |
-| `temperature_k` | optional | all | Layer temperature \[K\] at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
-| `use_thermal_eos` | optional | all | Let the density law of the layer's material see the temperature, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `material` table). Default `false`. |
-| `use_heating` | optional | all | Let the world's heat sources act inside the layer during a thermal EOS solve: its `radiogenics` model then heats it, as a specific rate times the local density. Default `false`. |
-| gas params | optional | gas | See below. |
-
-The static moduli, the shear law, the thermal constants, and the viscosity and melting parameters are material properties, not layer keys. They live in the layer's `material` table (below), so the layer and the solve read the same numbers. Setting one on the layer is a validation error that names its new location.
-
-**Gas layer parameters:**
-- `mean_molecular_weight_kg_mol`
-- `adiabatic_index`
-- `reference_temperature_k`
-
-These are stored and saved, but no calculation reads them. A gas layer's density comes from its material, so a layer-level `reference_density_kg_m3` is a validation error that points to the density law's key in `[layers.<name>.material]`.
-
-An unrecognized scalar key, or a model table the layer's class does not allow, is a validation error.
+An unrecognized key, a model table without a `model` key, a switch that is not `true` or `false`, or a `state` outside the three values is a validation error. A retired key (`class`, `type`, `material_name`, `is_tidal`, `is_solid`, `use_thermal_eos`, the gas-layer scalars, and layer-level `eos`, `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables) is refused with a message naming what replaced it (`TidalPy.schema.RETIRED_LAYER_KEYS`).
 
 ### Geometry
 
@@ -144,44 +136,43 @@ After the keys, `validate_physical_values` checks the values. Every build runs i
 
 ### Attached Physics Models
 
-A layer attaches a physics model through a nested table holding a `model` key and that model's parameters. The other keys are forwarded verbatim to the matching `make_*` factory as its parameter dict. Omitted keys keep their factory defaults. A key that no model in that family reads raises a `ValueError` naming the table.
+A layer attaches a model through a nested table holding a `model` key and that model's parameters. The other keys are forwarded to the matching `make_*` factory as its parameter dict. Omitted keys keep the model's own defaults. A key the model does not read raises a `ValueError` naming the table and the closest accepted key.
 
-| Model table | Factory | Allowed layer classes |
-|-------------|---------|-----------------------|
-| `[layers.<name>.material]` | `make_material_eos` | all |
-| `[layers.<name>.shear_rheology]` | `make_rheology` | all |
-| `[layers.<name>.bulk_rheology]` | `make_rheology` | all |
-| `[layers.<name>.cooling]` | `make_cooling` | solidliquid only |
-| `[layers.<name>.radiogenics]` | `make_radiogenics` | solidliquid only |
+| Model table | Factory |
+|-------------|---------|
+| `[layers.<name>.shear_rheology]` | `make_rheology` |
+| `[layers.<name>.bulk_rheology]` | `make_rheology` |
+| `[layers.<name>.cooling]` | `make_cooling` |
+| `[layers.<name>.radiogenics]` | `make_radiogenics` |
 
-See each module's documentation for the available model names and parameters.
+An isotope radiogenics table that names neither a dataset (`isotopes`) nor its own isotope arrays takes the dataset of `[radiogenics] isotopes` in `TidalPy_Configs.toml`. See each module's documentation for the available model names and parameters.
 
 ### The Material Table
 
-`[layers.<name>.material]` is the layer's EOS model, which is also its material. It holds:
+A layer's `material` is a MatPack name or a table, built by `TidalPy.Material.load_material` (see [MatPack](../../Material/matpack.md) and [Phases and Materials](../../Material/materials.md)). A table takes one of two forms:
 
-- Density law: `model` (`"constant"`, `"bm"`, `"vinet"`, `"interpolate"`) and its parameters (`reference_density_kg_m3`, `reference_bulk_modulus_pa`, `thermal_expansion_1_k`, ...). An `interpolate` table's `radius_m` \[m\] must span its layer to within 0.1% of the layer's outer radius at each end, or the build fails: the interpolation holds its end values beyond the table, so a table in km would otherwise build a uniform layer.
-- Static constants: `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `shear_viscosity_static_pas`, and `bulk_viscosity_static_pas`. A viscosity left out is unset.
-- Thermal constants: `thermal_conductivity_w_mk` (default `4.0`), `heat_capacity_j_kgk` (default `1200.0`), and `thermal_expansion_1_k` (default `0.0`), with `anderson_gruneisen_parameter` and `anderson_gruneisen_exponent` (default `0.0`, a constant expansivity) for its fall with compression (see [Material EOS](../../Material/material_eos.md#expansivity-under-compression)). The expansivity sets the adiabat and convection of a cooling layer. The density law uses it only on a layer that sets `use_thermal_eos`.
-- Static shear law: $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$ through `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative_pa_k` \[Pa K$^{-1}$\], and `shear_modulus_reference_temperature_k` \[K\] (defaults `0.0`, `0.0`, `300.0`).
-- Three optional nested model tables, each with its own `model` key: `[layers.<name>.material.shear_viscosity]` and `[layers.<name>.material.bulk_viscosity]` (built by `make_viscosity`) and `[layers.<name>.material.partial_melt]` (built by `make_partial_melt`). The partial-melt table's solidus and liquidus can rise with pressure through the `solidus_simon_a_pa` family of keys (see [Pressure-Dependent Melting Curves](../../PartialMelt/partial_melt_models.md#pressure-dependent-melting-curves)).
+- A preset with overrides: `preset` names a MatPack material, and the rest of the table merges over it. A law table that names the same model changes that law's keys, one that names another model replaces the law, and a law the preset lacks is added.
+- A full definition: a `solid` phase table, a `liquid` phase table, or both, a `melting` table (`solidus`, `liquidus`, `weakening`, `bulk_modulus_mixing`, `bulk_viscosity_mixing`) joining them, and the material's `latent_heat_j_kg`.
 
-The whole table is passed to `make_material_eos` (see [Material EOS Models](../../Material/material_eos.md)). The rheology tables stay on the layer because the rheology is the only part that needs a frequency.
-
-Unlike the other model tables, `material` may leave out `model` when the layer's material `type` supplies one, so a fitted number can be overridden without restating the rest:
+A phase table holds its laws as sub-tables, each with its own `model` key: `eos` (the density law and its thermal terms), `shear_modulus`, `shear_viscosity`, `bulk_viscosity`, and the phase's default `shear_rheology` and `bulk_rheology`, plus its thermal constants (`thermal_conductivity_w_mk`, `heat_capacity_j_kgk`, their temperature exponents, and `thermal_reference_temperature_k`). A phase table may also name a `preset`, taking that material's phase in the same slot. A material with only a liquid phase is liquid everywhere (an ocean, a gas envelope). With both phases it melts between its solidus and liquidus when the layer has `use_melting` on, and equal curves give a single melting temperature.
 
 ```toml
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 radius_fraction = 1.0
+material = "peridotite"                 # a MatPack name
 
-[layers.mantle.material]
-shear_modulus_static_pa = 4.17e10     # everything else comes from the mantle_rock defaults
+[layers.crust.material]                 # a preset with one law replaced
+preset = "basalt"
+[layers.crust.material.solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e23
 
-[layers.mantle.material.shear_viscosity]
-reference_viscosity_pas = 3.0e21      # one key of a nested default table
+[layers.ocean.material.liquid.eos]      # a full definition: a liquid-only material
+model = "constant"
+reference_density_kg_m3 = 1000.0
 ```
+
+A radius-tabulated law (`model = "interpolate"`, with a `radius_m` table \[m\]) must span its layer to within 0.1% of the layer's outer radius at each end, or the build fails: the law holds its end values beyond the table, so a table in km would otherwise build a uniform layer. An error in the material names the layer's table (`[layers.<name>.material]`). The [Schema Examples](schema_examples.md) show every law with its keys.
 
 ## Tidal Dissipation (`[tides]`)
 
@@ -232,10 +223,10 @@ fixed_q = [1.0e5, 1.0e5, 1.0e5]
 
 A world's file may pin the solver settings its results depend on, so the file and a TidalPy configuration file reproduce a run on another machine. The two tables take the keys of the same-named sections of `TidalPy_Configs.toml` (see [Configurations](../../Overview/2_TidalPy_Configurations.md)):
 
-- `[eos_solver]`: `integration_method`, `rtol`, `atol`, `pressure_tol`, `max_iters`, `slices_per_layer`, `nondimensionalize`, and `solve_temperature`.
+- `[eos_solver]`: `integration_method`, `rtol`, `atol`, `pressure_tol`, `max_iters`, `slices_per_layer`, `nondimensionalize`, `solve_temperature`, `max_thermal_passes`, and `thermal_tol`.
 - `[radial_solver]`: `integration_method`, `rtol`, `atol`, `use_kamata`, `start_radius_tolerance`, `scale_rtols`, `max_num_steps`, `expected_size`, `max_ram_mb`, and `nondimensionalize`.
 
-A pinned key overrides the configuration for every solve the world runs (`solve_eos`, `solve_love_numbers`, `calc_tides`, and the 3D paths). A call's own argument still overrides the pinned key. A key left out follows the configuration. A star runs neither solve and rejects both tables.
+A pinned key overrides the configuration for every solve the world runs (`solve_eos`, `solve_love_numbers`, `calc_tides`, and the 3D paths). A call's own argument still overrides the pinned key. A key left out follows the configuration.
 
 ```toml
 [eos_solver]
@@ -246,29 +237,30 @@ rtol = 1.0e-8
 use_kamata = true
 ```
 
-`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed. The one bundled world that uses them is `luna_dynamic`, which pins `rtol = 1.0e-8` so that its dynamic liquid core keeps its yearly Love number.
+`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed. Every bundled layered world except `earth_prem` and `earth_prem_q` pins `solve_temperature = false` in its `[eos_solver]` table. The two PREM worlds are built from a profile and take `integration_method = "RK45"` (see [Building a World From a Radial Profile](#building-a-world-from-a-radial-profile)). `luna_dynamic` also pins `rtol = 1.0e-8` in a `[radial_solver]` table so that its dynamic liquid core keeps its yearly Love number.
 
 ## Default Configuration Resolution
 
-Any layer parameter or physics-model table is resolved through three tiers, in order:
+A value a world file leaves out is resolved in this order:
 
 1. The user world (dict or TOML): a value the user writes takes precedence over every other tier.
-2. The TidalPy configuration (`TidalPy_Configs.toml`), keyed by material `type`: the builder fills anything the user omitted from `TidalPy.config['layers'][<type>]`. Keys and model tables that the layer's `class` cannot hold are ignored (an `ice` block applied to a `base` layer drops its cooling and radiogenics sections). A layer with no `type` takes the `[layers.default]` block, and `type = "none"` skips this tier. A model table fills in from the type's table even when it names a different `model`: an `ice` layer that sets `[layers.<name>.material.partial_melt] model = "henning"` keeps the ice solidus, liquidus, and liquid properties of `[layers.ice.material.partial_melt]`, and a key the new model does not read is ignored by it. Only a key whose meaning depends on the model reading it (`TidalPy.configurations.MODEL_SPECIFIC_KEYS`: the radiogenics `ref_time_s`, an isotope dataset's reference time to one model and a fixed rate's to the other) is dropped from the type's table when the model changes.
-3. The constructor or factory default: anything still unset falls through to the C++ or Cython default.
+2. The TidalPy configuration (`TidalPy_Configs.toml`): a world-level property comes from its `[worlds]` block, a `[tides]` value from its `[tides]` block, and the material of a layer that names none from `[layers] material`.
+3. The constructor or factory default: anything still unset falls through to the C++ or Cython default. A layer's switches and flags take the `Layer` defaults, a model table's omitted keys take the model's own defaults, and a layer gets no cooling or radiogenics model unless its table names one.
 
-For example, an Andrade shear rheology's `zeta` on a `solidliquid` / `mantle_rock` layer comes from `layers.<name>.shear_rheology.zeta` in the user world, else `[layers.mantle_rock.shear_rheology].zeta` in `TidalPy_Configs.toml`, else the Cython class' factory default.
+A layer's material values come from the material it names: a MatPack material's values are edited in its file in the `Materials` folder of the TidalPy data directory (`TidalPy.Material.material_info(name)["path"]`), or overridden in the layer's own material table.
 
-World-level properties resolve the same way through the `[worlds]` block instead of `[layers.<type>]`: a world's `albedo` comes from its own table, else `[worlds].albedo`, else the class default. A `[worlds.<type>]` sub-table specializes the block for one world type. It keeps the star-only `effective_temperature_k` and `luminosity_w` off every other world.
+World-level properties resolve through the `[worlds]` block: a world's `albedo` comes from its own table, else `[worlds].albedo`, else the class default. A `[worlds.<type>]` sub-table specializes the block for one world type. It keeps the star-only `effective_temperature_k` and `luminosity_w` off every other world.
 
 `TidalPy_Configs.toml` is TidalPy's configuration file (see [TidalPy Configurations](../../Overview/2_TidalPy_Configurations.md)). It is generated from `TidalPy.defaultc` into the user's TidalPy `Config` directory on first use and is then user-editable. A new default belongs in `defaultc.py`. Its `[numerical]` section also feeds the shared C++ config singleton read by every compiled module (see [Constants](../../Utilities/constants.md)):
 
 - the frequency, modulus, and thickness floors;
 - `numerical_floor`: the magnitude a guarded denominator is raised to;
-- `layer_continuity_rtol`: how closely a layer's inner radius must match the previous layer's outer radius.
+- `layer_continuity_rtol`: how closely a layer's inner radius must match the previous layer's outer radius;
+- `minimum_solid_rigidity` and `minimum_zone_fraction`: where a melting layer turns liquid, and the thinnest zone the radial solver takes as a layer of its own.
 
 ## Example: Three-Layer Terrestrial World
 
-Each layer of this world names only its `class`, material `type`, geometry, and temperature. The EOS, rheology, viscosity, melt, cooling, and radiogenics models come from the matching `[layers.<type>]` blocks of `TidalPy_Configs.toml`. It is the skeleton of the bundled `earth_simple`, which adds the fitted densities, viscosity laws, and mantle rigidity its file comments explain.
+Each layer of this world names its geometry, its material, and its temperature, and the outer core is a liquid-only MatPack material, so it is a liquid layer. It is the skeleton of the bundled `earth_simple`, which gives full material tables with fitted densities, viscosity laws, and mantle rigidity, and explains them in its file comments.
 
 ```toml
 schema_version = "0.2.0"
@@ -279,38 +271,39 @@ mass_kg = 5.972e24
 spin_frequency_rad_s = 7.292e-5
 
 [layers.inner_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 1221500.0   # inner radius is derived (0 for the innermost)
 temperature_k = 5500.0
+material = "iron"
 
 [layers.outer_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 1
 radius_outer_m = 3480000.0
-is_solid = false             # a fluid layer, solved as a static liquid; it cannot be tidal
-is_tidal = false
+use_tides = false            # a liquid that dissipates nothing in this model
 temperature_k = 4500.0
+material = "liquid_iron"     # liquid-only, so a static liquid layer
 
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0        # outer radius = full world radius; inner = the outer core's outer
-is_tidal = true
 temperature_k = 1600.0
+material = "lower_mantle"
 ```
 
-Adding the key or sub-table overrides any default. For example, this sets the mantle's shear viscosity and EOS density:
+Adding a key or sub-table overrides a default. For example, this replaces the mantle's material with a MatPack preset whose shear viscosity is replaced, and turns its melting on:
 
 ```toml
-[layers.mantle.material]
-model = "constant"
-reference_density_kg_m3 = 4500.0
+[layers.mantle]
+layer_index = 2
+radius_fraction = 1.0
+temperature_k = 1600.0
+use_melting = true
+use_pressure_melting = true
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material]
+preset = "peridotite"
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "constant"
 reference_viscosity_pas = 1.0e21
 ```
@@ -342,11 +335,22 @@ data_file = "PREM.csv"  # Can be a path to a file too.
 From Python, pass the arrays to `build_world` under a `data` key instead of a data file. A world gives its profile one way or the other, never both.
 
 ```python
+import numpy as np
+
+radius_km = np.array([0.0, 3480.0, 3480.0, 6371.0])        # The boundary row repeated: a liquid core, a solid mantle
+density = np.array([12000.0, 10000.0, 5500.0, 3300.0])     # [kg m-3]
+vp = np.array([11000.0, 8000.0, 13700.0, 8000.0])          # [m s-1]
+vs = np.array([0.0, 0.0, 7300.0, 4500.0])                  # [m s-1]; zero is liquid
+
 world = build_world({
-    "schema_version": "0.2.0", "name": "My-Earth", "type": "terrestrial",
-    "radius_m": 6371000.0, "mass_kg": 5.972e24,
-    "data": {"radius_km": radius, "density": density, "vp": vp, "vs": vs},
-})
+    "schema_version": "0.2.0",
+    "name": "My-Earth",
+    "type": "terrestrial",
+    "radius_m": 6371000.0,
+    "mass_kg": 5.972e24,
+    "data": {"radius_km": radius_km, "density": density, "vp": vp, "vs": vs},
+})                                                         # Two layers, detected at the solid-liquid transition
+print([layer.name for layer in world], world.layer_0.is_liquid)   # ['layer_0', 'layer_1'] True
 ```
 
 ### Profile Format
@@ -367,15 +371,15 @@ A profile is a delimited table (comma, semicolon, tab, or whitespace; `#` commen
 | shear quality factor $Q_\mu$ | `q_mu`, `qmu`, `q_shear`, `q_s`, `q_beta` | none | no; used only with `q_provided = true` |
 | bulk quality factor $Q_\kappa$ | `q_kappa`, `qkappa`, `q_bulk`, `q_k` | none | no; used only with `q_provided = true` |
 
-Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit the reader does not convert is taken to be MKS. Columns are found by name, so their order does not matter, and a column whose name matches none of these is not read. A bare `eta` is not a viscosity: in PREM and the IRIS tables it is the dimensionless anisotropy parameter, so an `eta` column is not read. The names come from a header row or from the last `#` comment line before the data. A header row must name every column, or the file is refused. A `#` comment line is taken as the header only when it names every column, so prose about the data is not mistaken for a header. In a whitespace-delimited header a bracketed unit stays with its name (`depth (km)`). A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity, so quality factors need a header.
+Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A name whose unit the reader does not convert for its quantity is refused with a `ValueError` listing the units it accepts. Columns are found by name, so their order does not matter, and a column whose name matches none of these is not read. A bare `eta` is not a viscosity: in PREM and the IRIS tables it is the dimensionless anisotropy parameter, so an `eta` column is not read. The names come from a header row or from the last `#` comment line before the data. A header row must name every column, or the file is refused. A `#` comment line is taken as the header only when it names every column, so prose about the data is not mistaken for a header. In a whitespace-delimited header a bracketed unit stays with its name (`depth (km)`). A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity, so quality factors need a header.
 
-A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it. A density below 100 kg/m³, a velocity below 100 m/s, and a bulk modulus or a solid's shear modulus below 10⁶ Pa are refused as a column in g/cm³, km/s, or GPa that did not state its unit (name it `density_g_cm3`, `vp_km_s`, or `shear_modulus_gpa`). The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
+A radius or depth column with no stated unit is read as kilometers when its largest value is below 100000, and as meters otherwise. A density below 100 kg/m³, a velocity below 100 m/s, and a bulk modulus or a solid's shear modulus below 10⁶ Pa are refused as a column in g/cm³, km/s, or GPa that did not state its unit (name it `density_g_cm3`, `vp_km_s`, or `shear_modulus_gpa`). The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
 
 ### Layer Detection
 
-The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed, so no zero-thickness layer is produced. At a duplicated boundary radius the lower layer's row comes first, whichever way the file is ordered. A liquid layer gets `is_solid = false` and `is_static = true`, so the radial solver treats it as a static liquid. A layer table can override either flag. The bundled `PREM.csv` replaces PREM's 3 km ocean with the upper crust and yields three layers: inner core (solid), outer core (liquid), and mantle plus crust (solid).
+The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed, so no zero-thickness layer is produced. At a duplicated boundary radius the lower layer's row comes first, whichever way the file is ordered. The bundled `PREM.csv` replaces PREM's 3 km ocean with the upper crust and yields three layers: inner core (solid), outer core (liquid), and mantle plus crust (solid).
 
-Each layer's slice of the profile becomes its material: an interpolated EOS carrying that layer's density, static shear and bulk moduli, and any viscosities the profile gave. That EOS owns those arrays and is the only place a radial grid persists. A layer starts where the one below it ends. When the profile repeats no row at that boundary, the layer's first row is repeated at the boundary radius, so its table spans the layer. A layer built this way takes no defaults from a material type. A profile that names no viscosity therefore produces an elastic layer, with no viscosity model, no partial-melt model, and no rheology it did not ask for.
+Each layer's slice of the profile becomes its material, a phase of radius-tabulated (`interpolate`) laws: the density and bulk modulus in its `eos`, the shear modulus of a solid layer, and any viscosities the profile gave. A solid layer's material is a solid phase, and a liquid layer's is a liquid-only material, so the layer is a liquid (static, unless its table sets `is_static = false`). The material holds those arrays and is the only place a radial grid persists. A layer starts where the one below it ends. When the profile repeats no row at that boundary, the layer's first row is repeated at the boundary radius, so its table spans the layer. A solid layer takes part in the tides (`use_tides`) and a liquid one does not. No other law and no melting is added: a profile that names no viscosity produces an elastic layer, with no viscosity law, no melting, and no rheology it did not ask for.
 
 ### Refining Detected Layers
 
@@ -386,17 +390,19 @@ A table picks the detected layer it refines with `layer_index`, or by being name
 - A given outer radius (`radius_outer_m` or `radius_fraction`) must match the detected boundary.
 - Two tables may not claim the same layer.
 - An index outside the detected range raises an error.
-- A constant modulus or viscosity (_e.g._, `bulk_modulus_static_pa = 1.0e11`) replaces that layer's array with the constant: TOML overrides the data file.
-- Other keys (`class`, `type`, the model sub-tables, …) override the detected values. Naming a `type` brings that material block's defaults back.
-- In a world that sets `q_provided = true`, a table may not give a viscosity or a `type`, and names no rheology but `seismic_q` (or `elastic` for the bulk). A solid layer's table names no partial-melt model but `off` and no `convection` cooling model. See below.
+- A `material` table merges over the layer's slice of the profile: a law naming another model replaces the profile's (a constant viscosity, say), and a law the profile lacks is added. A MatPack name is refused, since the profile is the layer's material.
+- A single number given for a tabulated quantity of the profile's laws (_e.g._, `bulk_modulus_pa = 1.0e11` in the `solid.eos` table) holds across the layer: TOML overrides the data file.
+- Every other key (a switch, a flag, a model table) is set on the layer.
+- In a world that sets `q_provided = true`, a table may not give a viscosity law or a `preset`, and names no rheology but `seismic_q` (or `elastic` for the bulk). A solid layer's table may not turn `use_melting` on or name the `convection` cooling model. See below.
 
 ```toml
 [layers.mantle]             # refines the outermost detected layer; the other two need no table
 layer_index = 2
 [layers.mantle.shear_rheology]
 model = "maxwell"
-[layers.mantle.material]
-shear_viscosity_static_pas = 1.0e21   # the profile named no viscosity, so give one here
+[layers.mantle.material.solid.shear_viscosity]
+model = "constant"          # the profile named no viscosity, so give one here
+reference_viscosity_pas = 1.0e21
 ```
 
 ### Quality Factors in Place of Viscosities
@@ -420,9 +426,9 @@ These keys belong only to a world with a profile. The last two require `q_provid
 
 - **Solid layers.** Each gets `shear_rheology = {model = "seismic_q", ...}` with the world's two settings, and a `bulk_rheology` of the same kind when the profile gives `q_kappa`. The quality factors ride in the layer's viscosity arrays, which is where `seismic_q` reads them. They must be positive in every solid row.
 - **Liquid layers.** These (a liquid's $Q_\mu$ is conventionally 0) take no quality factor and no rheology.
-- **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity, or name a material `type`: each would put a viscosity where `seismic_q` reads a quality factor. On a solid layer it may not name a partial-melt model other than `off`, or the `convection` cooling model: both read the layer's viscosity, which there holds $Q_\mu$ (Henning melt weakening at 1800 K would turn a $Q_\mu$ of 312 into 0.365).
+- **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity law, or name a material `preset`: each would put a viscosity where `seismic_q` reads a quality factor. On a solid layer it may not turn `use_melting` on or name the `convection` cooling model: the melt weakening and the Rayleigh number both read the layer's viscosity, which there holds $Q_\mu$.
 
-The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ equals the elastic PREM's. At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
+The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ about equals the elastic PREM's (0.298351 against 0.298362). At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
 
 The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack` (see [`worldpack.md`](worldpack.md)). A world built this way pins `integration_method = "RK45"` in its `[eos_solver]` table unless the file sets that key, and `get_solver_defaults()` reports it. On an interpolated profile RK45 is about 2.8 times faster than DOP853 at equal accuracy, because the profile's kinks defeat the higher order.
 
@@ -470,15 +476,15 @@ system = build_system("sol_system")     # or a path / a config dict
 
 ## Python API
 
-All entry points are re-exported from `TidalPy.Structures` and from `TidalPy.Structures.configs`.
+Every entry point below is exported from `TidalPy.Structures.configs`, and the main ones (`build_world`, `build_world_from_dict`, `build_layer_from_dict`, `build_system`, `build_system_from_dict`, `construct_world`, `construct_layer`, `available_worlds`, `available_systems`, `save_world_to_toml`, `install_worldpack`, `SCHEMA_VERSION`) from `TidalPy.Structures` too.
 
 ### High Level
 
 * `build_world(source, force=False) -> BaseWorld`: resolve `source` (bundled name, file path, or dict), validate it, and return the built Cython world. `force=True` bypasses the schema-version warning. A thin wrapper over `BaseWorld.build(source, force=False)`, which returns the type-appropriate subclass.
 * `load_radial_data(source, surface_radius=None) -> dict`: read a radial profile (a data-file path or a mapping of arrays) into MKS arrays ascending in radius, the same reader `data_file` and `data` worlds use. `detect_layer_boundaries(radius, shear_modulus)` returns the `(start, end, is_solid)` runs it splits into.
 * `world.save_to_toml(path, overwrite=True)`: write the retained build configuration, stamped with the current `schema_version` under a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it. A world built from a `data_file` writes its `portable_config`. A world constructed directly rather than through `build_world` falls back to `get_config_dict()`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
-* `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with `class` and attached-model sub-tables, `tides`, `schema_version`).
-* `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> BaseLayer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
+* `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with each layer's scalars, `material` table, and model sub-tables, `tides`, `schema_version`).
+* `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> Layer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
 * `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly). `world.portable_config`: for a world built from a `data_file`, the configuration as given (`None` otherwise). A successful `load_binary` clears both, since they describe the world before the load, and `save_to_toml` then writes `get_config_dict()`.
 * `EOS_SOLVER_KEYS`, `RADIAL_SOLVER_KEYS`, and `validate_solver_table(section, table, where)`: the keys a world's `[eos_solver]` and `[radial_solver]` tables may pin, and the check the loader and `set_solver_defaults` apply to them.
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir unioned with packaged `WorldPack`). Bundled system files share that directory and are listed by `available_systems()` instead. `build_world` on a system config raises a `ValueError` naming `build_system`, and the reverse holds too.
@@ -487,12 +493,12 @@ All entry points are re-exported from `TidalPy.Structures` and from `TidalPy.Str
 ### Low Level
 
 * `construct_world(config) -> BaseWorld`: validate a dict and build the underlying Cython world (and its layers).
-* `construct_layer(name, layer_cfg, layer_index, radius_inner, radius_outer) -> BaseLayer`: build a single layer and attach its physics models.
+* `construct_layer(name, layer_cfg, layer_index, radius_inner, radius_outer) -> Layer`: build a single layer, its material, and its models from a validated layer table.
 * `save_world_to_toml(config, path, overwrite=True)`: serialize a config dict.
 
 ### Loader / Validation
 
-The schema's key sets (`WORLD_TYPES`, `ALLOWED_LAYER_SCALAR_KEYS`, `LAYER_MODEL_SECTIONS`, `ALLOWED_TIDES_KEYS`, `EOS_SOLVER_KEYS`, and the rest) are defined in `TidalPy.schema`. That module has no TidalPy imports, so the configuration loader can check `TidalPy_Configs.toml` against them while `import TidalPy` runs. The loader below re-exports them.
+The schema's key sets (`WORLD_TYPES`, `LAYER_SCALAR_KEYS`, `LAYER_MODEL_SECTIONS`, `LAYER_STATES`, `RETIRED_LAYER_KEYS`, `ALLOWED_TIDES_KEYS`, `EOS_SOLVER_KEYS`, and the rest) are defined in `TidalPy.schema`. That module has no TidalPy imports, so the configuration loader can check `TidalPy_Configs.toml` against them while `import TidalPy` runs. The loader below re-exports them.
 
 From `TidalPy.Structures.configs.toml_loader`:
 
@@ -512,7 +518,7 @@ world.save_to_toml("earth_copy.toml")
 reloaded = build_world("earth_copy.toml")   # identical structure
 ```
 
-The retained configuration is the world as its file described it. `get_config_dict()` is the world as it stands now, including every change made since the build. `build_*_from_dict` rebuilds the same class with the same parameters and attached models from that dict, for a layer, a world, or a system:
+The retained configuration is the world as its file described it. `get_config_dict()` is the world as it stands now, including every change made since the build. `build_*_from_dict` rebuilds the same class with the same parameters and attached models from that dict, for a layer, a world, or a system. A world constructed directly in Python with no tide model attached writes no `tides` table, so its rebuild takes the builder's default tide model for its type (see [Tidal Dissipation](#tidal-dissipation-tides)):
 
 ```python
 from TidalPy.Structures import build_world_from_dict, build_layer_from_dict, build_system_from_dict
@@ -528,4 +534,4 @@ mantle_twin = build_layer_from_dict(mantle.get_config_dict())    # A standalone 
 system_twin = build_system_from_dict(system.get_config_dict())   # Worlds, tidal hosts, star, and orbits
 ```
 
-The live dict carries every scalar and attached model explicitly and writes each layer with `type = "none"`, so a rebuild does not add the `[layers.default]` models a typeless layer would otherwise take. A standalone layer's dict adds the keys a world would supply from the layer's place in its `layers` table (`name` and `radius_inner_m`). A physics layer's dict also adds its six Love number components (`love_number_k_re` through `love_number_l_im`, since TOML has no complex type). A world drops those keys when it nests the layer. A system's dict inlines each member world's live dict under `world`. Solved state (the EOS, Love numbers, tides) is not configuration, so run the solves again on a rebuilt object.
+The live dict carries every layer scalar, the layer's full material table, its rheology overrides, and its cooling and radiogenics tables explicitly, so a rebuild takes nothing from `[layers] material` or a MatPack file that may have changed since. A standalone layer's dict adds the keys a world would supply from the layer's place in its `layers` table (`name` and `radius_inner_m`). A world drops those keys when it nests the layer. A system's dict inlines each member world's live dict under `world`. Solved state (the EOS, Love numbers, tides) is not configuration, so run the solves again on a rebuilt object.

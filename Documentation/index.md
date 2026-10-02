@@ -25,7 +25,7 @@ Migrating from 0.7.X <future_structure.md>
 :caption: Modules
 
 Structures <Structures/index.md>
-Material and EOS <Material/index.md>
+Materials <Material/index.md>
 Rheology <Rheology/index.md>
 Viscosity <Viscosity/index.md>
 Partial Melting <PartialMelt/index.md>

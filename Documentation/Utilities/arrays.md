@@ -1,8 +1,8 @@
 # Arrays and Interpolation (`Utilities.arrays`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
-`TidalPy.Utilities.arrays` provides linear interpolation over a sorted grid. The tabulated equation of state uses it to get density at a radius, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
+`TidalPy.Utilities.arrays` provides linear interpolation over a sorted grid. The tabulated material laws use it to get a density, modulus, or viscosity at a radius and a melting temperature at a pressure, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
 
 `interp` is a thin wrapper over the same header-only C++ routine the solvers call, so a Python result and a C++ result agree exactly.
 
@@ -48,7 +48,7 @@ Short domains are handled without the search: an empty domain gives NaN, a singl
 
 ## Where Interpolation is Used
 
-The tabulated equation of state interpolates its density and viscoelastic tables with `c_interp`. See [Material EOS Models](../Material/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
+The tabulated laws (the `interpolate` equation-of-state, shear-modulus, and viscosity laws, in radius, and the `interpolate` melting curve, in pressure) read their tables through `c_TableLookup` (`table_lookup_.hpp`), which seeds `c_interp` from a bucket index over the abscissa so a read costs the same anywhere in a long table, and also gives a table's slope. See [Equation-of-State and Shear-Modulus Laws](../Material/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
 
 ## Implementation Notes
 

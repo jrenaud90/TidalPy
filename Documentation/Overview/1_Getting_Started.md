@@ -1,6 +1,6 @@
 # Getting Started with TidalPy
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 ## Installation
 
@@ -11,7 +11,7 @@ _Updated: 2026-09-30_
 
 ## First Calculation
 
-TidalPy builds worlds out of layers, each with an equation of state and physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior and Love numbers, and places it in orbit about Jupiter to find its tidal heating and orbital rates.
+TidalPy builds worlds out of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior and Love numbers, and places it in orbit about Jupiter to find its tidal heating and orbital rates.
 
 ```python
 import numpy as np
@@ -83,10 +83,10 @@ If you find an issue, have a question, or want to share an idea for a new featur
 TidalPy is divided into several modules, some of which rely on each other.
 
 - `TidalPy.Structures`: layers, worlds (layered, gas giant, and star), and the `System` that links them; the TOML world builder and the bundled worlds. See [Structures](../Structures/index.md).
-- `TidalPy.Material`: material equations of state and the whole-planet EOS solver. See [Material and EOS](../Material/index.md).
+- `TidalPy.Material`: equation-of-state and shear-modulus laws, the phases and materials built from them, MatPack (the bundled materials), and the whole-planet EOS solver. See [Materials](../Material/index.md).
 - `TidalPy.Rheology`: viscoelastic rheology models that return a complex modulus. See [Rheology](../Rheology/index.md).
 - `TidalPy.Viscosity`: temperature- and pressure-dependent viscosity models. See [Viscosity](../Viscosity/index.md).
-- `TidalPy.PartialMelt`: partial-melt models that weaken the viscosity and shear modulus. See [Partial Melting](../PartialMelt/index.md).
+- `TidalPy.PartialMelt`: melting curves, melt weakening, and bulk-mixing laws that a material uses once it begins to melt. See [Partial Melting](../PartialMelt/index.md).
 - `TidalPy.Cooling`: conductive and convective cooling models. See [Cooling](../Cooling/index.md).
 - `TidalPy.Radiogenics`: radiogenic heating models and isotope datasets. See [Radiogenics](../Radiogenics/index.md).
 - `TidalPy.RadialSolver`: the radial solver for tidal, loading, and free Love numbers and the radial functions. See [RadialSolver](../RadialSolver/index.md).
@@ -94,5 +94,5 @@ TidalPy is divided into several modules, some of which rely on each other.
 - `TidalPy.Dynamics`: spin and orbital rates. See [Dynamics](../Dynamics/index.md).
 - `TidalPy.Stellar`: stellar luminosity models. See [Stellar](../Stellar/index.md).
 - `TidalPy.Utilities`: logging, binary serialization, base classes, graphics, and numerical helpers. See [Utilities](../Utilities/index.md).
-- `TidalPy.WorldPack`: not a module: the bundled world and system TOML files used by `build_world` and `build_system`. See [WorldPack](../Structures/config/worldpack.md).
+- `TidalPy.WorldPack` and `TidalPy.MatPack`: not modules: the bundled world, system, and material TOML files used by `build_world`, `build_system`, and `load_material`. See [WorldPack](../Structures/config/worldpack.md) and [MatPack](../Material/matpack.md).
 - `TidalPy.constants`, `TidalPy.configurations`, `TidalPy.paths`: physical constants, the configuration system, and the data directory. See [Constants](../Utilities/constants.md) and [Configurations](2_TidalPy_Configurations.md).

@@ -1,6 +1,6 @@
 # Viscosity (`Viscosity`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 `TidalPy.Viscosity` contains viscosity models which map a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\].
 
@@ -8,7 +8,7 @@ A silicate mantle's viscosity changes by about ten orders of magnitude across th
 
 | Page | Covers |
 |---|---|
-| [Viscosity Models](viscosity_models.md) | The three models, their formulas and parameters, the factory, the Python and C++ surfaces, and how to add a model. |
+| [Viscosity Models](viscosity_models.md) | The models, their formulas and parameters, the factory, the Python and C++ surfaces, and how to add a model. |
 
 ```{toctree}
 :maxdepth: 1
@@ -18,11 +18,11 @@ Viscosity Models <viscosity_models.md>
 
 ## Where Viscosity is Used
 
-A layer's material (its EOS model) holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity` on the EOS model or through the layer's helpers of the same name. During a whole-planet equation-of-state solve the viscosity model converts each radial slice's temperature and pressure into that slice's pre-melt viscosity, and the [partial-melt](../PartialMelt/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The post-melt values are then used by [`Rheology`](../Rheology/index.md) to calculate a complex modulus.
+Each phase of a layer's material holds a viscosity model for its shear response and one for its bulk response, its `shear_viscosity` and `bulk_viscosity` slots (see [Phases and Materials](../Material/materials.md)). The liquid phase's shear viscosity is the melt's. During a whole-planet equation-of-state solve the material evaluates them at the local temperature and pressure, and its [melt weakening](../PartialMelt/partial_melt_models.md#melt-weakening) then lowers the viscosity and the shear modulus wherever melt is present. The post-melt values are then used by [`Rheology`](../Rheology/index.md) to calculate a complex modulus.
 
 Viscosity is frequency-independent, so it is resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
-A layer with a rheology but no viscosity model falls back to its static viscosity, which is NaN unless one was supplied at construction. An equation of state that supplies its own viscosity profile as extra output overrides the model's value slice by slice.
+A phase with no viscosity model reports a NaN viscosity, so a layer that tides through it with a viscoelastic rheology needs one. A viscosity that varies with radius inside a layer, such as a seismic profile's, is an `interpolate` model.
 
 ## Examples
 

@@ -1,6 +1,6 @@
 # Numerics (`Utilities.math`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 Three small C++ functions, in the header-only `numerics_.hpp`, that the physics modules call in place of their standard-library equivalents.
 
@@ -31,4 +31,4 @@ Returning NaN loses the information that the true answer was large rather than u
 
 ## Where Numerics are Used
 
-The partial-melt models guard their power laws and both decaying radiogenics models guard their decay exponentials. The viscosity models intentionally keep the plain exponential because their cold limit is an infinite (rigid) viscosity, not NaN. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../Viscosity/viscosity_models.md), [Partial-Melt Models](../PartialMelt/partial_melt_models.md), and [Radiogenic Models](../Radiogenics/radiogenics_models.md).
+The melt-weakening laws guard their power laws and exponentials, the equation-of-state laws their thermal scaling, and both decaying radiogenics models their decay exponentials. The viscosity models intentionally keep the plain exponential because their cold limit is an infinite (rigid) viscosity, not NaN. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../Viscosity/viscosity_models.md), [Melting Laws](../PartialMelt/partial_melt_models.md), and [Radiogenic Models](../Radiogenics/radiogenics_models.md).

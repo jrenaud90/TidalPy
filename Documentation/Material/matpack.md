@@ -1,8 +1,8 @@
 # MatPack (`Material.matpack`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
-`TidalPy.Material.matpack` contains the named materials TidalPy ships and the functions that load them. Each MatPack material is a complete `Material`: a solid phase, a liquid phase, or both. Each phase has an equation of state and a thermal conductivity and heat capacity; a solid phase adds a shear-modulus law, a viscosity law, and a default tidal rheology, and most liquid phases a viscosity. A material that melts adds its melting curves, melt weakening, and latent heat. A material is loaded by name, optionally with overrides, and returns its state at a pressure [Pa], temperature [K], and radius [m] through `Material.calc_state`.
+`TidalPy.Material.matpack` contains the named materials TidalPy ships and the functions that load them. Each MatPack material is a complete `Material`: a solid phase, a liquid phase, or both. Each phase has an equation of state and a thermal conductivity and heat capacity; a solid phase adds a shear-modulus law, a viscosity law, and a default tidal rheology, and most liquid phases a viscosity. A material that melts adds its melting curves, melt weakening, and latent heat. A material is loaded by name, optionally with overrides, and returns its state at a pressure [Pa], temperature [K], and radius [m] through `Material.calc_state` (see [Phases and Materials](materials.md)).
 
 The values come from the literature, with each file listing its sources and the confidence of the less certain values in its comments. Several values are derived (fits through published data, mineral-physics assemblages computed with BurnMan) or are unsourced estimates; the file says which.
 
@@ -67,7 +67,7 @@ Each material is one phase assemblage at one composition:
 - Materials whose melt composition changes with temperature (`iron_sulfide`, `ammonia_water`) fix the bulk composition, and their melt is one composition.
 - `serpentinite` and `methane_clathrate` decompose rather than melt, so they ship without melting.
 - The two hydrogen-helium materials share one polytrope, so there is no density step between them.
-- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step, and its latent heat does not enter the effective heat capacity: there is no melting range to spread it over.
+- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step, and its latent heat does not enter the effective heat capacity: there is no melting range to spread it over. In a layer that can change state, the boundary between its solid and liquid zones carries the latent heat instead (the world's `layer_latent_capacity`).
 
 ## Python API
 

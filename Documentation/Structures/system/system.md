@@ -1,6 +1,6 @@
 # System (`Structures.system`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-02_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -38,19 +38,25 @@ system.add_world(
 For a system where the star is a separate body from a world's tidal host (_e.g._, Earth-Moon-Sun):
 
 ```python
-system = System()
-system.add_world(
+from TidalPy.Structures.configs import build_world
+
+sun = build_world("sol")                         # Bundled Sun, named "Sol"
+earth = build_world("earth_simple")              # Bundled layered Earth, named "Earth-Simple"
+moon = build_world("luna")                       # Bundled layered Moon, named "Luna"
+
+earth_moon_sun = System()
+earth_moon_sun.add_world(
     sun,
     is_star=True)                                # The star, and nobody's tidal host
-system.add_world(earth)                          # The Moon's tidal host, named below
-system.add_world(
+earth_moon_sun.add_world(earth)                  # The Moon's tidal host, named below
+earth_moon_sun.add_world(
     moon,
     tidal_host=earth,                            # The Earth raises the Moon's tides
     semi_major_axis=3.84748e8,                   # Moon about the Earth (tidal); 3.844e8 m is the mean distance
     eccentricity=0.0549)
-system.set_tidal_host(earth, moon)               # The Moon raises the Earth's tides in turn
-system.set_stellar_semi_major_axis(moon, au)     # Moon about the Sun (insolation)
-system.set_stellar_eccentricity(moon, 0.0167)
+earth_moon_sun.set_tidal_host(earth, moon)              # The Moon raises the Earth's tides in turn
+earth_moon_sun.set_stellar_semi_major_axis(moon, au)    # Moon about the Sun (insolation)
+earth_moon_sun.set_stellar_eccentricity(moon, 0.0167)
 ```
 
 ### Mutual Pairs
@@ -86,7 +92,7 @@ system = build_system("sol_system")      # a bundled system name, a .toml path, 
 system.calc_insolation_flux("earth")     # ~1361 W/m^2 (the solar constant)
 ```
 
-`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`). A member's `world` may be a bundled name or a path to a world file (relative paths are relative to the system file) as a world's `data_file` is relative to the world file.
+`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`). A member's `world` may be a bundled name or a path to a world file. A relative path resolves against the system file's folder first, then the working directory, as a world's `data_file` resolves against the world file's folder first.
 
 A system refuses what would give it no bound orbit or an ambiguous member, raising `ValueError`: a semi-major axis that is not positive, an eccentricity outside $[0, 1)$ (from `add_world`, the orbit setters, or a file), a second world with a name already in the system, and the same world object added twice. A world is named by its index (any integer type, numpy's included), its name, or the object itself; a `bool` is refused rather than read as index 0 or 1.
 
@@ -108,17 +114,17 @@ system.get_tidal_host("earth")        # the world that raises Earth's tides (or 
 system.get_tidal_host_index("earth")  # its index, or -1
 system.has_tidal_host("sun")          # False: nothing forces the star here
 system.set_tidal_host("earth", "sun") # name a host by index / name / object (None removes it)
-system.num_worlds                 # 2
-system.worlds                     # [star, earth]
+system.num_worlds                 # 3
+system.worlds                     # [sun, earth, jupiter]
 ```
 
 The system is a sequence over its worlds:
 
 ```python
 for world in system: ...          # iterate members
-len(system)                       # 2
+len(system)                       # 3
 system[0]                         # the star
-system[1:]                        # [earth]
+system[1:]                        # [earth, jupiter]
 system.earth                      # attribute access by world name
 system["earth"]                   # or by name via indexing
 ```
@@ -169,14 +175,16 @@ with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzm
 
 ## Orbital and Spin Evolution
 
-A world whose tide model is `rheology` (the default for a terrestrial world) takes its Love numbers from its interior, so run `world.solve_eos()` on each of these before any of the evolution methods below, they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
+A world whose tide model is `rheology` (the builder's default for a terrestrial world; a world constructed directly in Python has no tide model until one is set) takes its Love numbers from its interior, so run `world.solve_eos()` on each of these before any of the evolution methods below, they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
 
 `calc_world_evolution(world)` evolves a single world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about its tidal host, host mass from that host), then turns the tidal-potential derivatives into the orbital element time derivatives and the world's spin rate derivative. Its host is treated as a point mass with no tidal derivatives calculated (its dissipation does not affect the orbit). A world with no tidal host, or no usable orbit about it, comes back with `evolved = False`. The evolution methods hold each world's call lock from its tidal solve through the read of its result, so evolution calls on threads that share a world take turns on it and each reads its own solve.
 
 A world that belongs to a system can be asked for the same state directly: `world.get_tide_state()` returns it as a dict in the argument order of `calc_tides`, or `None` for a world outside a system, with no tidal host, or with no usable orbit. Orbital state is never stored on a world; the system supplies it on request and stops doing so when it is deleted.
 
 ```python
-ev = system.calc_world_evolution("moon")
+earth.solve_eos()                         # Interior solve for the Earth's Love numbers
+moon.solve_eos()                          # Interior solve for the Moon's Love numbers
+ev = earth_moon_sun.calc_world_evolution(moon)  # The Moon about the Earth, from the Earth-Moon-Sun system above
 ev["da_dt"], ev["de_dt"], ev["dn_dt"]     # orbital rates [m/s], [1/s], [rad/s^2]
 ev["dspin_dt"]                            # spin rate [rad/s^2]
 ev["tidal_heating"]                       # [W]
@@ -205,7 +213,7 @@ Each world evolves on its own two-body orbit about its tidal host and dissipates
 `calc_pair_evolution(world)` evolves a world together with its own tidal host, with both bodies raising a tide on their shared orbit. Each body's tides are solved with the other body as the tide raiser (masses swapped), so their orbital-rate contributions add and each body evolves its own spin:
 
 ```python
-pair = system.calc_pair_evolution("moon")
+pair = earth_moon_sun.calc_pair_evolution(moon)  # The Moon and the Earth raising tides on each other
 pair["da_dt"], pair["de_dt"], pair["dn_dt"]     # combined shared-orbit rates
 pair["tidal_heating_total"]                     # heating in both bodies
 pair["energy_residual"]                         # ~0: heating_total + dE_orbit/dt + dE_spin_total/dt

@@ -118,7 +118,7 @@ from TidalPy.Stellar import MassToLuminosity
 from TidalPy.constants import mass_solar, radius_solar
 
 star = StarWorld("sun", radius_solar, mass_solar)
-star.set_luminosity_model(MassToLuminosity())   # transfers ownership of the model
+star.set_luminosity_model(MassToLuminosity())   # the star holds its own copy of the model
 star.luminosity_model_set                       # True
 
 star.calc_luminosity_from_mass()                # [W]
@@ -127,7 +127,7 @@ star.update_luminosity_from_mass()              # writes both onto the star's ow
 star.luminosity, star.effective_temperature
 ```
 
-`set_luminosity_model` moves ownership of the C++ model into the star, leaving the passed wrapper an empty shell. The two mass-derived calculations raise `RuntimeError` when no model has been attached; `set_luminosity` and `set_effective_temperature` remain available and keep the star's two scalars consistent through the Stefan-Boltzmann relation without one.
+`set_luminosity_model` gives the star its own copy of the model, built from the model's parameters, so one model can serve several stars. The two mass-derived calculations raise `RuntimeError` when no model has been attached; `set_luminosity` and `set_effective_temperature` remain available and keep the star's two scalars consistent through the Stefan-Boltzmann relation without one.
 
 Once the star is part of a `System`, `calc_insolation_flux(world)` and `calc_equilibrium_temperature(world)` use its luminosity to give each orbiting world its incident flux and gray-body equilibrium temperature.
 

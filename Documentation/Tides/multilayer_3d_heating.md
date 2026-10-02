@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 `TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world: the complex strain and stress tensors and the volumetric heating. The response is evaluated point by point.
 
@@ -55,7 +55,7 @@ $$\lambda^{*}\varepsilon_{kk} = \left(y_{2} - 2\mu^{*}\frac{dy_{1}}{dr}\right)W.
 
 In a compressible layer this is the same quantity, since $y_{2} = \lambda^{*}\left(dy_{1}/dr + (2y_{1} - l(l+1)y_{3})/r\right) + 2\mu^{*}\,dy_{1}/dr$, and it stays accurate for a very large bulk modulus, where $\lambda^{*}$ times a nearly zero trace would amplify round-off. In a layer the radial solver treats as incompressible, the strain is traceless and this term is the pressure, which only $y_{2}$ carries.
 
-The kernel applies to solid layers only. A liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation. Its heating is 0 and its stress and strain are NaN. The poles ($\sin\theta$ within machine epsilon of 0, at $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN. Use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
+The kernel applies to solid layers only. A liquid (a liquid layer, or a liquid zone of a melting layer; see [Pieces and Zones](../Structures/worlds/worlds.md#pieces-and-zones)) contributes no shear dissipation. Its heating is 0 and its stress and strain are NaN. The poles ($\sin\theta$ within machine epsilon of 0, at $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN. Use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
 
 ### Coherent Waves
 
@@ -117,39 +117,30 @@ A built world delegates these methods to its rheology tide model (`c_RheologyTid
 ```python
 import numpy as np
 
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology import Elastic, Maxwell
-from TidalPy.Structures.layers import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds import TerrestrialWorld
 from TidalPy.Tides.classes import make_tide
-from TidalPy.Viscosity import make_viscosity
 
 radius  = 1.8e6    # [m]
 density = 3500.0   # [kg m-3]
 mass    = (4.0 / 3.0) * np.pi * radius**3 * density
 
-layer = BaseLayer("mantle", 0, 0.0, radius, mass)
-layer.set_eos(
-    ConstantDensityEOS(
-        reference_density=density,
-        shear_modulus_static=6.0e10,
-        bulk_modulus_static=1.0e11
-    )
-)
-layer.set_shear_viscosity(
-    make_viscosity(
-        "constant",
-        {"reference_viscosity_pas": 1.0e19}
-    )
-)
-layer.set_bulk_viscosity(
-    make_viscosity(
-        "constant",
-        {"reference_viscosity_pas": 1.0e30}
-    )
-)
-layer.set_shear_rheology(Maxwell())
-layer.set_bulk_rheology(Elastic())
+rock = Phase(
+    eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11},
+    shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
+    shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
+    bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30})
+layer = Layer(
+    "mantle",
+    0,
+    0.0,
+    radius,
+    mass,
+    material=Material(solid=rock),
+    shear_rheology=Maxwell(),
+    bulk_rheology=Elastic())
 
 world = TerrestrialWorld("io_like", radius, mass)
 world.add_layer(layer)
@@ -333,7 +324,7 @@ radial_stress = tensors['stress'][..., 0]   # The rr component
 peak_stress = np.abs(tensors['stress']).max(axis=3)   # Largest magnitude of each component over the times
 ```
 
-Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. A point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only. Modes at zero forcing frequency (the permanent tide) are not included. Over a common period of the modes, each component therefore averages to zero, even in a strongly dissipative body. Dissipation appears instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
+Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. A point in a liquid layer or zone, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only. Modes at zero forcing frequency (the permanent tide) are not included. Over a common period of the modes, each component therefore averages to zero, even in a strongly dissipative body. Dissipation appears instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
 
 #### Threads
 

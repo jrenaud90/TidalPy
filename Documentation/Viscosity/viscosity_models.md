@@ -2,7 +2,7 @@
 
 _Updated: 2026-10-01_
 
-A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../PartialMelt/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
+A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt viscosity of one phase: the value the phase would show with no melt present, which the material's [melt weakening](../PartialMelt/partial_melt_models.md#melt-weakening) then lowers. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
 Solid-state creep is thermally activated. Viscosity falls exponentially with temperature through the Boltzmann factor $\exp(E_a / RT)$ and rises with pressure through an activation volume. The models differ in how that exponential is anchored: to an absolute flow-law prefactor, to a reference viscosity at a reference temperature, or not at all.
 
@@ -82,12 +82,12 @@ arrhenius_model = make_viscosity(
 )
 ```
 
-Constructors take every parameter their model uses as a keyword, by its argument name or its config key, with the defaults from the table above. `make_viscosity(model_name, config=None)` resolves a name or alias case-insensitively and builds that model from `config`, keyed by config key. Absent keys take the model's defaults, and `config=None` takes the shear-viscosity defaults of `[layers.default]` in the TidalPy configuration. An unknown name, a key the model does not read, or a value outside a parameter's bounds raises `ValueError` naming the closest accepted name or key.
+Constructors take every parameter their model uses as a keyword, by its argument name or its config key, with the defaults from the table above. `make_viscosity(model_name, config=None)` resolves a name or alias case-insensitively and builds that model from `config`, keyed by config key. Absent keys (all of them for `config=None`) take the model's defaults. An unknown name, a key the model does not read, or a value outside a parameter's bounds raises `ValueError` naming the closest accepted name or key.
 
 | Member | Returns | Description |
 |---|---|---|
 | `calc_viscosity(temperature, pressure=0.0, radius=nan)` | `float` or `np.ndarray` \[Pa s\] | Dynamic viscosity; floats give a float, arrays broadcast together. The radius is read only by the interpolated model. |
-| `model_name` | `str` | The canonical model name (`arrhenius`, `reference`, `constant`, `interpolate`). |
+| `model_name` | `str` | The canonical model name (`arrhenius`, `reference`, `constant`, `interpolate`, `composite`). |
 | `parameters` | `dict` | Every parameter by argument name. |
 | `get_parameter(name)` | value | One parameter by argument name or config key. |
 | `get_parameter_info()` | `list` of `dict` | Each parameter's name, config key, kind, default, bounds, and description. |
@@ -115,39 +115,38 @@ dislocation_model = arrhenius_model.with_parameters(
 ### Attaching a Model to a `Layer`
 
 ```python
-from TidalPy.Material.eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
+from TidalPy.Structures.layers import Layer
 from TidalPy.Viscosity import make_viscosity
-from TidalPy.Structures.layers import BaseLayer
 
-mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
-mantle.set_eos(
-    ConstantDensityEOS(
-        shear_modulus_static=50.0e9,
-        bulk_modulus_static=100.0e9
-    )
-)
-
-mantle.set_shear_viscosity(
-    make_viscosity(
+rock = Phase(
+    eos={"model": "constant", "reference_density_kg_m3": 3300.0, "bulk_modulus_pa": 1.0e11},
+    shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+    shear_viscosity=make_viscosity(
         "reference",
-        {"reference_viscosity_pas": 1.0e20}
-    )
-)
-mantle.set_bulk_viscosity(
-    make_viscosity(
+        {"reference_viscosity_pas": 1.0e20}),
+    bulk_viscosity=make_viscosity(
         "constant",
-        {"reference_viscosity_pas": 1.0e20}
-    )
-)
+        {"reference_viscosity_pas": 1.0e20}),
+    shear_rheology="maxwell")
+
+mantle = Layer(
+    "mantle",
+    0,
+    0.0,
+    1.0e6,
+    material=Material(solid=rock),
+    temperature=1200.0)
+print(mantle.calc_state(1.0e9)["shear_viscosity"])   # [Pa s] at 1 GPa and the layer's temperature
 ```
 
-A viscosity model belongs to the layer's material, which is defined via its EOS model. The layer's `set_shear_viscosity` and `set_bulk_viscosity` are helpers that pass the model to the attached EOS (so attach the EOS first), and the same two methods are on the EOS model itself. The material takes a copy, so the model passed in stays usable. The world's equation-of-state solve evaluates the model at the local temperature and pressure as it integrates. A viscosity table carried by the EOS model overrides that result, and the partial-melt model then weakens what remains. Read the outcome back with `get_shear_viscosity(radius)` on the layer or the world. The declarative form is a `[layers.<name>.material.shear_viscosity]` table in a world's TOML. See the [TOML schema](../Structures/config/toml_schema.md).
+A viscosity model belongs to a phase of the layer's material, which shares it rather than copying it. The world's equation-of-state solve evaluates the material, and so the model, at the local temperature and pressure as it integrates, and the material's melt weakening then lowers what it gives wherever melt is present. Read the outcome back with `get_shear_viscosity(radius)` on the layer or the world. The declarative form is a `[layers.<name>.material.solid.shear_viscosity]` table in a world's TOML. See [Phases and Materials](../Material/materials.md) and the [TOML schema](../Structures/config/toml_schema.md).
 
 ## C++ API
 
 The C++ layer is canonical and the Cython classes are thin adapters over it.
 
-`c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(double temperature, double pressure) const noexcept` pure virtual and adds `calc_viscosity_vectorize(temperature, pressure, out_viscosity)`, which broadcasts a single value against a vector. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, and `c_ConstantViscosity` live in `viscosity_.hpp`. Each derives from `c_SpecModel<Model, c_ViscosityBase>` (`Utilities/classes/spec_model_.hpp`) and declares its parameters once, in `parameter_specs()`: argument name, config key, member, default, bounds, and a one-line description. Construction from a `c_ParamMap`, validation, the config entries, the binary record (written by key), copies, and `with_parameters` all follow from that table.
+`c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(const c_ThermoPoint& point) const noexcept` pure virtual (the point holds the pressure, temperature, and radius) and adds `calc_viscosity_vectorize(temperature, pressure, radius, out_viscosity)`, which broadcasts a single value against a vector. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, `c_ConstantViscosity`, `c_InterpolatedViscosity`, and `c_CompositeViscosity` live in `viscosity_.hpp`. Each derives from `c_SpecModel<Model, c_ViscosityBase>` (`Utilities/classes/spec_model_.hpp`) and declares its parameters once, in `parameter_specs()`: argument name, config key, member, default, bounds, and a one-line description. Construction from a `c_ParamMap`, validation, the config entries, the binary record (written by key), copies, and `with_parameters` all follow from that table.
 
 `c_viscosity_registry()` lists each model's names (canonical first, then aliases), binary class id, and constructor. The family's entry points are one line each over the generic registry functions of `Utilities/classes/registry_.hpp`: `c_find_viscosity(name, params)` returns a `std::unique_ptr<c_ViscosityBase>` and throws `std::invalid_argument` for an unknown name or parameter, `c_viscosity_from_binary(stream, force=false)` builds the model a record names and reads it, and `c_viscosity_canonical_name` and `c_viscosity_model_names` resolve names.
 

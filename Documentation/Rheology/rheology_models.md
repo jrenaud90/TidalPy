@@ -1,8 +1,8 @@
 # Rheology Models (`Rheology`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
-A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$ (Efroimsky 2013).
+A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$ (Efroimsky 2012).
 
 Everything on this page applies equally to the shear and the bulk response. The models do not know which one they are computing; supply a shear modulus with a shear viscosity, or a bulk modulus with a bulk viscosity, and the same constitutive law applies. In practice the shear response dominates tidal dissipation in solid bodies, and the bulk response is usually left elastic, however this is a new and active area of research.
 
@@ -85,7 +85,7 @@ Simple models (Elastic, Viscous, Maxwell, Voigt, Zener, SeismicQ) are evaluated 
 | `Andrade` | $1 / J_\mathrm{andrade}$ | `alpha`, `zeta` | Maxwell plus a transient term; loss falls only as $\omega^{-\alpha}$. |
 | `Sundberg` (`sundberg-cooper`) | $1 / (J_\mathrm{andrade} + J_\mathrm{voigt})$ | `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac` | Andrade's high-frequency tail plus Burgers' secondary peak. |
 | `Zener` (`sls`) | $\mu^{*}_\mathrm{zener}$ | `relaxed_modulus_frac` | One relaxation peak like Maxwell, but relaxes to $r\mu$ instead of zero. |
-| `SeismicQ` (`seismic_q`, `constant_q`) | $\mu^{*}_\mathrm{sq}$ | `reference_frequency_rad_s`, `q_frequency_exponent` | Its viscosity input is a quality factor. A set $Q$ at every frequency ($a = 0$), or one falling toward low frequency as $\omega^{a}$. |
+| `SeismicQ` (`seismic_q`, `constant_q`) | $\mu^{*}_\mathrm{sq}$ | `reference_frequency`, `q_frequency_exponent` | Its viscosity input is a quality factor. A set $Q$ at every frequency ($a = 0$), or one falling toward low frequency as $\omega^{a}$. |
 
 The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ and the Zener and seismic Q moduli are defined in the Physics section above.
 
@@ -96,7 +96,7 @@ The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm
 | `voigt_modulus_frac` | 5.0 | Stiffness of the Voigt arm's spring relative to the main spring. The arm's compliance is the material compliance divided by this value. |
 | `voigt_viscosity_frac` | 0.02 | Viscosity of the Voigt arm's dashpot as a fraction of the material viscosity. |
 | `relaxed_modulus_frac` | 0.5 | Zener relaxed modulus as a fraction of the unrelaxed one, in \[0, 1\]; a value outside raises `ValueError`. |
-| `reference_frequency_rad_s` | $2\pi$ | Seismic Q: the frequency \[rad s⁻¹\] at which its quality factor and modulus were measured. The default is a 1 s period, PREM's. Must be positive and finite. |
+| `reference_frequency` | $2\pi$ | Seismic Q: the frequency \[rad s⁻¹\] at which its quality factor and modulus were measured (config key `reference_frequency_rad_s`). The default is a 1 s period, PREM's. Must be positive and finite. |
 | `q_frequency_exponent` | 0.0 | Seismic Q: the exponent $a$ of $Q \propto \omega^{a}$, in \[0, 1). Values near 0.1 to 0.3 describe Earth's mantle between seismic and tidal periods. |
 
 > [!WARNING]
@@ -116,7 +116,7 @@ At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, Zener, and Seis
 
 `Andrade` and `Sundberg` are the models to use when the forcing is fast compared with the Maxwell time, which is the usual situation for a cool, stiff, or rapidly forced body. Their loss falls only as $\omega^{-\alpha}$, and for tidal problems that difference can be orders of magnitude in the heating rate (Renaud & Henning 2018).
 
-`Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which is not realistic. A Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and the partial-melt model can supply the bulk viscosity that sets the rate (see [Partial Melt Models](../PartialMelt/partial_melt_models.md)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
+`Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which is not realistic. A Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and a material's compaction law can supply the bulk viscosity that sets the rate (see [Bulk Mixing](../PartialMelt/partial_melt_models.md#bulk-mixing)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
 
 `SeismicQ` takes the loss straight from a measured quality factor, with no viscosity and no model of the relaxation behind it. It is what a seismic profile such as PREM supports, and a world built from a radial data file gives it to every solid layer when the world sets `q_provided = true` (see the [TOML schema](../Structures/config/toml_schema.md)). What it assumes is how $Q$ changes between the reference frequency and the forcing frequency: $a = 0$ keeps the seismic $Q$, while laboratory and geodetic constraints put Earth's mantle nearer $a = 0.1$ to $0.3$, so a tidal $Q$ several times lower than the seismic one. That choice, not the rest of the model, sets the tidal dissipation. Because its viscosity input is a quality factor, pair it only with a material whose viscosity slot holds one; a layer whose material carries a viscosity model would have that viscosity read as $Q$.
 
@@ -132,7 +132,7 @@ from TidalPy.Rheology import Maxwell, Andrade, make_rheology
 maxwell_model = Maxwell()
 andrade_model = Andrade(alpha=0.25, zeta=2.0)
 
-# Case-insensitive; hyphens and underscores are interchangeable in aliases.
+# Case-insensitive; every registered alias is accepted.
 sundberg_model = make_rheology("Sundberg-Cooper", {"alpha": 0.4, "zeta": 2.0})
 ```
 
@@ -179,7 +179,7 @@ profile = model.calc_complex_modulus_vectorize_modulus(radial_moduli, radial_vis
 sweep   = model.calc_complex_modulus_vectorize_frequency(50.0e9, 1.0e20, np.logspace(-7, -4, 50))
 ```
 
-Each fills a caller-supplied `std::vector<std::complex<double>>` at the C++ level; the Cython wrappers accept array-likes and return a `complex128` NumPy array. Mismatched input lengths raise `ValueError`.
+The three methods differ only in which arguments they take as arrays. Each accepts array-likes, returns a `complex128` NumPy array, and calls the one C++ method, `c_RheologyBase::calc_complex_modulus_vectorize(modulus, viscosity, frequency, out)`, which broadcasts a length-one input against the others and fills the caller-supplied `std::vector<std::complex<double>>`. Mismatched input lengths raise `ValueError`.
 
 ### Convenience Functions
 
@@ -202,23 +202,33 @@ The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, 
 ### Attaching a Rheology to a `Layer`
 
 ```python
-from TidalPy.Material.eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology import Maxwell, make_rheology
-from TidalPy.Structures.layers import BaseLayer
+from TidalPy.Structures.layers import Layer
 
-mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
-# The static moduli and viscosities the rheology works on belong to the material, the layer's EOS model.
-mantle.set_eos(ConstantDensityEOS(
-    shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9,
-    shear_viscosity_static=1.0e20, bulk_viscosity_static=1.0e20))
+# The static moduli and viscosities the rheology works on belong to the layer's material.
+rock = Phase(
+    eos={"model": "constant", "reference_density_kg_m3": 3300.0, "bulk_modulus_pa": 1.0e11},
+    shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+    shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e20},
+    bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e20},
+    shear_rheology="andrade")                                   # The phase's default rheology
+mantle = Layer(
+    "mantle",
+    0,
+    0.0,
+    1.0e6,
+    material=Material(solid=rock),
+    temperature=1600.0)
 
-mantle.set_shear_rheology(Maxwell())
-mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
+mantle.shear_rheology = Maxwell()                               # Overrides the phase's default
+mantle.bulk_rheology = make_rheology("andrade", {"alpha": 0.3})
+complex_shear = mantle.calc_complex_shear_modulus(1.0e-5)       # [Pa] at 1e-5 rad s-1
 
-complex_shear = mantle.calc_complex_shear_modulus(1.0e-5)
+mantle.shear_rheology = None                                    # Back to the phase's Andrade
 ```
 
-The layer takes a copy, so the model passed in stays usable and one model can serve several layers. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
+A layer's rheology is its own override when it has one, else its material's default (the solid phase's, or the liquid's for a liquid-only material). With neither, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The layer and the phase share the model rather than copying it, so one model can serve several layers. The one-argument `calc_complex_shear_modulus(frequency)` evaluates the material at zero pressure and the layer's own temperature. After a world's EOS solve, `calc_complex_shear_modulus(radius, frequency)` uses the post-melt modulus and viscosity the solve found at that radius. The equivalent declarative forms are a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters, for the override, and a `shear_rheology` table in a phase of the material for the default; see the [TOML schema](../Structures/config/toml_schema.md) and [Layer](../Structures/layers/layer.md).
 
 ## Serialization
 
@@ -228,7 +238,7 @@ Every model supports the standard TidalPy interfaces.
 |---|---|
 | `get_config_dict()` | A dict of `model` plus the model's own parameters, in the same form the world builder reads. |
 | `save_config(path)` | That dict written as a TOML file. |
-| `save_binary(path)` / `load_binary(path)` | The model's TidalPy binary record, its parameters written by key; a load replaces the wrapper's model with the one read. |
+| `save_binary(path)` / `load_binary(path)` | The model's TidalPy binary record, its parameters written by key. A load reads a record of the same model into the wrapper; a record saved by another model raises `IOError`. |
 
 ## Adding a New Rheology
 
