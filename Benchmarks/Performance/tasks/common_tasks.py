@@ -18,8 +18,8 @@ from harness import benchmark
 from TidalPy.constants import G, au, seconds_per_myr
 from TidalPy.Structures.configs import build_world, build_system, load_toml
 from TidalPy.Structures.worlds import TerrestrialWorld, StarWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS, BirchMurnaghanEOS
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology import Maxwell, Elastic, Andrade
 from TidalPy.RadialSolver import radial_solver, homogeneous_love_numbers
@@ -67,10 +67,10 @@ def _build_sol():
 _IO_DICT = {
     "schema_version": "0.2.0", "name": "Io", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22,
-    "layers": {"core": {"class": "base", "type": "iron", "layer_index": 0,
-                        "radius_outer_m": 9.0e5, "is_tidal": False},
-               "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1,
-                          "radius_fraction": 1.0, "is_tidal": True}},
+    "layers": {"core": {"material": "simple_iron_core", "layer_index": 0,
+                        "radius_outer_m": 9.0e5, "use_tides": False},
+               "mantle": {"material": "simple_rock", "layer_index": 1,
+                          "radius_fraction": 1.0, "use_tides": True}},
 }
 
 
@@ -191,10 +191,10 @@ _N_IO = math.sqrt(G * _M_JUP / _A_IO**3)
 _io = build_world({
     "schema_version": "0.2.0", "name": "Io", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22, "spin_frequency_rad_s": _N_IO,
-    "layers": {"core": {"class": "base", "type": "iron", "layer_index": 0,
-                        "radius_outer_m": 9.0e5, "is_tidal": False},
-               "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1,
-                          "radius_fraction": 1.0, "is_tidal": True}},
+    "layers": {"core": {"material": "simple_iron_core", "layer_index": 0,
+                        "radius_outer_m": 9.0e5, "use_tides": False},
+               "mantle": {"material": "simple_rock", "layer_index": 1,
+                          "radius_fraction": 1.0, "use_tides": True}},
 })
 _io.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
 _io.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
@@ -338,8 +338,8 @@ _evo_system.add_world(_star_host)
 _evo_io = build_world({
     "schema_version": "0.2.0", "name": "EvoIo", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22, "spin_frequency_rad_s": _N_IO,
-    "layers": {"mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 0,
-                          "radius_fraction": 1.0, "is_tidal": True}},
+    "layers": {"mantle": {"material": "simple_rock", "layer_index": 0,
+                          "radius_fraction": 1.0, "use_tides": True}},
 })
 _evo_io.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
 _evo_io.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
@@ -411,8 +411,8 @@ _multi_inner = _fixed_q_planet({**_IO_DICT, "name": "Inner", "radius_m": 6.0e6, 
 _multi_outer = _fixed_q_planet({
     "schema_version": "0.2.0", "name": "Outer", "type": "gasgiant",
     "radius_m": 6.0e7, "mass_kg": 6.0e26, "spin_frequency_rad_s": 1.0e-4,
-    "layers": {"envelope": {"class": "gas", "type": "gas", "layer_index": 0,
-                            "radius_fraction": 1.0, "is_tidal": True}}})
+    "layers": {"envelope": {"material": "simple_gas", "layer_index": 0,
+                            "radius_fraction": 1.0, "use_tides": True}}})
 _multi_system = System("multi")
 _multi_system.add_world(_multi_star, is_star=True)
 _multi_system.add_world(_multi_inner, tidal_host=_multi_star, semi_major_axis=0.20 * au, eccentricity=0.05)
@@ -429,14 +429,20 @@ def _system_evolution_multi_world():
 # Equation of state (Birch-Murnaghan)
 # =====================================================================================================================
 _bm_world = TerrestrialWorld("bm_planet", 6.371e6, 5.972e24)
-_bm_layer = BaseLayer("mantle", 0, 0.0, 6.371e6, 5.972e24)
-_bm_layer.set_eos(BirchMurnaghanEOS(
-    reference_density=4000.0, shear_modulus_static=80.0e9, bulk_modulus_static=200.0e9))
-_bm_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
-_bm_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-_bm_layer.set_shear_rheology(Maxwell())
-_bm_layer.set_bulk_rheology(Elastic())
-_bm_world.add_layer(_bm_layer)
+_bm_material = Material(solid=Phase(
+    eos={"model": "birch_murnaghan", "reference_density_kg_m3": 4000.0},
+    shear_modulus={"model": "constant", "shear_modulus_pa": 80.0e9},
+    shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e21},
+    bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+_bm_world.add_layer(Layer(
+    "mantle",
+    0,
+    0.0,
+    6.371e6,
+    5.972e24,
+    _bm_material,
+    shear_rheology=Maxwell(),
+    bulk_rheology=Elastic()))
 
 
 @benchmark("solve_eos:birch_murnaghan", group="eos", note="homogeneous terrestrial with a Birch-Murnaghan EOS")
@@ -447,16 +453,30 @@ def _solve_eos_birch_murnaghan():
 # =====================================================================================================================
 # 3D tides (rheology tide, fully collapsed total)
 # =====================================================================================================================
+# A uniform Maxwell mantle (60 GPa, 1e15 Pa s) shared by the 3D tide tasks.
+_MAXWELL_MANTLE = Material(solid=Phase(
+    eos={"model": "constant", "reference_density_kg_m3": _RHO, "bulk_modulus_pa": 200.0e9},
+    shear_modulus={"model": "constant", "shear_modulus_pa": 60.0e9},
+    shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15},
+    bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15}))
+
+
+def _maxwell_mantle_layer():
+    """The dynamic Maxwell mantle filling a world of Io's radius and mass."""
+    return Layer(
+        "mantle",
+        0,
+        0.0,
+        _R,
+        8.9319e22,
+        _MAXWELL_MANTLE,
+        is_static=False,
+        shear_rheology=Maxwell(),
+        bulk_rheology=Elastic())
+
+
 _rheo_io = TerrestrialWorld("RheoIo", _R, 8.9319e22)
-_rheo_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
-_rheo_layer.is_static = False
-_rheo_layer.set_eos(ConstantDensityEOS(
-    reference_density=_RHO, shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9))
-_rheo_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-_rheo_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-_rheo_layer.set_shear_rheology(Maxwell())
-_rheo_layer.set_bulk_rheology(Elastic())
-_rheo_io.add_layer(_rheo_layer)
+_rheo_io.add_layer(_maxwell_mantle_layer())
 _rheo_io.set_tide_model(make_tide("rheology"))
 _rheo_io.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
 _rheo_io.solve_eos()
@@ -486,15 +506,7 @@ def _tides_3d_heating_array():
 # Degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, so hundreds of waves reach every point. The
 # radial solves are the same in both variants; only the per-point evaluation after them runs on the extra threads.
 _grid_io = TerrestrialWorld("GridIo", _R, 8.9319e22)
-_grid_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
-_grid_layer.is_static = False
-_grid_layer.set_eos(ConstantDensityEOS(
-    reference_density=_RHO, shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9))
-_grid_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-_grid_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-_grid_layer.set_shear_rheology(Maxwell())
-_grid_layer.set_bulk_rheology(Elastic())
-_grid_io.add_layer(_grid_layer)
+_grid_io.add_layer(_maxwell_mantle_layer())
 _grid_io.set_tide_model(make_tide("rheology"))
 _grid_io.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=2)
 _grid_io.solve_eos()
