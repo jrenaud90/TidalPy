@@ -21,17 +21,10 @@ _in_jupyter = False
 _output_dir = None
 _config_path = None
 
-# TidalPy configurations
+# TidalPy configurations (loaded from TidalPy_Configs.toml)
 config = None
 
-# World configuration directory
-world_config_dir = None
-
-# Public properties that can be changed by user
-extensive_logging = False
-extensive_checks = False
-
-# Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinitialize`)
+# Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinit`)
 from TidalPy.initialize import initialize as reinit
 
 # Call reinit for the first initialization
@@ -41,29 +34,21 @@ reinit()
 from .cache import clear_cache as clear_cache
 from .cache import clear_data as clear_data
 
-# Announce the backend change coming in TidalPy 0.8.0, once per session.
-import warnings as _warnings
-from TidalPy.exceptions import TidalPyDeprecationWarning
+# Save the effective configuration, headed by the package versions that produced it.
+from .configurations import save_config as save_config
 
-_warnings.warn(
-    "TidalPy 0.8.0 will replace this version's backend with a new C++ backend. The current modules (structures, tides," \
-    "RadialSolver, rheology, ...) will be removed and module, class, and function names and signatures will change," \
-    "so code written for TidalPy 0.7.X will need to be updated. Pin 'TidalPy<0.8' to keep using the current API." \
-    "Silence this message with" \
-    "warnings.filterwarnings('ignore', category=TidalPy.exceptions.TidalPyDeprecationWarning).",
-    TidalPyDeprecationWarning,
-    stacklevel=2)
+# Collect the log messages of a block of code (spdlog bypasses Python's logging).
+from .Utilities.logging.capture import capture_log as capture_log
+
 
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """
     global _test_mode
 
-    if _test_mode:
-        # Don't need to do anything.
-        pass
-    else:
+    if not _test_mode:
         _test_mode = True
         reinit()
+
 
 def log_to_file():
     """ Quick switch to turn on saving logs to file """
@@ -71,25 +56,26 @@ def log_to_file():
         config['logging']['write_log_to_disk'] = True
         reinit()
 
-# Helper function that provides directories to TidalPy's (and CyRK's) C++ headers
-def get_include():
-    """ Return the include directories of TidalPy's C++ source files, plus CyRK's, for dependent builds. """
+
+def get_include() -> list:
+    """ Directories holding TidalPy's C++ headers, and CyRK's, for packages that compile against them.
+
+    Similar to ``numpy.get_include``. The headers include one another both by relative path and by bare file name,
+    so every TidalPy directory that holds a header is listed, starting with the package root (``constants_.hpp``).
+    The headers also need the header-only libraries TidalPy builds with (Eigen, xsf, and spdlog), which are not
+    installed with TidalPy.
+
+    Returns
+    -------
+    list of str
+        CyRK's include directories followed by TidalPy's.
+    """
     import CyRK
 
-    # Since we depend on CyRK to build TidalPy; we likely want to include its headers as well.
-    tidalpy_dirs = CyRK.get_include()
-
-    tidalpy_dir = os.path.dirname(__file__)
-    tidalpy_dirs += [
-        # Utilities
-        os.path.join(tidalpy_dir, 'utilities', 'arrays'),
-        os.path.join(tidalpy_dir, 'utilities', 'dimensions'),
-
-        # RadialSolver
-        os.path.join(tidalpy_dir, 'RadialSolver'),
-
-        # Material
-        os.path.join(tidalpy_dir, 'Material', 'eos')
-    ]
-
-    return tidalpy_dirs
+    include_dirs = list(CyRK.get_include())
+    tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
+    for directory, sub_directories, file_names in os.walk(tidalpy_dir):
+        sub_directories[:] = sorted(name for name in sub_directories if name != '__pycache__')
+        if any(file_name.endswith('.hpp') for file_name in file_names):
+            include_dirs.append(directory)
+    return include_dirs

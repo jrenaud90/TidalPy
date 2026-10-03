@@ -33,7 +33,7 @@ jobs:
         name: Paper Draft
         steps:
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@v7
           with:
             # On a push the branch itself is needed, because the PDF is committed back to it. Everywhere else the
             # default checkout is right and nothing is committed, so the ref is left empty.
@@ -48,17 +48,19 @@ jobs:
             paper-path: 'Papers/2025-JOSS/paper.md'
 
         - name: Upload
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v7
           with:
             name: paper
             # This is the output path where Pandoc will write the compiled
             # PDF. Note, this should be the same directory as the input
             # paper.md
             path: 'Papers/2025-JOSS/paper.pdf'
+            # Upload the PDF itself rather than a zip holding it.
+            archive: false
 
         - name: Commit PDF to repository
           if: ${{ github.event_name == 'push' }}
-          uses: EndBug/add-and-commit@v9
+          uses: EndBug/add-and-commit@v11
           with:
             message: '(auto) Paper PDF Draft'
             # This should be the path to the paper within your repo.

@@ -1,5 +1,7 @@
 # Getting Started with TidalPy
 
+_Updated: 2026-10-02_
+
 ## Installation
 
 ```{include} Readme_raw.md
@@ -7,33 +9,87 @@
 :end-before: Using TidalPy
 ```
 
-## After Installation
-We are deferring the development of a comprehensive "getting started guide" for `TidalPy` until it is closer to a 1.0
-release. Until then we recommend looking through the rest of the documentation and the example scripts found in the
-`Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos).
+## First Calculation
 
-If you find any issues, have a question, or want to share an idea about a new feature then feel free to leave a new
-GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and
-users. Please contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
+TidalPy builds worlds out of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior, places it in orbit about Jupiter, and finds its Love numbers, tidal heating, and orbital rates.
 
-### Package Structure
-The TidalPy package is divided into several modules some of which rely on each other.
-Below is a basic breakdown of the current modules.
+```python
+from TidalPy.Structures import System, build_world
 
-- `TidalPy.Extending`: Provides support for 3rd party packages.
-- `TidalPy.cooling`: Functions related to a planet/layer's cooling (convective, conductive, etc.).
-- `TidalPy.dynamic`: Functions related to a planet's orbital and spin evolution.
-    - Read more about the dynamics module [here](https://tidalpy.readthedocs.io/en/latest/Dynamics/index.html).
-- `TidalPy.radiogenics`: Functions related to a planet/layer's radiogenic heating.
-- `TidalPy.RadialSolver` : Functions related to solving for a planet's Love numbers.
-    - Read more about the RadialSolver module [here](https://tidalpy.readthedocs.io/en/latest/RadialSolver/index.html)
-- `TidalPy.rheology`: Functions related to a planet/layer's rheological properties (complex shear, viscosity, etc.).
-    - Read more about the rheology module [here](https://tidalpy.readthedocs.io/en/latest/Rheology/index.html)
-- `TidalPy.stellar`: Functions related to calculating insolation and habitable zones.
-- `TidalPy.structures`: The heart of TidalPy's OOP implementation --- various classes for layers and planets.
-- `TidalPy.tides`: Functions related to calculating tidal dissipation (using a global approx or a multilayer approach).
-- `TidalPy.toolbox`: Helper functions to quickly access various calculations with just a few function calls.
-- `TidalPy.utilities`: Various tools used internally inside TidalPy. Generally the user should not need to interact
-  with these unless they are developing new TidalPy functionality.
-- `TidalPy.WorldPack`: Not a real module, just a location to store planetary configuration files which are used
-  when `TidalPy.build_world` is called.
+# Build a bundled world: its layers, materials, and physics models come from its TOML file
+io = build_world("io")
+io.solve_eos()  # Solve the interior structure (density, gravity, pressure)
+
+# Link Io to Jupiter; orbital state lives on the system, not on the world
+jupiter = build_world("jupiter_simple")
+system = System("jovian")
+system.add_world(jupiter)
+system.add_world(
+    io,
+    tidal_host=jupiter,
+    semi_major_axis=4.217e8,
+    eccentricity=0.0041,
+    synchronous=True)  # Spin Io at its mean motion
+
+# Love numbers at Io's mean motion, its tidal forcing frequency since it rotates synchronously
+orbital_frequency = system.calc_orbital_frequency(io)  # [rad s-1], from Kepler's third law
+io.solve_love_numbers(
+    frequency=orbital_frequency)  # Radial solve with the world's rheology
+print(io.love_number_k)  # Complex k2, about 0.036 - 0.015j
+
+rates = system.calc_world_evolution(io)  # Tidal solve plus orbital and spin rates
+print(rates["tidal_heating"])  # [W], about 9e13
+print(rates["da_dt"], rates["de_dt"])  # [m s-1], [s-1]
+```
+
+TidalPy computes rates only; to evolve a system in time, integrate these rates with an integrator of your choice (the demos use [CyRK](https://github.com/jrenaud90/CyRK)).
+
+## Logging to a File
+
+TidalPy's messages (warnings from a radial solve, for example) go to the console by default. To also write them to a file of your choosing for the rest of the session, call `init_logger` after importing TidalPy:
+
+```python
+from pathlib import Path
+
+from TidalPy.Utilities.logging import init_logger, flush_logger
+
+log_path = Path("my_runs/io_run.log").resolve()   # Any location; missing folders are created
+
+init_logger({                                     # Replaces the current console and file outputs
+    "console_level": "warning",
+    "file_level": "debug",
+    "log_to_file": True,
+    "log_file_path": str(log_path),
+})
+
+# ... run your calculations ...
+
+flush_logger()                                    # Write buffered info and debug lines before reading the file
+```
+
+Warnings and errors are written to the file immediately. Lower levels are buffered until `flush_logger` runs or the interpreter exits (so calling `flush_logger` is not required unless you want to look at a log while an interpreter is still running, e.g., while using a Jupyter notebook). The file is appended to, not overwritten. `TidalPy.reinit()` returns the logger to the settings in your configuration file. To write a timestamped log file to the TidalPy data directory in every session, set `write_log_to_disk = true` in the `[logging]` section of the configuration file instead (see [Configurations](2_TidalPy_Configurations.md)). The levels and the other logging functions are described on the [Logging](../Utilities/logging.md) page.
+
+## Learning More
+
+The module pages in this documentation are the reference for each part of the package. The notebooks in the `Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos) walk through the package in order, from configuration and world building to Love numbers, 3D tidal heating, and coupled thermal-orbital evolution. The `Benchmarks` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Benchmarks) compares TidalPy against published results. Users coming from TidalPy 0.7.X should read the [migration guide](../future_structure.md).
+
+If you find an issue, have a question, or want to share an idea for a new feature, please open a GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and users. Contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
+
+## Package Structure
+
+TidalPy is divided into several modules, some of which rely on each other.
+
+- `TidalPy.Structures`: layers, worlds (layered, gas giant, and star), and the `System` that links them; the TOML world builder and the bundled worlds. See [Structures](../Structures/index.md).
+- `TidalPy.Material`: equation-of-state and shear-modulus laws, the phases and materials built from them, MatPack (the bundled materials), and the whole-planet EOS solver. See [Materials](../Material/index.md).
+- `TidalPy.Rheology`: viscoelastic rheology models that return a complex modulus. See [Rheology](../Rheology/index.md).
+- `TidalPy.Viscosity`: temperature- and pressure-dependent viscosity models. See [Viscosity](../Viscosity/index.md).
+- `TidalPy.PartialMelt`: melting curves, melt weakening, and bulk-mixing laws that a material uses once it begins to melt. See [Partial Melting](../PartialMelt/index.md).
+- `TidalPy.Cooling`: conductive and convective cooling models. See [Cooling](../Cooling/index.md).
+- `TidalPy.Radiogenics`: radiogenic heating models and isotope datasets. See [Radiogenics](../Radiogenics/index.md).
+- `TidalPy.RadialSolver`: the radial solver for tidal, loading, and free Love numbers and the radial functions. See [RadialSolver](../RadialSolver/index.md).
+- `TidalPy.Tides`: eccentricity and obliquity functions, tide models, global (1D) tidal dissipation, and 3D tidal stress, strain, and heating. See [Tides](../Tides/index.md).
+- `TidalPy.Dynamics`: spin and orbital rates. See [Dynamics](../Dynamics/index.md).
+- `TidalPy.Stellar`: stellar luminosity models. See [Stellar](../Stellar/index.md).
+- `TidalPy.Utilities`: logging, binary serialization, base classes, graphics, and numerical helpers. See [Utilities](../Utilities/index.md).
+- `TidalPy.WorldPack` and `TidalPy.MatPack`: not modules: the bundled world, system, and material TOML files used by `build_world`, `build_system`, and `load_material`. See [WorldPack](../Structures/config/worldpack.md) and [MatPack](../Material/matpack.md).
+- `TidalPy.constants`, `TidalPy.configurations`, `TidalPy.paths`: physical constants, the configuration system, and the data directory. See [Constants](../Utilities/constants.md) and [Configurations](2_TidalPy_Configurations.md).

@@ -1,0 +1,337 @@
+# Example-World: every key a layered world file can carry, in one buildable file.
+#
+# Nothing here is a real body. Each value is physically sensible so that the file builds, solves its equation of
+# state, solves its Love numbers, and runs its tides, but the point of the file is the keys, and the comment on
+# each says what it does and what else it accepts. The bundled worlds (io, luna, mercury, earth_simple, europa,
+# earth_prem, jupiter_simple, sol) are the terse, fitted versions; Documentation/Structures/config/toml_schema.md
+# is the schema this file walks through, and example_gasgiant.toml, example_star.toml, example_profile_world.toml,
+# example_profile_q_world.toml, and example_system.toml cover what a layered world cannot show.
+#
+# A world is built inner to outer. A layer's material is a MatPack name, a MatPack preset with overrides, or a full
+# material table; the layers below show all three. A layer that names no material takes [layers] material of
+# TidalPy_Configs.toml. Every other value a layer leaves out takes its default, the simplest case, so a file only
+# has to say what differs. This file says everything.
+
+schema_version = "0.2.0"            # the schema this file is written to; a minor mismatch warns, a major one refuses
+name = "Example-World"
+type = "terrestrial"                # star | gasgiant | terrestrial | layered
+radius_m = 2.0e6
+mass_kg = 1.2945e23
+albedo = 0.25                       # Bond albedo, for the insolation a System supplies
+emissivity = 0.95                   # infrared emissivity, for the equilibrium temperature
+obliquity_rad = 0.02                # axial tilt of the spin axis to the orbit normal
+spin_frequency_rad_s = 1.5e-5       # rotation rate; a System can set it synchronous
+moment_of_inertia_factor = 0.36     # C / (M R^2) of the spin model until the equation of state is solved
+
+# The world's own solver settings: each key here wins over the same key of TidalPy_Configs.toml for every solve
+# this world runs; a call's own argument still wins over both, and a key left out follows the configuration.
+[eos_solver]
+integration_method = "DOP853"       # DOP853 | RK45 | RK23 | BDF | LSODA | Radau
+rtol = 1.0e-10
+atol = 1.0e-14
+pressure_tol = 1.0e-8               # surface-pressure mismatch that ends the central-pressure iteration
+max_iters = 100                     # cap on that iteration
+slices_per_layer = 100              # radial samples per layer the solve stores
+nondimensionalize = true            # integrate in planet units so the tolerances mean the same for every planet
+solve_temperature = true            # carry temperature and heat flow through the structure solve
+max_thermal_passes = 12             # cap on the passes that relax the thermal network against the structure
+thermal_tol = 1.0e-8                # relative change in the interface temperatures and flows that ends them
+
+[radial_solver]
+integration_method = "DOP853"
+rtol = 1.0e-6
+atol = 1.0e-10
+use_kamata = false                  # Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972)
+start_radius_tolerance = 1.0e-5     # the automatic starting radius is R * start_radius_tolerance^(1/l)
+scale_rtols = false                 # tighten the stress-like radial functions by layer type (experimental)
+max_num_steps = 500000
+expected_size = 1000
+max_ram_mb = 500
+nondimensionalize = true
+
+# Global (1D) tidal dissipation: the model that turns Love numbers into -Im[k_l], and the mode sum it feeds.
+[tides]
+global_tidal_model = "rheology"     # rheology (Love numbers from the radial solver) | cpl | ctl | ctl_q (analytic)
+min_degree_l = 2
+max_degree_l = 3                    # every degree from min to max enters the mode sum
+eccentricity_trunc_lvl = 10         # heating through e^10: 2, 4, 6, 8, 10, 20, 50, or "exact" (others promote, with a warning)
+eccentricity_exact_tolerance = 1.0e-4   # mode range of "exact" (heating tail fraction); ignored by the levels
+obliquity_trunc_lvl = 2             # "off" | 2 | 4 (products of two F through I^N) | "gen" (the general form)
+layer_tidal_heating = true          # also resolve each layer's heating when the Love numbers come from the radial solver
+love_method = "radial_solver"       # radial_solver | propagation_matrix | homogeneous | cpl | ctl
+love_fixed_q = 100.0                # the Q the cpl Love method applies (unused by the method chosen above)
+love_fixed_dt_s = 600.0             # the time lag the ctl Love method applies (likewise)
+
+# Layer 1: the innermost layer, with every scalar key a layer takes. Its material starts from a MatPack preset and
+# adds a bulk viscosity, which the layer's own bulk rheology needs: a layer's rheologies, its own or its material's,
+# act on the material's static moduli and viscosities. Its inner radius is 0; every later layer starts where the one
+# before it ends.
+[layers.inner_core]
+layer_index = 0                     # inner-to-outer position; optional when the tables are written in order
+radius_outer_m = 6.0e5              # one of radius_outer_m | radius_fraction | volume_fraction
+mass_kg = 6.9e21                    # optional; every successful equation-of-state solve overwrites it
+use_tides = true                    # the layer takes a share of the tidal heating (off: calc_tides gives it none)
+tidal_scale = 0.001                 # its share in the quasi-homogeneous Love methods (homogeneous, cpl, ctl); default: its volume fraction
+is_volume_fixed = true              # false lets the layer float to hold its mass while the solve redistributes the interior
+state = "auto"                      # auto (from the material) | solid | liquid, the state the radial solver takes
+is_static = true                    # static (no inertia) equations; false is the dynamic form, which liquids need
+is_incompressible = false           # the incompressible limit; a static incompressible solid has no shooting start, so keep it dynamic
+temperature_k = 1900.0              # the layer's temperature, an input to the solve
+use_thermal_expansion = false       # let the material's density follow the temperature
+use_melting = false                 # let the material melt (its liquid phase, melt fraction, and weakening)
+use_pressure_melting = false        # let its melting curves follow the pressure (off: their zero-pressure values)
+use_melt_density = false            # mix the melt's density in by volume (off: the solid's density throughout)
+use_heating = false                 # let the world's heat sources act inside this layer during a thermal solve
+
+[layers.inner_core.material]
+preset = "simple_iron_core"         # a MatPack material to start from (TidalPy.Material.available_materials())
+
+[layers.inner_core.material.solid.bulk_viscosity]
+model = "constant"                  # constant | reference | arrhenius | composite | interpolate
+reference_viscosity_pas = 1.0e22
+
+# A layer's own rheology wins over its material's.
+[layers.inner_core.shear_rheology]
+model = "maxwell"                   # elastic (off) | viscous (newton) | voigt | maxwell | burgers | andrade |
+                                    # sundberg | zener (sls) | seismic_q
+
+[layers.inner_core.bulk_rheology]
+model = "burgers"
+voigt_modulus_frac = 0.2
+voigt_viscosity_frac = 0.02
+
+# Layer 2: a static liquid outer core, made of a MatPack material named by its name. The material has only a liquid
+# phase, so the layer is a liquid. Its cooling and radiogenics are named, and off. Its outer radius is given by
+# volume: the layer holds this fraction of the world's volume.
+[layers.outer_core]
+layer_index = 1
+volume_fraction = 0.06
+use_tides = false                   # a liquid dissipates nothing in this model
+temperature_k = 1800.0
+material = "simple_liquid_iron"     # a MatPack name, or a table (the other layers)
+
+[layers.outer_core.cooling]
+model = "off"                       # off | convection | conduction
+
+[layers.outer_core.radiogenics]
+model = "off"                       # off | isotope | fixed (constant)
+
+# Layer 3: the lower mantle, a full material table: a solid phase on a Vinet law with thermal expansion, a linear
+# shear modulus, and an Arrhenius viscosity; a melt phase; and the melting curves, weakening, and mixing laws that
+# join them. The layer turns all of it on, holds its mass rather than its volume, conducts heat, and carries an inline
+# isotope table. Its outer radius is a fraction of the world radius.
+[layers.lower_mantle]
+layer_index = 2
+radius_fraction = 0.75
+use_tides = true
+is_volume_fixed = false             # the first solve sets the mass this layer holds; later solves move its radii to keep it
+temperature_k = 1600.0              # below the solidus at every pressure, so the layer stays solid
+use_thermal_expansion = true        # the Vinet law adds its thermal pressure at this temperature
+use_melting = true
+use_pressure_melting = true
+use_melt_density = true
+use_heating = true                  # the radiogenic source below acts here in a thermal solve
+
+[layers.lower_mantle.material]
+latent_heat_j_kg = 4.0e5            # spread over the melting range as an effective heat capacity
+
+[layers.lower_mantle.material.solid]
+thermal_conductivity_w_mk = 4.0     # the thermal constants a cooling model and the thermal solve read
+heat_capacity_j_kgk = 1200.0
+conductivity_temperature_exponent = -0.5    # k = k0 (T / T_ref)^n and c_p = c_p0 (T / T_ref)^m about this reference
+heat_capacity_temperature_exponent = 0.1
+thermal_reference_temperature_k = 1600.0
+
+[layers.lower_mantle.material.solid.eos]
+model = "vinet"                     # constant | birch_murnaghan (bm) | vinet | murnaghan | polytrope |
+                                    # modified_polytrope | interpolate
+reference_density_kg_m3 = 3900.0
+reference_bulk_modulus_pa = 2.0e11
+bulk_modulus_derivative = 4.0
+invert_rtol = 1.0e-10               # the density inversion of a compressible law: its tolerance and iteration cap
+invert_max_iters = 50               # (absent: [numerical] eos_invert_rtol and eos_invert_max_iters)
+thermal_expansion_1_k = 2.5e-5      # alpha0; the thermal pressure alpha0 K0 (T - T_ref) makes alpha = alpha0 K0 / K_T,
+                                    # which falls with compression and sets the adiabat
+gruneisen_parameter = 1.2           # the adiabatic bulk modulus a tide sees, K_S = K_T (1 + alpha gamma T)
+reference_temperature_k = 300.0
+
+[layers.lower_mantle.material.solid.shear_modulus]
+model = "linear"                    # mu = mu0 + mu_P (P - P_ref) + mu_T (T - T_ref) | constant | interpolate
+shear_modulus_pa = 1.2e11
+pressure_derivative = 1.5
+reference_pressure_pa = 0.0
+temperature_derivative_pa_k = -1.0e7
+reference_temperature_k = 300.0
+
+[layers.lower_mantle.material.solid.shear_viscosity]
+model = "arrhenius"                 # eta = A exp[(E + P V) / (R T)] with the stress and grain-size factors below
+arrhenius_coeff = 1.0e9             # its units depend on the exponents, so the key carries none
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 4.0e-6
+stress_pa = 1.0e5
+stress_expo = 1.0
+grain_size_m = 1.0e-3
+grain_size_expo = 2.0
+additional_temp_dependence = false  # multiply by the temperature as the Goldsby and Kohlstedt form does
+
+[layers.lower_mantle.material.solid.bulk_viscosity]
+model = "reference"                 # eta = eta_ref exp[(E/R)(1/T - 1/T_ref) + (V/R)(P/T - P_ref/T_ref)]
+reference_viscosity_pas = 1.0e23
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+reference_pressure_pa = 0.0         # where the reference viscosity applies; deep laws are better anchored inside the layer
+
+[layers.lower_mantle.material.liquid.eos]
+model = "birch_murnaghan"           # the melt's own compression, so a thermal solid cannot come out lighter than it
+reference_density_kg_m3 = 2750.0
+reference_bulk_modulus_pa = 2.0e10
+bulk_modulus_derivative = 5.0
+
+[layers.lower_mantle.material.liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 0.2
+
+[layers.lower_mantle.material.melting.solidus]
+model = "simon_glatzel_2"           # T0 (1 + P / a)^(1 / c), with a second law above the transition pressure: the
+temperature_k = 1661.2              # Monteux et al. (2016) fits to the peridotite melting of Andrault et al. (2011)
+simon_a_pa = 1.336e9                # and Fiquet et al. (2010) | constant | simon_glatzel | interpolate
+simon_c = 7.437
+reference_pressure_pa = 0.0         # where each branch's T0 applies; a negative a makes a curve fall with pressure
+transition_pressure_pa = 2.0e10
+high_temperature_k = 2081.8
+high_simon_a_pa = 1.0169e11
+high_simon_c = 1.226
+high_reference_pressure_pa = 0.0
+
+[layers.lower_mantle.material.melting.liquidus]
+model = "simon_glatzel_2"
+temperature_k = 1982.1
+simon_a_pa = 6.594e9
+simon_c = 5.374
+transition_pressure_pa = 2.0e10
+high_temperature_k = 78.74
+high_simon_a_pa = 4.054e6
+high_simon_c = 2.44
+
+[layers.lower_mantle.material.melting.weakening]
+model = "spohn"                     # the Fischer and Spohn (1990) power-law weakening | none | henning
+fs_visc_power_slope_k = 27000.0     # the viscosity and shear-modulus power laws: slope, and log10 at the solidus
+fs_visc_log10_at_solidus = 15.875   # (absent: the solid's own at the solidus, which the law then continues)
+fs_shear_power_slope_k = 82000.0
+fs_shear_log10_at_solidus = 10.65
+crit_melt_frac = 0.5                # the breakdown band, across which the aggregate blends into the liquid
+crit_melt_frac_width = 0.05
+
+[layers.lower_mantle.material.melting.bulk_modulus_mixing]
+model = "hashin_shtrikman"          # weaken the bulk modulus with melt (absent: the solid's)
+
+[layers.lower_mantle.material.melting.bulk_viscosity_mixing]
+model = "compaction"                # melt sets a compaction bulk viscosity c eta / phi^n (McKenzie 1984 at n = 1)
+coefficient = 1.0
+exponent = 1.0
+
+[layers.lower_mantle.shear_rheology]
+model = "sundberg"                  # Sundberg-Cooper: Andrade transient plus a Voigt element
+alpha = 0.33                        # Andrade exponent (andrade, sundberg)
+zeta = 1.0                          # Andrade timescale ratio (andrade, sundberg)
+voigt_modulus_frac = 0.2            # the Voigt element's modulus and viscosity as fractions of the layer's (voigt, burgers, sundberg)
+voigt_viscosity_frac = 0.02
+
+[layers.lower_mantle.bulk_rheology]
+model = "voigt"
+voigt_modulus_frac = 0.5
+voigt_viscosity_frac = 0.1
+
+[layers.lower_mantle.cooling]
+model = "conduction"                # conduction through the whole layer; it reads the material's thermal constants
+
+[layers.lower_mantle.radiogenics]
+model = "isotope"                   # a decaying-isotope source given inline (or by dataset name, as the next layer does)
+heat_production_w_kg = [9.46e-5, 5.69e-4, 2.64e-5, 2.92e-5]   # per isotope: U238, U235, Th232, K40
+half_lives_s = [1.409e17, 2.221e16, 4.434e17, 3.938e16]
+mass_fracs = [0.9928, 0.0072, 1.0, 1.17e-4]                     # of the element
+concentrations = [2.0e-8, 2.0e-8, 8.0e-8, 2.4e-4]                # of the element in the rock, by mass
+isotope_names = ["U238", "U235", "Th232", "K40"]
+ref_time_s = 1.4516496e17           # the time the concentrations hold at (4.6 Gyr here)
+
+# Layer 4: the upper mantle, a dynamic solid of MatPack peridotite with its viscosity replaced: a table naming a
+# preset starts from that material, and its own tables merge over it (a law naming another model replaces the
+# preset's). It convects and carries a named isotope dataset. Its outer radius is absolute.
+[layers.upper_mantle]
+layer_index = 3
+radius_outer_m = 1.95e6
+use_tides = true
+is_static = false                   # the dynamic form: inertia kept
+temperature_k = 1600.0
+use_heating = true
+
+[layers.upper_mantle.material]
+preset = "peridotite"               # a MatPack material to start from
+
+[layers.upper_mantle.material.solid.shear_viscosity]
+model = "reference"                 # replaces the preset's composite law
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.upper_mantle.material.solid.bulk_viscosity]
+model = "composite"                 # mechanisms in parallel, 1 / eta = sum of 1 / eta_i (diffusion plus dislocation creep, say)
+mechanisms = [{ model = "constant", reference_viscosity_pas = 1.0e22 }]
+
+[layers.upper_mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.upper_mantle.bulk_rheology]
+model = "zener"                     # a standard linear solid: relaxes to a finite modulus, not to zero like maxwell
+relaxed_modulus_frac = 0.9          # the relaxed modulus as a fraction of the unrelaxed one (zener)
+
+[layers.upper_mantle.cooling]
+model = "convection"                # boundary-layer convection from a Nusselt-Rayleigh law
+convection_alpha = 1.0              # a solid interior: Nu = alpha (Ra / Ra_crit)^beta
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+liquid_convection_alpha = 0.089     # a liquid interior (a magma ocean): Nu = alpha Ra^beta (Solomatov 2000)
+liquid_convection_beta = 0.3333333333333333
+
+[layers.upper_mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"  # modern_day_chondritic | llri | slri | llri_and_slri | bulk_silicate_earth
+
+# Layer 5: the crust, a material tabulated in radius given inline, the form a data-file world takes for every layer
+# (see example_profile_world.toml): the tables are read at the radii given and interpolated between them, and a
+# radius past the last point takes the last value. Its rheology is a Newtonian (viscous) fluid, rigid at tidal
+# periods with this viscosity; with no rheology at all, its own or its material's, a layer responds elastically. It
+# reaches the surface.
+[layers.crust]
+layer_index = 4
+radius_fraction = 1.0
+use_tides = false
+temperature_k = 300.0
+
+[layers.crust.material.solid.eos]
+model = "interpolate"
+radius_m = [1.95e6, 1.975e6, 2.0e6]
+density_kg_m3 = [2900.0, 2800.0, 2700.0]
+bulk_modulus_pa = [7.5e10, 7.0e10, 6.5e10]
+
+[layers.crust.material.solid.shear_modulus]
+model = "interpolate"
+radius_m = [1.95e6, 1.975e6, 2.0e6]
+shear_modulus_pa = [4.0e10, 3.5e10, 3.0e10]
+
+[layers.crust.material.solid.shear_viscosity]
+model = "interpolate"               # optional: without a viscosity the crust has none to relax with
+radius_m = [1.95e6, 1.975e6, 2.0e6]
+viscosity_pas = [1.0e24, 1.0e24, 1.0e24]
+
+[layers.crust.material.solid.bulk_viscosity]
+model = "interpolate"
+radius_m = [1.95e6, 1.975e6, 2.0e6]
+viscosity_pas = [1.0e25, 1.0e25, 1.0e25]
+
+[layers.crust.shear_rheology]
+model = "viscous"                   # mu* = i omega eta

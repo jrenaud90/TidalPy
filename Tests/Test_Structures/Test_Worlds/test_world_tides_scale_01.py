@@ -1,0 +1,194 @@
+"""Layer tidal scales and per-layer tidal heating for analytic models, quasi-homogeneous Love methods, and the
+radial solver.
+"""
+import math
+
+import pytest
+
+from TidalPy.Material import Material, Phase
+from TidalPy.Rheology import Maxwell
+from TidalPy.Structures import build_world
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Tides.classes.tide import make_tide
+from TidalPy.Tides.love import calc_homogeneous_love_numbers
+
+
+_R         = 1.6e6
+_R_CORE    = 0.5 * _R   # core volume fraction (0.5)^3 = 0.125
+_HOST_MASS = 1.898e27
+_SMA       = 4.2e8
+_N         = 2.05e-5
+_ECC       = 0.0041
+_DENSITY   = 4000.0
+
+
+def _layer(
+        name,
+        index,
+        radius_inner,
+        radius_outer,
+        shear,
+        viscosity,
+        **kwargs,
+):
+    material = Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 2.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity}))
+    return Layer(
+        name,
+        index,
+        radius_inner,
+        radius_outer,
+        0.0,
+        material,
+        shear_rheology=Maxwell(),
+        **kwargs,
+    )
+
+
+def _two_layer(core_scale=None, mantle_scale=None, core_tidal=True):
+    mass = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
+    world = BaseWorld("scaled", _R, mass)
+    world.add_layer(_layer("core", 0, 0.0, _R_CORE, 8.0e10, 1.0e22, tidal_scale=core_scale, use_tides=core_tidal))
+    world.add_layer(_layer("mantle", 1, _R_CORE, _R, 5.0e10, 1.0e14, tidal_scale=mantle_scale))
+    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+    return world
+
+
+def _solve(world):
+    world.calc_tides(orbital_frequency=_N, spin_frequency=_N, eccentricity=_ECC,
+                     obliquity=0.0, semi_major_axis=_SMA, host_mass=_HOST_MASS)
+
+
+def test_an_unset_scale_is_the_volume_fraction():
+    """An unset tidal scale is the layer's volume fraction."""
+    world = _two_layer()
+    assert world.core.tidal_scale is None
+    assert world.get_layer_tidal_scale(0) == pytest.approx(0.125, rel=1e-12)
+    assert world.get_layer_tidal_scale(1) == pytest.approx(0.875, rel=1e-12)
+
+
+def test_a_set_scale_wins_and_a_non_tidal_layer_has_none():
+    """A set tidal scale overrides the volume fraction; a non-tidal layer has zero."""
+    world = _two_layer(mantle_scale=0.6, core_tidal=False)
+    assert world.get_layer_tidal_scale(1) == 0.6
+    assert world.get_layer_tidal_scale(0) == 0.0
+    world.mantle.tidal_scale = None
+    assert world.get_layer_tidal_scale(1) == pytest.approx(0.875, rel=1e-12)
+
+
+def test_a_set_scale_is_written_and_an_unset_one_is_not():
+    """Only a set tidal scale appears in the config dict."""
+    world = _two_layer(mantle_scale=0.6)
+    layers = world.get_config_dict()["layers"]
+    assert layers["mantle"]["tidal_scale"] == 0.6
+    assert "tidal_scale" not in layers["core"]
+
+
+def test_an_analytic_model_shares_the_total_by_tidal_scale():
+    """An analytic model gives each layer the total heating times its tidal scale."""
+    world = _two_layer()
+    world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
+    _solve(world)
+    total = world.get_tidal_heating()
+    assert world.get_layer_tidal_heating(0) == pytest.approx(0.125 * total, rel=1e-12)
+    assert world.get_layer_tidal_heating(1) == pytest.approx(0.875 * total, rel=1e-12)
+
+
+def _homogeneous_world(**kwargs):
+    world = _two_layer(**kwargs)
+    world.set_tide_model(make_tide("rheology"))
+    world.set_tide_config(love_method="homogeneous")
+    world.solve_eos()
+    return world
+
+
+def test_the_world_love_number_is_the_scaled_sum_of_the_layers():
+    """Homogeneous k2 is the tidal-scale-weighted sum of each layer as a homogeneous planet."""
+    world = _homogeneous_world()
+    k2 = world.solve_love_numbers(frequency=_N, degree_l=2, love_method="homogeneous")["love_number_k"]
+    parts = world.love_layer_parts
+    assert [part["layer"] for part in parts] == ["core", "mantle"]
+    gravity = world.surface_gravity_eos
+    density = world.planet_mass_eos / ((4.0 / 3.0) * math.pi * _R ** 3)
+    expected = 0.0
+    for part in parts:
+        mu = Maxwell().calc_complex_modulus(
+            8.0e10 if part["layer"] == "core" else 5.0e10, 1.0e22 if part["layer"] == "core" else 1.0e14, _N)
+        k_layer = calc_homogeneous_love_numbers(mu, density, gravity, _R, 2).k
+        assert part["love_number_k"] == pytest.approx(k_layer, rel=1e-10)
+        expected += part["tidal_scale"] * k_layer
+    assert k2 == pytest.approx(expected, rel=1e-12)
+
+
+def test_a_one_layer_planet_is_the_homogeneous_sphere():
+    """A one-layer planet's homogeneous k2 is the closed-form homogeneous sphere's."""
+    mass = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
+    world = BaseWorld("single", _R, mass)
+    world.add_layer(_layer("mantle", 0, 0.0, _R, 5.0e10, 1.0e14))
+    world.solve_eos()
+    k2 = world.solve_love_numbers(frequency=_N, degree_l=2, love_method="homogeneous")["love_number_k"]
+    mu = Maxwell().calc_complex_modulus(5.0e10, 1.0e14, _N)
+    expected = calc_homogeneous_love_numbers(mu, _DENSITY, world.surface_gravity_eos, _R, 2).k
+    assert k2 == pytest.approx(expected, rel=1e-10)
+
+
+def test_quasi_homogeneous_layer_heating_sums_to_the_total():
+    """Quasi-homogeneous layer heatings come from each layer's scaled Love numbers and sum to the total."""
+    world = _homogeneous_world()
+    _solve(world)
+    total = world.get_tidal_heating()
+    core, mantle = world.get_layer_tidal_heating(0), world.get_layer_tidal_heating(1)
+    assert core + mantle == pytest.approx(total, rel=1e-12)
+    assert 0.0 < core < mantle
+    assert world.core.get_tidal_heating() == core
+
+
+@pytest.fixture(scope="module")
+def io_tides():
+    io = build_world("io")
+    io.solve_eos()
+    n = 4.11e-5
+    state = dict(orbital_frequency=n, spin_frequency=n, eccentricity=0.0041, obliquity=0.0,
+                 semi_major_axis=4.217e8, host_mass=1.898e27)
+    return io, state
+
+
+def test_radial_layer_heating_is_the_volume_integral(io_tides):
+    """Radial-solver layer heatings sum to the total and split as the 3D volume integral does."""
+    io, state = io_tides
+    io.calc_tides(**state)
+    total = io.get_tidal_heating()
+    heating = [io.get_layer_tidal_heating(i) for i in range(io.num_layers)]
+    assert sum(heating) == pytest.approx(total, rel=1e-12)
+    integral = io.calc_3d_tides(**state, latitude_summed=True, longitude_summed=True, radial_summed=True)["per_layer"]
+    for layer_heating, layer_integral in zip(heating, integral):
+        assert layer_heating / total == pytest.approx(layer_integral / sum(integral), rel=1e-9)
+    assert heating[2] / total > 0.9
+
+
+def test_radial_layer_heating_can_be_switched_off(io_tides):
+    """layer_tidal_heating=False leaves layer heatings NaN but keeps the total."""
+    io, state = io_tides
+    io.set_tide_config(layer_tidal_heating=False)
+    try:
+        io.calc_tides(**state)
+        assert math.isfinite(io.get_tidal_heating())
+        assert all(math.isnan(io.get_layer_tidal_heating(i)) for i in range(io.num_layers))
+    finally:
+        io.set_tide_config(layer_tidal_heating=True)
+
+
+def test_calc_tides_leaves_the_world_love_solve_alone(io_tides):
+    """calc_tides and calc_3d_tides do not overwrite the world's last solve_love_numbers result."""
+    io, state = io_tides
+    k2 = io.solve_love_numbers(frequency=1.0e-6, degree_l=2)["love_number_k"]
+    io.set_tide_config(max_degree_l=3)
+    try:
+        io.calc_tides(**state)
+        io.calc_3d_tides(**state, latitude_summed=True, longitude_summed=True, radial_summed=True)
+    finally:
+        io.set_tide_config(max_degree_l=2)
+    assert io.love_number_k == k2

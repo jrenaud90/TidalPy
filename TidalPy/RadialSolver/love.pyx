@@ -1,30 +1,95 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
+
+
+# find_love reads the surface y1 to y6.
+cdef Py_ssize_t C_NUM_SURFACE_YS = 6
+
+
+cdef class LoveNumbers:
+    
+    def __cinit__(self, double complex k_, double complex h_, double complex l_):
+        cdef cpp_complex[double] cpp_k = cpp_complex[double](k_.real, k_.imag)
+        cdef cpp_complex[double] cpp_h = cpp_complex[double](h_.real, h_.imag)
+        cdef cpp_complex[double] cpp_l = cpp_complex[double](l_.real, l_.imag)
+
+        self._cinst = c_LoveNumbers(cpp_k, cpp_h, cpp_l)
+    
+    @property
+    def k(self):
+        return self._cinst.k
+    
+    @property
+    def h(self):
+        return self._cinst.h
+    
+    @property
+    def l(self):
+        return self._cinst.l
+
+    @property
+    def Q_k(self):
+        return self._cinst.get_Q_k()
+    
+    @property
+    def Q_h(self):
+        return self._cinst.get_Q_h()
+    
+    @property
+    def Q_l(self):
+        return self._cinst.get_Q_l()
+    
+    @property
+    def lag_k(self):
+        return self._cinst.get_lag_k()
+    
+    @property
+    def lag_h(self):
+        return self._cinst.get_lag_h()
+    
+    @property
+    def lag_l(self):
+        return self._cinst.get_lag_l()
+
+
 def find_love(
-    double complex[::1] complex_love_numbers_view,
-    double complex[::1] surface_solutions_view,
-    double surface_gravity
-    ):
+        double complex[::1] surface_solutions,
+        double surface_gravity
+        ):
     """
-    Find the complex Love and Shida numbers given the surface radial solutions for a planet.
+    Compute Love and Shida numbers from radial solution y-values at the planet surface.
 
     Parameters
     ----------
-    complex_love_numbers_view : double complex[::1], array, output
-        Array to store complex Love numbers. There must be space for 3 double complex numbers.
-    surface_solutions_view : double complex[::1], array, input
-        Array of radial solutions (y_i) values at the surface of a planet.
-    surface_gravity : double, input
-        Acceleration due to gravity at the planet's surface [m s-2].
+    surface_solutions : ndarray[complex128]
+        y-values at the surface: [y1, y2, y3, y4, y5, y6].
+    surface_gravity : double
+        Gravitational acceleration at the surface [m s-2].
+
+    Returns
+    -------
+    love : LoveNumbers
+        Object containing k, h, l Love/Shida numbers with Q and lag properties.
+
+    Raises
+    ------
+    ValueError
+        If surface_solutions holds fewer than the 6 y values it reads.
     """
+    if surface_solutions.shape[0] < C_NUM_SURFACE_YS:
+        raise ValueError(
+            f"TidalPy: find_love needs the {C_NUM_SURFACE_YS} surface y values y1 to y6; got "
+            f"{surface_solutions.shape[0]}.")
+    cdef cpp_complex[double]* surface_ptr = <cpp_complex[double]*>&surface_solutions[0]
 
-    # Create pointers; the c++ functions only work with doubles so we need to cast them to double
-    cdef double* complex_love_numbers_ptr = <double*>&complex_love_numbers_view[0]
-    cdef double* surface_solutions_ptr    = <double*>&surface_solutions_view[0]
+    cdef c_LoveNumbers love = c_find_love(surface_ptr, surface_gravity)
 
-    return find_love_cf(
-        complex_love_numbers_ptr,
-        surface_solutions_ptr,
-        surface_gravity
-        )
+    return LoveNumbers(
+        love.k,
+        love.h,
+        love.l,
+    )

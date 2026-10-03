@@ -1,39 +1,169 @@
+# Europa: iron core, silicate mantle, and the water-ice shell that makes it interesting.
+#
+# Rebuilt from TidalPy 0.7's BurnMan-based europa.toml. Radius and both layer boundaries (core at
+# 599 km, silicate top at 1421 km, so a 140 km ice shell) are carried over from that file. Mass is
+# 4.7998e22 kg.
+#
+# Densities follow from the geometry once the two better-known ones are fixed: 5150 kg/m3 for the Fe-FeS
+# core, as for Io, and 917 kg/m3 for ice I. The silicate mantle's Birch-Murnaghan reference density is then
+# whatever reproduces the published mass, 3532.34 kg/m3, which is on the high side of published Europa
+# models and is the price of taking the 0.7 file's layer boundaries as given rather than refitting
+# them. Surface gravity comes out at 1.315 m/s2, the central pressure at 4.82 GPa, and C/MR2 at 0.3437
+# against the measured 0.346 (Anderson et al. 1998), 0.7 percent low.
+#
+# The ice shell is Birch-Murnaghan too: at these pressures ice I barely compresses, but its low bulk
+# modulus makes the effect larger than the mantle's in relative terms, and the values are well measured.
+# The core is incompressible for the same reason as Io's: its composition is the least constrained part.
+# There is no ocean: the shell sits on the mantle as a solid, so this Europa responds like a solid body
+# (k2 = 0.0153 at its orbital period, against about 0.25 with an ocean), and its tidal heat, 6.3e10 W with
+# Jupiter's mass and Europa's orbit, is far below the 1e12 W class an ocean-decoupled shell dissipates.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature and every solid layer a reference-law viscosity whose reference
+# temperature is the layer's own (see io.toml): the core at 1500 K and 1e20 Pa s, the mantle at 1400 K and
+# 1e21 Pa s (E = 300 kJ/mol), and the shell at 250 K and 1e15 Pa s with the 59.4 kJ/mol activation energy
+# of ice. None of these is calibrated to an observation. All three layers dissipate; calc_tides gives each
+# its share of the radial solution's heating: core 5.6e-4, mantle 0.7619, shell 0.2376. Override the
+# shell's viscosity, temperature, or rheology to model a warmer, softer shell.
+#
+# Orbital state is not a world property in this schema; add Europa to a System to give it an orbit. The
+# spin frequency is the synchronous rate from the 0.7 file's 3.551181 day spin period, which differs
+# from a System's Kepler mean motion by about 2e-4; the slow 2(n - spin) tide at that difference then
+# dominates the heating. In a System, keep Europa synchronous with
+# world.set_spin_frequency(system.calc_orbital_frequency(world)).
+schema_version = "0.2.0"
 name = "Europa"
-type = "burnman"
-radius = 1561000.0
-orbital_period = 3.551181
-eccentricity = 0.01
-spin_period = 3.551181
+type = "terrestrial"
+radius_m = 1561000.0
+mass_kg = 4.7998e22
+spin_frequency_rad_s = 2.047827e-05
 albedo = 0.67
-force_spin_sync = true
 
-[layers.Core]
-type = "iron"
-is_tidal = false
-radius = 599000.0
-material = [ "Pyrite", "Fe_Dewaele",]
-material_source = [ "TidalPy", "other",]
-material_fractions = [ 0.5, 0.5,]
-temperature_mode = "user-defined"
-temperature_fixed = 1800.0
+# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
 
-[layers.Mantle]
-type = "rock"
-is_tidal = false
-radius = 1421000.0
-material = [ "forsterite", "mg_perovskite",]
-material_source = [ "SLB_2011", "SLB_2011",]
-material_fractions = [ 0.65, 0.35,]
-temperature_mode = "adiabatic"
-temperature_top = 1800.0
-surface_temperature = 273.15
+[layers.core]
+layer_index = 0
+radius_outer_m = 599000.0
+use_tides = true
+temperature_k = 1500.0
+use_heating = true
 
-[layers.Crust]
-type = "ice"
-is_tidal = true
-radius = 1561000.0
-material = "LowPressureIceConst"
-material_source = "TidalPy"
-temperature_mode = "user-defined"
-surface_temperature = 100.0
-temperature_fixed = 100.0
+[layers.core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.core.material.solid.eos]
+model = "constant"
+reference_density_kg_m3 = 5150.0
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.core.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 1500.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.core.shear_rheology]
+model = "maxwell"
+
+[layers.mantle]
+layer_index = 1
+radius_outer_m = 1421000.0
+use_tides = true
+temperature_k = 1400.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3532.3413
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1400.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
+[layers.ice_shell]
+layer_index = 2
+radius_fraction = 1.0
+use_tides = true
+temperature_k = 250.0
+use_heating = true
+
+[layers.ice_shell.material.solid]
+thermal_conductivity_w_mk = 2.3
+heat_capacity_j_kgk = 2000.0
+
+[layers.ice_shell.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 917.0
+reference_bulk_modulus_pa = 9.6e9     # ice I
+bulk_modulus_derivative = 5.5
+thermal_expansion_1_k = 5.0e-5
+
+[layers.ice_shell.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.3e9
+
+[layers.ice_shell.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e15      # warm ice
+reference_temperature_k = 250.0
+molar_activation_energy_j_mol = 59.4e3
+molar_activation_volume_m3_mol = 0.0
+
+[layers.ice_shell.shear_rheology]
+model = "maxwell"
+
+[layers.ice_shell.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1600.0

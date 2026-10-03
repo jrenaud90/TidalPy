@@ -1,0 +1,79 @@
+# lower_mantle: bridgmanite-dominated lower mantle (bridgmanite 0.75, ferropericlase 0.18, Ca-perovskite 0.07 by
+# volume).
+#
+# Solid: a third-order Birch-Murnaghan law fitted from 0 to 135 GPa, its expansivity, and its shear modulus, derived
+# from the Stixrude and Lithgow-Bertelloni (2011) end-members with BurnMan. The zero-pressure values are extrapolations:
+# the assemblage is not stable below about 23 GPa. The Gruneisen parameter is bridgmanite's (1.57; Stixrude and
+# Lithgow-Bertelloni 2011). The heat capacity is a power law through the derived values at 300 K (810) and 2500 K
+# (1230 J kg-1 K-1). The conductivity (range 5 to 12) is an unsourced estimate from bridgmanite lattice conductivity
+# near core-mantle-boundary conditions.
+#
+# Viscosity: a reference law at 1e22 Pa s and 2500 K (Mitrovica and Forte 2004 give 1e22 to 1e23 Pa s); its activation
+# energy is poorly constrained (Yamazaki and Karato 2001) and the combination is unsourced. Confidence low.
+#
+# Melting: the peridotite curves (Monteux et al. 2016), whose high-pressure branches (Eqs. 12 and 13) apply at lower
+# mantle pressures (with pressure melting off a layer reads the curves at zero pressure, their low branches), and the
+# peridotite melt and latent heat.
+schema_version = "0.2.0"
+description = "Bridgmanite-dominated lower mantle with the peridotite melting curves."
+category = "rocky"
+latent_heat_j_kg = 4.0e5
+
+[solid]
+thermal_conductivity_w_mk = 6.0
+heat_capacity_j_kgk = 1230.0
+heat_capacity_temperature_exponent = 0.197
+thermal_reference_temperature_k = 2500.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 4190.0
+reference_bulk_modulus_pa = 2.31e11
+bulk_modulus_derivative = 4.13
+thermal_expansion_1_k = 2.25e-5
+reference_temperature_k = 300.0
+gruneisen_parameter = 1.57
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 1.53e11
+pressure_derivative = 1.8
+temperature_derivative_pa_k = -1.6e7
+reference_temperature_k = 300.0
+
+[solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e22
+reference_temperature_k = 2500.0
+molar_activation_energy_j_mol = 3.0e5
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+preset = "peridotite"
+
+[melting.solidus]
+model = "simon_glatzel_2"
+temperature_k = 1661.2
+simon_a_pa = 1.336e9
+simon_c = 7.437
+transition_pressure_pa = 2.0e10
+high_temperature_k = 2081.8
+high_simon_a_pa = 1.0169e11
+high_simon_c = 1.226
+
+[melting.liquidus]
+model = "simon_glatzel_2"
+temperature_k = 1982.1
+simon_a_pa = 6.594e9
+simon_c = 5.374
+transition_pressure_pa = 2.0e10
+high_temperature_k = 78.74
+high_simon_a_pa = 4.054e6
+high_simon_c = 2.44
+
+[melting.weakening]
+model = "henning"

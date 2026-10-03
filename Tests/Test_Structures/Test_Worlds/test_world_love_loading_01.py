@@ -1,0 +1,104 @@
+"""BaseWorld Love solves with non-tidal surface boundary conditions (solve_for: tidal, loading, free)."""
+
+import cmath
+import math
+
+import numpy as np
+import pytest
+
+from TidalPy.constants import G
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material
+from TidalPy.Rheology.rheology import Maxwell
+from TidalPy.RadialSolver import homogeneous_love_numbers
+
+from shared_materials import constant_solid
+
+_PLANET_RADIUS = 6.0e6
+_DENSITY = 4000.0
+_STATIC_SHEAR = 6.0e10
+_STATIC_BULK = 1.3e11
+_SHEAR_VISC = 1.0e21
+_FREQ = 1.0e-5
+
+
+def _material():
+    return constant_solid(
+        _DENSITY, bulk_modulus=_STATIC_BULK, shear_modulus=_STATIC_SHEAR, shear_viscosity=_SHEAR_VISC,
+        bulk_viscosity=1.0e30)
+
+
+def _maxwell_world():
+    mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
+    world = BaseWorld("loading_planet", _PLANET_RADIUS, mass)
+    world.add_layer(Layer("mantle", 0, 0.0, _PLANET_RADIUS, mass, _material(), shear_rheology=Maxwell(),
+                          bulk_rheology=Maxwell()))
+    world.solve_eos(G_to_use=G, verbose=False)
+    return world
+
+
+def test_loading_matches_standalone_solver():
+    """World-level load Love numbers agree with the standalone solver on the same structure."""
+    world = _maxwell_world()
+    layer = world.mantle
+    result = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
+    assert result["success"] is True
+
+    # The layer is uniform, so any interior radius gives the moduli the world solve used.
+    query_radius = 0.5 * _PLANET_RADIUS
+    mu_complex = layer.calc_complex_shear_modulus(query_radius, _FREQ)
+    bulk_complex = layer.calc_complex_bulk_modulus(query_radius, _FREQ)
+    solution = homogeneous_love_numbers(
+        _PLANET_RADIUS, _DENSITY, mu_complex, _FREQ,
+        complex_bulk_modulus=bulk_complex,
+        num_slices=100,
+        layer_is_static=layer.is_static,
+        layer_is_incompressible=layer.is_incompressible,
+        solve_for=('loading',))
+    assert solution.success
+
+    assert cmath.isclose(result["love_number_k"], solution.k, rel_tol=1e-4, abs_tol=1e-8)
+    assert cmath.isclose(result["love_number_h"], solution.h, rel_tol=1e-4, abs_tol=1e-8)
+    assert cmath.isclose(result["love_number_l"], solution.l, rel_tol=1e-4, abs_tol=1e-8)
+
+
+def test_loading_differs_from_tidal():
+    """Load Love numbers differ from tidal ones (k' is negative)."""
+    world = _maxwell_world()
+    tidal = world.solve_love_numbers(frequency=_FREQ, solve_for='tidal', verbose=False)
+    loading = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
+    assert tidal["success"] and loading["success"]
+    assert tidal["love_number_k"].real > 0.0
+    assert loading["love_number_k"].real < 0.0
+    assert not cmath.isclose(tidal["love_number_k"], loading["love_number_k"], rel_tol=1e-3)
+
+
+def test_free_surface_runs():
+    """A free-surface solve succeeds."""
+    world = _maxwell_world()
+    result = world.solve_love_numbers(frequency=_FREQ, solve_for='free', verbose=False)
+    assert result["success"] is True
+
+
+def test_supplied_path_accepts_solve_for():
+    """The supplied-moduli path accepts solve_for and matches the rheology path."""
+    world = _maxwell_world()
+    reference = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
+
+    eos = world.solve_eos(G_to_use=G, verbose=False)
+    radius = np.ascontiguousarray(eos["radius"], dtype=np.float64)
+    shear = np.ascontiguousarray(world.calc_complex_shear_modulus(radius, _FREQ), dtype=np.complex128)
+    bulk = np.ascontiguousarray(world.calc_complex_bulk_modulus(radius, _FREQ), dtype=np.complex128)
+    supplied = world.solve_love_numbers_supplied(
+        shear, bulk, radius, frequency=_FREQ, solve_for='loading')
+    assert supplied["success"] is True
+    assert cmath.isclose(supplied["love_number_k"], reference["love_number_k"],
+                         rel_tol=1e-6, abs_tol=1e-9)
+
+
+def test_unknown_solve_for_raises():
+    """An unknown solve_for name raises a ValueError."""
+    world = _maxwell_world()
+    with pytest.raises(ValueError, match="solve_for"):
+        world.solve_love_numbers(frequency=_FREQ, solve_for='pressure', verbose=False)

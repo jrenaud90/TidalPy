@@ -1,66 +1,182 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.memory cimport make_unique
+# The headers this module compiles read the shared TidalPy configuration, so its pointer is wired here as well.
+from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
+from libc.math cimport NAN
+from libc.string cimport memcpy
+from libcpp.memory cimport unique_ptr
+from libcpp.string cimport string as cpp_string
+from libcpp.complex cimport complex as cpp_complex
+from libcpp.utility cimport move
+from cpython.complex cimport PyComplex_FromDoubles
+
+from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_Y
+from TidalPy.Material.eos.ode cimport (
+    C_EOS_DY_VALUES,
+    C_EOS_DENSITY_INDEX,
+    C_EOS_SHEAR_MODULUS_INDEX,
+    C_EOS_BULK_MODULUS_INDEX,
+    C_EOS_SHEAR_VISCOSITY_INDEX,
+    C_EOS_BULK_VISCOSITY_INDEX,
+    C_EOS_TEMPERATURE_INDEX,
+    C_EOS_HEAT_FLOW_INDEX,
+    C_EOS_MELT_FRACTION_INDEX,
+)
 from TidalPy.constants cimport d_PI
 
 cimport numpy as cnp
 import numpy as np
 cnp.import_array()
 
-from TidalPy.exceptions import ArgumentException
-from TidalPy.logger import get_logger
+from TidalPy.Utilities.logging.logger import log_info, log_warning
 
-log = get_logger("TidalPy")
+
+cdef tuple cy_eos_field_names():
+    """The name of each slot of the dense EOS layout, in slot order."""
+    cdef list names = [None] * C_EOS_DY_VALUES
+    names[0], names[1], names[2], names[3] = "gravity", "pressure", "mass", "moi"
+    names[C_EOS_DENSITY_INDEX]         = "density"
+    names[C_EOS_SHEAR_MODULUS_INDEX]   = "shear_modulus"
+    names[C_EOS_BULK_MODULUS_INDEX]    = "bulk_modulus"
+    names[C_EOS_SHEAR_VISCOSITY_INDEX] = "shear_viscosity"
+    names[C_EOS_BULK_VISCOSITY_INDEX]  = "bulk_viscosity"
+    names[C_EOS_TEMPERATURE_INDEX]     = "temperature"
+    names[C_EOS_HEAT_FLOW_INDEX]       = "heat_flow"
+    names[C_EOS_MELT_FRACTION_INDEX]   = "melt_fraction"
+    if None in names:
+        raise RuntimeError("TidalPy: the dense EOS layout has a slot with no field name.")
+    return tuple(names)
+
+# Field names of `RadialSolverSolution.eos_call`, in layout order.
+EOS_CALL_FIELDS = cy_eos_field_names()
+
+# The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
+DBL_EPSILON = np.finfo(np.float64).eps
+SEVERE_SURFACE_AMPLIFICATION = 1.0e8
+
+
+cdef bint cy_check_surface_solve_conditioning(
+        double surface_amplification,
+        double integration_rtol,
+        double surface_rcond = NAN) except *:
+    """Log a warning when the surface boundary condition solve is poorly conditioned.
+
+    Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the requested
+    integration tolerance, when the amplification alone exceeds ``SEVERE_SURFACE_AMPLIFICATION``, or when the
+    reciprocal condition number ``surface_rcond`` of the surface system is below the integration tolerance. The
+    solution constants carry the integration error divided by roughly ``surface_rcond``, so below the tolerance
+    they have no guaranteed correct digit. A NaN ``surface_rcond`` (a caller that has none) skips that check; a
+    system singular to working precision never reaches here, since the solve fails instead.
+
+    Parameters
+    ----------
+    surface_amplification : float
+        Error amplification of the surface solve (``RadialSolverSolution.surface_solve_amplification``).
+    integration_rtol : float
+        Relative tolerance the radial functions were integrated to.
+    surface_rcond : float, default NaN
+        Equilibrated reciprocal condition number of the surface system
+        (``RadialSolverSolution.surface_solve_rcond``).
+
+    Returns
+    -------
+    bool
+        True when the warning was logged.
+    """
+    cdef cpp_bool amplification_poor = (surface_amplification * DBL_EPSILON > integration_rtol) or \
+        (surface_amplification > SEVERE_SURFACE_AMPLIFICATION)
+    # NaN compares false, so a caller without the rank measure is judged on the amplification alone.
+    cdef cpp_bool rank_poor = surface_rcond < integration_rtol
+    if amplification_poor or rank_poor:
+        log_warning(
+            f"Radial solver surface boundary condition solve is poorly conditioned (error amplification "
+            f"~{surface_amplification:0.1e}; achievable relative accuracy "
+            f"~{surface_amplification * DBL_EPSILON:0.1e}; reciprocal condition number "
+            f"{surface_rcond:0.1e}; requested integration rtol {integration_rtol:0.1e}). Love numbers and "
+            f"surface outputs may be much less accurate than requested. A larger (or automatic) starting radius "
+            f"improves conditioning; tightening tolerances cannot beat the roundoff floor.")
+        return True
+    return False
+
+
+def check_surface_solve_conditioning(
+        double surface_amplification,
+        double integration_rtol,
+        double surface_rcond = NAN):
+    """Python entry point for :func:`cy_check_surface_solve_conditioning`; same arguments and return.
+
+    The Cython callers (the standalone solver and the world Love solves) cimport the cdef directly.
+    """
+    return bool(cy_check_surface_solve_conditioning(surface_amplification, integration_rtol, surface_rcond))
+
+
+# One Love-number quantity of a solved boundary condition; `quantity` is as in RadialSolverSolution._love_values.
+cdef object cy_love_value(c_LoveNumbers love, size_t quantity):
+    if quantity == 0:
+        return love.k
+    elif quantity == 1:
+        return love.h
+    elif quantity == 2:
+        return love.l
+    elif quantity == 3:
+        return love.get_Q_k()
+    elif quantity == 4:
+        return love.get_Q_h()
+    elif quantity == 5:
+        return love.get_Q_l()
+    elif quantity == 6:
+        return love.get_lag_k()
+    elif quantity == 7:
+        return love.get_lag_h()
+    return love.get_lag_l()
 
 
 cdef class RadialSolverSolution:
 
-    def __init__(
-            self,
-            size_t num_ytypes,
-            double[::1] upper_radius_bylayer_view,
-            double[::1] radius_array_view,
-            int degree_l
-            ):
-        # Build pointers
-        cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
-        self.num_layers                       = upper_radius_bylayer_view.size
-        cdef double* radius_array_ptr         = &radius_array_view[0]
-        cdef size_t radius_array_size         = radius_array_view.size
+    def __init__(self, *args, **kwargs):
+        raise TypeError(
+            "RadialSolverSolution is not built directly: call TidalPy.RadialSolver.radial_solver, or a world's "
+            "solve_love_numbers and then its release_radial_solution.")
 
-        # Set state information
-        self.ytype_names_set = False
-        self.num_ytypes      = num_ytypes
+    @staticmethod
+    cdef RadialSolverSolution _adopt(
+            unique_ptr[c_RadialSolutionStorage] storage_uptr,
+            object source_world):
+        """Take ownership of a storage a world released, without building a new one.
 
-        # Create C++ storage instance
-        self.solution_storage_uptr = make_unique[RadialSolutionStorageCC](
-            self.num_ytypes,
-            upper_radius_bylayer_ptr,
-            self.num_layers,
-            radius_array_ptr,
-            radius_array_size,
-            degree_l)
-        self.solution_storage_ptr = self.solution_storage_uptr.get()
+        The storage already carries its solved state, its EOS solution, the boundary conditions it solved
+        for, and the shared rheologies that reproduce the complex moduli, so nothing is copied or re-solved.
+        ``__init__`` is bypassed deliberately: it exists to *create* a storage.
 
-        if not self.solution_storage_ptr:
-            # C++ solution storage could not be initialized.
-            raise RuntimeError("RadialSolutionStorageCC extension class could not be initialized.")
+        This reference keeps ``source_world`` alive: the material provider the world installed on its way out
+        points back at it, and that provider answers every interior getter.
+        """
+        cdef RadialSolverSolution solution = RadialSolverSolution.__new__(RadialSolverSolution)
+        solution.p_source_world        = source_world
+        solution.solution_storage_uptr = move(storage_uptr)
+        solution.solution_storage_ptr  = solution.solution_storage_uptr.get()
+        if not solution.solution_storage_ptr:
+            raise RuntimeError("Released radial-solution storage was empty.")
 
-        # Finish initialization with provided array
-        self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
-    
+        solution.num_ytypes      = solution.solution_storage_ptr.num_ytypes
+        solution.num_layers      = solution.solution_storage_ptr.num_layers
+        solution.ytype_names_set = False
+        if solution.solution_storage_ptr.p_bc_models.size() == solution.num_ytypes:
+            solution.set_model_names(solution.solution_storage_ptr.p_bc_models.data())
+        
+        # Wrap the storage's vectors for Python without touching the storage itself.
+        solution.change_radius_array(solution.solution_storage_ptr.num_slices)
+        solution.finalize_python_storage()
+        return solution
+
     def __dealloc__(self):
         self.solution_storage_uptr.reset()
         self.solution_storage_ptr = NULL
 
     cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil:
-        # Unfortunately this must be done outside of __init__ because the argument is a pointer and python interpretor
-        # is used during __init__ and it does not like pointers.
-
-        # Find solution types
         cdef size_t ytype_i
         cdef int bc_model
         for ytype_i in range(self.num_ytypes):
@@ -72,232 +188,208 @@ cdef class RadialSolverSolution:
             elif bc_model == 2:
                 self.ytypes[ytype_i] = "loading"
             else:
+                self.solution_storage_ptr.success    = False
                 self.solution_storage_ptr.error_code = -2
-                self.solution_storage_ptr.message = cpp_string("ArgumentException:: Unknown boundary condition provided")
+                self.solution_storage_ptr.message = cpp_string(b"ArgumentException:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
-    cdef void change_radius_array(
-            self,
-            double* new_radius_array_ptr,
-            size_t new_size_radius_array,
-            cpp_bool array_changed = True) noexcept:
-        """ Change the radius array used by RadialSolver and Equation of State solvers. """
-
-        # Update attributes in this class
+    cdef void change_radius_array(self, size_t new_size_radius_array) except *:
+        # Wrap the storage's result grid, now new_size_radius_array slices long, for Python.
         self.radius_array_size = new_size_radius_array
 
-        if array_changed:
-            # Radius array held by the underlying C++ classes is no longer correct.
-            # Update it using its methods.
-            self.solution_storage_ptr.change_radius_array(new_radius_array_ptr, new_size_radius_array, array_changed)
-        
-        # Now that the underlying storage has been updated we can build our numpy array wrappers.
-    
-        # The RadialSolutionStorageCC class has full control of memory. This class simply wraps it.
-        # The shape needs to be twice what we expect because the underlying C++ class only works with double arrays 
-        # but at this level we want arrays to be double complex (the 2x factor is built into MAX_NUM_Y_REAL)
-        cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * MAX_NUM_Y]
+        cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * C_MAX_NUM_Y]
         cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
         cdef cnp.npy_intp full_solution_shape_ndim = 2
 
-        # Initialize Love numbers (3 love numbers for each requested y-type)
-        # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
-        cdef cnp.npy_intp[1] love_shape   = [self.num_ytypes * 3]
-        cdef cnp.npy_intp* love_shape_ptr = &love_shape[0]
-        cdef cnp.npy_intp love_shape_ndim = 1
-        
-        # Make numpy arrays that wrap all of the equation of state class vectors in a similar manner to the above.
-        cdef cnp.npy_intp[1] eos_float_shape     = [self.radius_array_size]
-        cdef cnp.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
-        cdef cnp.npy_intp[1] eos_complex_shape   = [self.radius_array_size]
-        cdef cnp.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
-        cdef cnp.npy_intp eos_ndim               = 1
-
-        # `solution_storage_uptr.full_solution_vec` is a double vector but it is really storing double complex data
-        # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
-        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
-
+        # Checked before either pointer is read through.
         if not self.solution_storage_ptr:
-            raise RuntimeError("RadialSolverSolution (PyClass):: RadialSolutionStorageCC extension class is not initialized.")
-        else:
-            self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
-                full_solution_shape_ndim,
-                full_solution_shape_ptr,
-                cnp.NPY_COMPLEX128,
-                <double complex*>self.solution_storage_ptr.full_solution_vec.data())
+            raise RuntimeError("RadialSolverSolution:: c_RadialSolutionStorage is not initialized.")
+        if not self.solution_storage_ptr.get_eos_solution_ptr():
+            raise RuntimeError("RadialSolverSolution:: c_EOSSolution is not initialized.")
+        self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
+            full_solution_shape_ndim,
+            full_solution_shape_ptr,
+            cnp.NPY_COMPLEX128,
+            <double complex*>self.solution_storage_ptr.full_solution_vec.data())
 
-            # Same note as above, `solution_storage_uptr.complex_love_vec` is a double vector that we are converting to a
-            # complex128 np.ndarray.
-            self.complex_love_arr = cnp.PyArray_SimpleNewFromData(
-                love_shape_ndim,
-                love_shape_ptr,
-                cnp.NPY_COMPLEX128,
-                <double complex*>self.solution_storage_ptr.complex_love_vec.data())
-
-            if not eos_solution_ptr:
-                raise RuntimeError("RadialSolverSolution (PyClass):: EOSSolutionCC extension class is not initialized.")
-            else:
-                self.radius_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.radius_array_vec.data())
-
-                self.gravity_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.gravity_array_vec.data())
-
-                self.pressure_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.pressure_array_vec.data())
-                
-                self.mass_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.mass_array_vec.data())
-                
-                self.moi_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.moi_array_vec.data())
-
-                self.density_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_float_shape_ptr,
-                    cnp.NPY_FLOAT64,
-                    eos_solution_ptr.density_array_vec.data())
-
-                # These arrays are converted to complex128
-                self.shear_modulus_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_complex_shape_ptr,
-                    cnp.NPY_COMPLEX128,
-                    <double complex*>eos_solution_ptr.complex_shear_array_vec.data())
-                
-                self.bulk_modulus_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim,
-                    eos_complex_shape_ptr,
-                    cnp.NPY_COMPLEX128,
-                    <double complex*>eos_solution_ptr.complex_bulk_array_vec.data())
-    
     cdef void finalize_python_storage(self) noexcept:
 
-        # Setup EOS diagnostic arrays
-        cdef cnp.npy_intp[2] eos_steps_taken_shape   = [self.solution_storage_ptr.get_eos_solution_ptr().num_cyolver_calls / self.num_layers, self.num_layers]
+        cdef cnp.npy_intp[2] eos_steps_taken_shape   = [
+            self.solution_storage_ptr.get_eos_solution_ptr().num_cysolver_calls / self.num_layers, self.num_layers]
         cdef cnp.npy_intp* eos_steps_taken_shape_ptr = &eos_steps_taken_shape[0]
         cdef cnp.npy_intp eos_steps_taken_ndim       = 2
         self.eos_steps_taken_array = cnp.PyArray_SimpleNewFromData(
             eos_steps_taken_ndim,
             eos_steps_taken_shape_ptr,
-            # The below should be "cnp.NPY_UINTP" to ensure that the pointer is for a size_t*. 
-            # But it looks like numpy does not have an enum for this, even though their documentation says it does:
-            # https://numpy.org/devdocs/reference/c-api/dtype.html#c.NPY_TYPES.NPY_UINTP
-            # Track question related to this here: https://stackoverflow.com/questions/79231405/no-enum-for-numpy-uintp
             cnp.NPY_UINT64,
             self.solution_storage_ptr.get_eos_solution_ptr().steps_taken_vec.data())
 
-        # Setup shooting method diagnostic arrays
         cdef cnp.npy_intp[2] steps_taken_shape   = [self.num_layers, 3]
         cdef cnp.npy_intp* steps_taken_shape_ptr = &steps_taken_shape[0]
         cdef cnp.npy_intp steps_taken_ndim       = 2
         self.shooting_method_steps_taken_array = cnp.PyArray_SimpleNewFromData(
             steps_taken_ndim,
             steps_taken_shape_ptr,
-            # The below should be "cnp.NPY_UINTP" to ensure that the pointer is for a size_t*. 
-            # But it looks like numpy does not have an enum for this, even though their documentation says it does:
-            # https://numpy.org/devdocs/reference/c-api/dtype.html#c.NPY_TYPES.NPY_UINTP
-            # Track question related to this here: https://stackoverflow.com/questions/79231405/no-enum-for-numpy-uintp
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
-    
-    def eos_call(self, double radius):
-        
-        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
 
-        cdef int layer_index = -1
-        cdef size_t layer_i
-        cdef double layer_r = 0.0
-        cdef double last_layer_r = 0.0
+    def eos_call(self, radius) -> dict:
+        """The dense equation-of-state and material state at an SI radius [m], as named fields.
 
-        for layer_i in range(eos_solution_ptr.upper_radius_bylayer_vec.size()):
-            layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
-            if last_layer_r <= radius < layer_r:
-                layer_index = <int>layer_i
-                break
-            last_layer_r = layer_r
-            
-        if layer_index < 0:
-            raise ValueError("Could not find correct layer for provided radius.")
+        Evaluates the solution's own dense EOS interpolant at the exact radius asked for, so an off-grid
+        query is as accurate as the solve itself. A float radius gives a dict of scalars, an array of radii a
+        dict of same-shaped arrays. Every field is NaN outside the body or when the solve failed.
 
-        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(9, dtype=np.float64, order='C')
-        cdef double[::1] eos_interp_view = eos_interp
-        cdef double* eos_interp_ptr      = &eos_interp_view[0]
+        Returns
+        -------
+        dict
+            The real fields ``EOS_CALL_FIELDS`` lists in layout order, plus the ``complex_shear_modulus`` and
+            ``complex_bulk_modulus`` [Pa] the solve used at ``love_frequency``.
+        """
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] radii = np.ascontiguousarray(radius, dtype=np.float64).ravel()
+        cdef Py_ssize_t num_radii = radii.shape[0]
+        cdef cnp.ndarray[cnp.float64_t, ndim=2] state = np.empty((num_radii, C_EOS_DY_VALUES), dtype=np.float64)
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] shear = np.empty(num_radii, dtype=np.complex128)
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] bulk = np.empty(num_radii, dtype=np.complex128)
+        cdef cpp_complex[double] shear_c
+        cdef cpp_complex[double] bulk_c
+        cdef Py_ssize_t i
+        cdef size_t field_i
 
-        eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
-        return eos_interp
+        # Typed views so the fill writes C doubles and complexes straight into the buffers. Building a
+        # Python complex per radius, as this loop used to, kept the whole sweep on the interpreter.
+        cdef double[::1] radii_mv = radii
+        cdef double[:, ::1] state_mv = state
+        cdef double complex[::1] shear_mv = shear
+        cdef double complex[::1] bulk_mv = bulk
 
-    def plot_ys(self):
+        with nogil:
+            for i in range(num_radii):
+                if not self.solution_storage_ptr.get_eos_si(radii_mv[i], &state_mv[i, 0]):
+                    for field_i in range(C_EOS_DY_VALUES):
+                        state_mv[i, field_i] = NAN
+                # NaN out of range, so no separate check.
+                self.solution_storage_ptr.get_complex_moduli_si(radii_mv[i], shear_c, bulk_c)
+                shear_mv[i] = shear_c.real() + 1j * shear_c.imag()
+                bulk_mv[i]  = bulk_c.real() + 1j * bulk_c.imag()
+
+        cdef dict out = {}
+        if np.ndim(radius) == 0:
+            for field_i in range(C_EOS_DY_VALUES):
+                out[EOS_CALL_FIELDS[field_i]] = float(state[0, field_i])
+            out["complex_shear_modulus"] = complex(shear[0])
+            out["complex_bulk_modulus"]  = complex(bulk[0])
+            return out
+        shape = np.shape(radius)
+        for field_i in range(C_EOS_DY_VALUES):
+            out[EOS_CALL_FIELDS[field_i]] = np.ascontiguousarray(state[:, field_i]).reshape(shape)
+        out["complex_shear_modulus"] = shear.reshape(shape)
+        out["complex_bulk_modulus"]  = bulk.reshape(shape)
+        return out
+
+    def get_radial_solution(self, double radius, size_t ytype_index = 0):
+        """Complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
+
+        Shooting solutions evaluate their dense interpolants; the matrix method continues its propagation inside
+        the slice holding the radius, so both are exact between grid points.
+        Returns a length-6 complex128 array, NaN out of range or below the starting radius.
+        """
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] out = np.empty(C_MAX_NUM_Y, dtype=np.complex128)
+        self.solution_storage_ptr.get_radial_solution(
+            radius, ytype_index, <cpp_complex[double]*><void*>&out[0])
+        return out
+
+    def get_radial_solution_array(self, double[::1] radius_array not None, size_t ytype_index = 0):
+        """Vectorized :meth:`get_radial_solution`: an ``(n, 6)`` complex128 array of y1..y6 (SI) at each radius [m]."""
+        cdef size_t n = radius_array.shape[0]
+        cdef cnp.ndarray[cnp.complex128_t, ndim=2] out = np.empty((n, C_MAX_NUM_Y), dtype=np.complex128)
+        if n > 0:
+            self.solution_storage_ptr.get_radial_solution_array(
+                &radius_array[0], n, ytype_index, <cpp_complex[double]*><void*>&out[0, 0])
+        return out
+
+    def plot_ys(self, cpp_bool show_plot = True, **plot_kwargs):
+        """Plot y1..y6 against radius for every solved boundary-condition type.
+
+        Extra keyword arguments pass through to ``plot_ys``. Spikes or non-smooth curves signal an unstable
+        solve.
+        """
         cdef list result_list
         cdef list radius_list
         cdef list labels
         cdef size_t ytype_i
-        cdef size_t stored_ytypes = 0
         cdef str ytype_name
 
-        if self.success:
-            from TidalPy.utilities.graphics.multilayer import yplot
-            if self.num_ytypes <= 0:
-                raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
-            elif self.num_ytypes == 1:
-                if self.result is not None:
-                    return yplot(self.result, self.radius_array)
-                else:
-                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
-            else:
-                result_list = list()
-                radius_list = list()
-                labels      = list()
-                for ytype_i in range(self.num_ytypes):
-                    ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
-                    if self.get_result_by_ytype_name(ytype_name) is not None:
-                        result_list.append(self.get_result_by_ytype_name(ytype_name))
-                        radius_list.append(self.radius_array)
-                        labels.append(ytype_name.title())
-                        stored_ytypes += 1
-                if stored_ytypes > 1:
-                    return yplot(result_list, radius_list, labels=labels)
-                else:
-                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
-        else:
-            raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
-        
-    def plot_interior(self):
-        if self.eos_success:
-            from TidalPy.utilities.graphics.planet_plot import planet_plot
+        if not self.success:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because the solve was not successful.")
+        if self.num_ytypes <= 0:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
+        from TidalPy.Utilities.graphics import plot_ys
 
-            return planet_plot(
-                self.radius_array,
-                self.gravity_array,
-                self.pressure_array,
-                self.density_array,
-                None,
-                self.shear_modulus_array,
-                self.bulk_modulus_array,
-                self.radius,
-                self.density_bulk,
-                planet_name=None,
-                use_scatter=False,
-                depth_plot=False,
-                auto_show=True,
-                annotate=True)
-    
+        if self.num_ytypes == 1:
+            if self.result is None:
+                raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+            return plot_ys(self.result, self.sample_radii(), show_plot=show_plot, **plot_kwargs)
+
+        cdef cnp.ndarray radius_grid = self.sample_radii()
+        result_list = list()
+        radius_list = list()
+        labels      = list()
+        for ytype_i in range(self.num_ytypes):
+            ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
+            if self.get_result_by_ytype_name(ytype_name) is not None:
+                result_list.append(self.get_result_by_ytype_name(ytype_name))
+                radius_list.append(radius_grid)
+                labels.append(ytype_name.title())
+        if len(result_list) == 0:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+        plot_kwargs.setdefault("labels", labels)
+        return plot_ys(result_list, radius_list, show_plot=show_plot, **plot_kwargs)
+
+    def plot_interior(self, cpp_bool show_plot = True, **plot_kwargs):
+        """Plot the EOS interior profiles; extra keyword arguments pass through to ``plot_interior``.
+
+        Returns
+        -------
+        figure : matplotlib.figure.Figure
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            The ``(figure, axes)`` pair ``TidalPy.Utilities.graphics.plot_interior`` returns.
+        """
+        if not self.eos_success:
+            raise AttributeError("`RadialSolverSolution` can not plot the interior because the EOS solve was not successful.")
+        from TidalPy.Utilities.graphics import plot_interior
+
+        # Plotting is the one place a grid is still wanted, so make one here and discard it.
+        cdef cnp.ndarray radius_grid = self.sample_radii()
+        return plot_interior(
+            radius_grid,
+            self.get_gravity(radius_grid),
+            self.get_pressure(radius_grid),
+            self.get_density(radius_grid),
+            shear_modulus=self.get_shear_modulus(radius_grid),
+            bulk_modulus=self.get_bulk_modulus(radius_grid),
+            planet_radius=self.radius,
+            bulk_density=self.density_bulk,
+            show_plot=show_plot,
+            **plot_kwargs)
+
     def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
+        """Summarize the equation-of-state and radial solves: success, messages, and the solved structure in SI
+        (the remaining surface-pressure mismatch and central pressure [Pa], mass [kg], moment of inertia [kg m2], and
+        surface gravity [m s-2]), then the radial solver's steps, conditioning, and Love numbers.
+
+        Parameters
+        ----------
+        print_diagnostics : bool, optional
+            Print the summary. Default True.
+        log_diagnostics : bool, optional
+            Log the summary at the info level instead, when not printing. Default False.
+
+        Returns
+        -------
+        str or None
+            The summary when neither printed nor logged, otherwise None.
+        """
         cdef str log_message = ""
         log_message += "\n\tEquation of State Solver:"
         log_message += f"\n\t\tSuccess:           {self.eos_success}"
@@ -305,11 +397,12 @@ cdef class RadialSolverSolution:
         log_message += f"\n\t\tMessage:           {self.eos_message}"
         if self.eos_success:
             log_message += f"\n\t\tIterations:        {self.eos_iterations}"
-            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
-            log_message += f"\n\t\tMass:              {self.mass:0.3e}"
-            log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
-            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
+            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e} Pa"
+            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e} Pa"
+            log_message += f"\n\t\tMass:              {self.mass:0.3e} kg"
+            log_message += (f"\n\t\tMOI:               {self.moi:0.3e} kg m2 "
+                            f"(factor {self.moi_factor:0.4f}, sphere ratio {self.moi_sphere_ratio:0.4f})")
+            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e} m s-2\n"
         log_message += "\n\tRadial Solver Results:"
         log_message += f"\n\t\tSuccess:     {self.success}"
         log_message += f"\n\t\tError code:  {self.error_code}"
@@ -318,275 +411,391 @@ cdef class RadialSolverSolution:
         cdef size_t layer_i
         for layer_i in range(self.num_layers):
             log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
+        log_message += f"\n\t\tSurface solve amplification:  {self.surface_solve_amplification:0.3e}"
+        log_message += f"\n\t\tSurface solve rcond:          {self.surface_solve_rcond:0.3e}"
         if self.success:
             log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
             log_message += f"\n\t\th_{self.degree_l} = {self.h}"
             log_message += f"\n\t\tl_{self.degree_l} = {self.l}"
+        
         if print_diagnostics:
             print(log_message)
             return None
+        
         if log_diagnostics:
-            log.info(log_message)
+            log_info(log_message)
             return None
+
         if not print_diagnostics and not log_diagnostics:
             return log_message
 
-    # Radial solver storage, feedback properties
+    def __repr__(self):
+        """One line: whether the solve succeeded, its degree, and k of the first solved boundary condition (the
+        message when the solve failed)."""
+        if self.solution_storage_ptr == NULL:
+            return "RadialSolverSolution(no solution)"
+        if not (self.success and (self.error_code == 0)):
+            return f"RadialSolverSolution(success=False, degree_l={self.degree_l}, message={self.message!r})"
+        cdef object love_k = self.k
+        if self.num_ytypes > 1:
+            love_k = love_k[0]
+        return (f"RadialSolverSolution(success=True, degree_l={self.degree_l}, num_ytypes={self.num_ytypes}, "
+                f"k={complex(love_k):.6g})")
+
+    # Properties
     @property
     def error_code(self):
-        """ Return solution storage's error code """
         return self.solution_storage_ptr.error_code
 
     @property
     def message(self):
-        """ Return solver's message """
         return self.solution_storage_ptr.message.decode('utf-8')
-    
+
     @property
     def success(self):
-        """ Return rather if the solver was successful """
         return self.solution_storage_ptr.success
 
-    # EOS class properties
     @property
     def eos_error_code(self):
-        """ Return solver's equation of state message """
         return self.solution_storage_ptr.get_eos_solution_ptr().error_code
 
     @property
     def eos_message(self):
-        """ Return solver's equation of state message """
         return self.solution_storage_ptr.get_eos_solution_ptr().message.decode('utf-8')
-    
+
     @property
     def eos_success(self):
-        """ Return if the solver's equation of state sub-solver was successful """
         return self.solution_storage_ptr.get_eos_solution_ptr().success
-    
+
     @property
     def eos_pressure_error(self):
-        """ Return the surface pressure error found by the equation of state sub-solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().pressure_error
-    
+
     @property
     def eos_iterations(self):
-        """ Return the number of iterations performed by the EOS sub-solver to find convergence on surface pressure """
         return self.solution_storage_ptr.get_eos_solution_ptr().iterations
-    
+
     @property
     def eos_steps_taken(self):
-        """ Return the number of integration steps required by the last iteration of the EOS solver """
         return np.copy(self.eos_steps_taken_array)
-    
-    # EOS Solution arrays
-    @property
-    def radius_array(self):
-        return np.copy(self.radius_array_cnp)
+
+    def _eos_at(self, radius, size_t index):
+        """One entry of the dense EOS state at radius [m]; NaN outside the body or when the solve failed."""
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] state = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
+        cdef double[::1] state_view = state
+        cdef double[::1] radii_view
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] out
+        cdef double[::1] out_view
+        cdef cnp.ndarray radii
+        cdef Py_ssize_t i
+        cdef Py_ssize_t n
+
+        if np.ndim(radius) == 0:
+            if not self.solution_storage_ptr.get_eos_si(<double>radius, &state_view[0]):
+                return np.nan
+            return state[index]
+
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        radii_view = radii.ravel()
+        n = radii_view.shape[0]
+        out = np.empty(n, dtype=np.float64, order='C')
+        out_view = out
+        # The storage accessor is nogil and both sides are memoryviews, so the loop touches no Python object.
+        with nogil:
+            for i in range(n):
+                if self.solution_storage_ptr.get_eos_si(radii_view[i], &state_view[0]):
+                    out_view[i] = state_view[index]
+                else:
+                    out_view[i] = NAN
+        return out.reshape(np.shape(radius))
+
+    def sample_radii(self, size_t num_points = 0):
+        """A radius grid [m] spanning the body, for plotting or tabulating.
+
+        With no ``num_points``, the radii ``result`` was sampled on (the caller's radius array for the standalone
+        solver), so the two pair up; otherwise ``num_points`` evenly spaced radii.
+        """
+        cdef const vector[double]* sampled = &self.solution_storage_ptr.get_sample_radii_si()
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] sampled_copy
+        if num_points == 0 and sampled.size() == self.solution_storage_ptr.num_slices and sampled.size() > 0:
+            sampled_copy = np.empty(sampled.size(), dtype=np.float64)
+            memcpy(&sampled_copy[0], sampled.const_data(), sampled.size() * sizeof(double))
+            return sampled_copy
+        cdef size_t solved_slices = self.solution_storage_ptr.num_slices
+        if num_points == 0:
+            num_points = solved_slices if solved_slices > 1 else 100
+        return np.linspace(0.0, <double>self.radius, num_points)
+
+    def get_gravity(self, radius):
+        """Gravitational acceleration [m/s^2] at radius [m]."""
+        return self._eos_at(radius, 0)
+
+    def get_pressure(self, radius):
+        """Pressure [Pa] at radius [m]."""
+        return self._eos_at(radius, 1)
+
+    def get_mass(self, radius):
+        """Mass [kg] enclosed by the sphere of this radius [m]."""
+        return self._eos_at(radius, 2)
+
+    def get_moi(self, radius):
+        """Moment of inertia [kg m^2] enclosed by the sphere of this radius [m]."""
+        return self._eos_at(radius, 3)
+
+    def get_density(self, radius):
+        """Density [kg/m^3] at radius [m]."""
+        return self._eos_at(radius, C_EOS_DENSITY_INDEX)
+
+    def get_shear_modulus(self, radius):
+        """Static shear modulus [Pa] at radius [m]."""
+        return self._eos_at(radius, C_EOS_SHEAR_MODULUS_INDEX)
+
+    def get_bulk_modulus(self, radius):
+        """Static bulk modulus [Pa] at radius [m]. See :meth:`get_shear_modulus` on the complex counterpart."""
+        return self._eos_at(radius, C_EOS_BULK_MODULUS_INDEX)
+
+    def _complex_moduli_at(self, double radius):
+        """The complex shear and bulk moduli [Pa] at one radius [m]."""
+        cdef cpp_complex[double] shear
+        cdef cpp_complex[double] bulk
+        self.solution_storage_ptr.get_complex_moduli_si(radius, shear, bulk)
+        return (PyComplex_FromDoubles(shear.real(), shear.imag()), PyComplex_FromDoubles(bulk.real(), bulk.imag()))
+
+    cdef object _complex_moduli_sweep(self, object radius, size_t which):
+        """Complex shear (``which`` 0) or bulk (1) modulus [Pa] over an array of radii [m].
+
+        The per-radius accessor is nogil, so the sweep runs in C and writes straight into the output buffer.
+        Going through :meth:`_complex_moduli_at` would box two complex numbers per radius and drop both.
+        """
+        cdef cnp.ndarray radii = np.ascontiguousarray(radius, dtype=np.float64)
+        cdef double[::1] radii_view = radii.ravel()
+        cdef Py_ssize_t n = radii_view.shape[0]
+        cdef cnp.ndarray out = np.empty(n, dtype=np.complex128, order='C')
+        cdef double complex[::1] out_view = out
+        cdef cpp_complex[double] shear
+        cdef cpp_complex[double] bulk
+        cdef Py_ssize_t i
+
+        with nogil:
+            for i in range(n):
+                self.solution_storage_ptr.get_complex_moduli_si(radii_view[i], shear, bulk)
+                if which == 0:
+                    out_view[i] = shear.real() + 1.0j * shear.imag()
+                else:
+                    out_view[i] = bulk.real() + 1.0j * bulk.imag()
+        return out.reshape(np.shape(radius))
+
+    def get_complex_shear_modulus(self, radius):
+        """Complex shear modulus [Pa] at radius [m], as the solve used it.
+
+        A world solve reports the layer's rheology applied to the static modulus and viscosity the solved EOS
+        gives there, at this solution's frequency. A solve handed its moduli reports that profile instead,
+        interpolated within the layer.
+        """
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[0]
+        return self._complex_moduli_sweep(radius, 0)
+
+    def get_complex_bulk_modulus(self, radius):
+        """Complex bulk modulus [Pa] at radius [m]. See :meth:`get_complex_shear_modulus`."""
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[1]
+        return self._complex_moduli_sweep(radius, 1)
 
     @property
-    def gravity_array(self):
-        return np.copy(self.gravity_array_cnp)
-    
-    @property
-    def pressure_array(self):
-        return np.copy(self.pressure_array_cnp)
-    
-    @property
-    def mass_array(self):
-        return np.copy(self.mass_array_cnp)
-    
-    @property
-    def moi_array(self):
-        return np.copy(self.moi_array_cnp)
+    def love_frequency(self):
+        """The forcing frequency [rad/s] this solution was solved at; NaN before a solve."""
+        return self.solution_storage_ptr.p_love_frequency_si
 
-    @property
-    def density_array(self):
-        return np.copy(self.density_array_cnp)
-    
-    @property
-    def shear_modulus_array(self):
-        return np.copy(self.shear_modulus_array_cnp)
-    
-    @property
-    def bulk_modulus_array(self):
-        return np.copy(self.bulk_modulus_array_cnp)
+    def get_shear_viscosity(self, radius):
+        """Shear viscosity [Pa s] at radius [m]; NaN when the material names none."""
+        return self._eos_at(radius, C_EOS_SHEAR_VISCOSITY_INDEX)
 
-    # EOS Scalar parameters
+    def get_bulk_viscosity(self, radius):
+        """Bulk viscosity [Pa s] at radius [m]; NaN when the material names none."""
+        return self._eos_at(radius, C_EOS_BULK_VISCOSITY_INDEX)
+
     @property
     def radius(self):
-        """ Return's the planet's radius, set by user """
         return self.solution_storage_ptr.get_eos_solution_ptr().radius
-    
+
     @property
     def volume(self):
-        """ Return's the planet's volume, calculated by its radius """
         return (4.0 / 3.0) * d_PI * self.radius**3
 
     @property
     def mass(self):
-        """ Return's the total planet mass, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().mass
-    
+
     @property
     def moi(self):
-        """ Return's the planet's real moment of inertia, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().moi
-    
+
     @property
     def moi_factor(self):
-        """ Return's the planet's moment of inertia factor, found by the EOS solver """
-        cdef double ideal_moi = (2. / 5.) * self.mass * self.radius**2
-        return self.moi / ideal_moi
-    
+        """Moment of inertia factor moi / (M R^2): 0.4 for a uniform sphere, 0.3307 for Earth."""
+        return self.moi / (self.mass * self.radius**2)
+
+    @property
+    def moi_sphere_ratio(self):
+        """Moment of inertia relative to a uniform sphere, moi / (0.4 M R^2); 2.5 times :attr:`moi_factor`."""
+        cdef double uniform_sphere_moi = (2.0 / 5.0) * self.mass * self.radius**2
+        return self.moi / uniform_sphere_moi
+
     @property
     def density_bulk(self):
-        """ Return's the planet's bulk density """
         return self.mass / self.volume
-    
+
     @property
     def central_pressure(self):
-        """ Return's the pressure at the planet's center, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().central_pressure
-    
+
     @property
     def surface_pressure(self):
-        """ Return's the pressure at the planet's surface, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().surface_pressure
-    
+
     @property
     def surface_gravity(self):
-        """ Return's the acceleration due to gravity at the planet's surface, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().surface_gravity
-    
+
     @property
     def layer_upper_radius_array(self):
-        """ Return's the upper radius at each layer in the planet. """
         cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array = np.empty(self.num_layers, dtype=np.float64)
-        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+        cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+        # A solution released from a world keeps its EOS in solve units; report the radii in meters.
+        cdef double length_conv = (
+            self.solution_storage_ptr.p_length_conv if self.solution_storage_ptr.p_eos_is_nondim else 1.0)
         cdef size_t layer_i
         for layer_i in range(self.num_layers):
-            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i] * length_conv
         return upper_radius_array
 
-    # RadialSolver result properties
     @property
     def degree_l(self):
-        """ Return the harmonic degree used to perform the calculation. """
         return self.solution_storage_ptr.degree_l
 
     @property
     def result(self):
-        """ Return result array. """
-
         if self.success and (self.error_code == 0):
-            # TODO: Optimize solution storage so that transpose is not required?
             return np.copy(self.full_solution_arr).T
         else:
             return None
 
     @property
     def love(self):
-        """ Return all complex love numbers. """
+        cdef list love_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
         if self.success and (self.error_code == 0):
-            return np.copy(self.complex_love_arr).reshape(self.num_ytypes, 3)
+            for sol_i in range(self.num_ytypes):
+                complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                love_list.append([complex_love.k, complex_love.h, complex_love.l])
+            return np.asarray(love_list, dtype=np.complex128, order='C').reshape(self.num_ytypes, 3)
         else:
             return np.nan * np.ones((self.num_ytypes, 3), dtype=np.complex128)
 
-    @property
-    def k(self):
-        """ Tidal Love number k. """
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                # 1D Love
-                return self.complex_love_arr[0]
-            else:
-                # 2D Slice skipping other Love Numbers.
-                return np.copy(self.complex_love_arr[0::3])
-        else:
+    cdef object _love_values(self, size_t quantity):
+        """k, h, l (quantity 0-2), Q_k, Q_h, Q_l (3-5), or lag_k, lag_h, lag_l (6-8) of each solved ytype.
+
+        One ytype gives a scalar (a complex for a Love number, a float otherwise), several an array; NaN when
+        the solve failed.
+        """
+        cdef object dtype = np.complex128 if quantity < 3 else np.float64
+        cdef list values
+        cdef size_t sol_i
+        if not (self.success and (self.error_code == 0)):
             if self.num_ytypes == 1:
                 return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+            return np.nan * np.ones(self.num_ytypes, dtype=dtype)
+        values = []
+        for sol_i in range(self.num_ytypes):
+            values.append(cy_love_value(self.solution_storage_ptr.complex_love_vec[sol_i], quantity))
+        if self.num_ytypes == 1:
+            return values[0]
+        return np.asarray(values, dtype=dtype)
+
+    @property
+    def k(self):
+        return self._love_values(0)
 
     @property
     def h(self):
-        """ Tidal Love number h. """
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                # 1D Love
-                return self.complex_love_arr[1]
-            else:
-                # 2D Slice skipping other Love Numbers.
-                return np.copy(self.complex_love_arr[1::3])
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
+        return self._love_values(1)
+
     @property
     def l(self):
-        """ Tidal Shida number l. """
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                # 1D Love
-                return self.complex_love_arr[2]
-            else:
-                # 2D Slice skipping other Love Numbers.
-                return np.copy(self.complex_love_arr[2::3])
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
+        return self._love_values(2)
+
+    @property
+    def Q_k(self):
+        return self._love_values(3)
+
+    @property
+    def Q_h(self):
+        return self._love_values(4)
+
+    @property
+    def Q_l(self):
+        return self._love_values(5)
+
     @property
     def Q(self):
-        """ Return quality factors. """
-        if self.success and (self.error_code == 0):
-            return np.abs(self.k) / -np.imag(self.k)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
+        """Backward-compatible quality factor alias using k Love numbers."""
+        return self.Q_k
+
+    @property
+    def lag_k(self):
+        return self._love_values(6)
+
+    @property
+    def lag_h(self):
+        return self._love_values(7)
+
+    @property
+    def lag_l(self):
+        return self._love_values(8)
+
     @property
     def lag(self):
-        """ Return the dissapative lag angle (in radians). """
-        if self.success and (self.error_code == 0):
-            return np.arctan(-np.imag(self.k) / np.real(self.k))
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
+        """Backward-compatible lag alias using k Love numbers."""
+        return self.lag_k
+
     @property
     def steps_taken(self):
-        """ Number of integration steps by layer and solution. """
         return np.copy(self.shooting_method_steps_taken_array)
 
     @property
     def surface_solve_amplification(self):
-        """Worst-case error amplification of the surface boundary condition solve (shooting method).
+        """Worst-case error amplification of the surface boundary condition solve; shooting method only.
 
-        The collapsed surface solution combines the independent solutions with constants that can grow large
-        and cancel (deep starting radii, high harmonic degrees). Roundoff and integration error are amplified
-        into the surface solution, and the Love numbers derived from it, by up to this factor; the achievable
-        relative accuracy is floor limited to about this value times machine epsilon regardless of the
-        integration tolerance. Values near 1 indicate a well conditioned solve. Only recorded when the solve
-        runs with ``warnings`` enabled, and stays 0 for the propagation matrix method, which does not use the
-        shooting surface collapse.
+        Large cancelling collapse constants, from deep starting radii or high degrees, amplify roundoff and
+        integration error into the Love numbers by up to this factor, so the achievable relative accuracy is
+        about this times machine epsilon. Near 1 is well conditioned; 0 for the propagation matrix method. It
+        measures cancellation only and can read 1 for a singular system; :attr:`surface_solve_rcond` gives the rank.
         """
         return self.solution_storage_ptr.surface_amplification
 
+    @property
+    def surface_solve_rcond(self):
+        """Reciprocal condition number of the surface boundary condition system; shooting method only.
+
+        The rank measure :attr:`surface_solve_amplification` cannot give: the 1-norm reciprocal condition number of
+        the matrix the surface conditions are solved with, after each radial function is scaled by its largest
+        magnitude across the independent solutions and each solution by its largest scaled radial function, so it
+        depends on neither units nor how the starting solutions were normalized. It is at most 1; near 1 is well
+        conditioned. The solution constants carry the integration error divided by roughly this value, so a value
+        below the integration rtol is warned about, and a value below ``[numerical] minimum_surface_rcond`` of
+        ``TidalPy.config`` (the system is singular to working precision) fails the solve with error code -13.
+        NaN for the propagation matrix method, or when the solve stopped before the surface.
+        """
+        return self.solution_storage_ptr.surface_rcond
+
     def get_result_by_ytype_name(self, str ytype_name):
-        """Get a specific solution type array."""
-        cdef char ytype_i
-        cdef char requested_sol_num = 0
+        cdef size_t ytype_i
+        cdef size_t requested_sol_num = 0
         cdef cpp_bool found = False
         cdef str sol_test_name
+        cdef cnp.ndarray gridded
         if self.ytype_names_set and self.success and (self.error_code == 0):
             for ytype_i in range(self.num_ytypes):
                 sol_test_name = str(self.ytypes[ytype_i], 'UTF-8')
@@ -595,17 +804,15 @@ cdef class RadialSolverSolution:
                     found = True
                     break
             if not found:
-                raise ArgumentException('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
-            
-            # Slice the result and return only the requested solution type.
-            return np.copy(self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)])
+                raise ValueError('Unknown solution type requested.')
+
+            gridded = self.result
+            return np.copy(gridded[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
         else:
             return None
 
     def __len__(self):
-        """Return number of solution types."""
         return <Py_ssize_t>self.num_ytypes
-    
+
     def __getitem__(self, str ytype_name):
-        """Wrapper for `get_result_by_ytype_name`."""
         return self.get_result_by_ytype_name(ytype_name)

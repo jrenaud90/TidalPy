@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import platform
+import sysconfig
 
 import numpy as np
 import Cython
@@ -24,8 +25,8 @@ DEBUG_MODE = False
 install_platform = platform.system().lower()
 
 if install_platform == 'windows':
-    # Setuptools already passes MSVC's /O2.
-    extra_compile_args = []
+    # Setuptools already passes MSVC's /O2. spdlog's bundled fmtlib needs /utf-8 for its Unicode support.
+    extra_compile_args = ['/utf-8']
     extra_link_args = []
     if DEBUG_MODE:
         extra_compile_args += ['/Ox', '/Zi']
@@ -37,14 +38,47 @@ else:
     if install_platform == 'darwin':
         # Cython-generated code trips this warning, which recent Apple clang treats as an error.
         extra_compile_args.append('-Wno-error=incompatible-function-pointer-types')
+        # The binary save and load use std::filesystem, which libc++ provides from macOS 10.15. A source build takes
+        # its deployment target from the Python it runs under, and python.org's universal2 builds target 10.13, where
+        # clang rejects std::filesystem as unavailable. Raise the target to 10.15 when it is lower; wheels target
+        # 12.0 through the cibuildwheel settings in pyproject.toml.
+        macos_target = (os.environ.get('MACOSX_DEPLOYMENT_TARGET')
+                        or sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET') or '')
+        macos_target_parts = tuple(int(part) for part in str(macos_target).split('.')[:2] if part.isdigit())
+        if (not macos_target_parts) or (macos_target_parts < (10, 15)):
+            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.15'
+    elif install_platform == 'linux':
+        # The 3D tidal grids run on std::thread, which needs -pthread to compile and link against older glibc.
+        extra_compile_args.append('-pthread')
+        extra_link_args.append('-pthread')
     cpp_standard_flag = '-std=c++20'
 
 macro_list = [('NPY_NO_DEPRECATED_API', 'NPY_1_9_API_VERSION')]
 
 # ======================================================================================================================
-# Extension Modules
+# Header-only Dependencies (git submodules)
 # ======================================================================================================================
 setup_dir = os.path.dirname(os.path.abspath(__file__))
+dependencies_dir = os.path.join(setup_dir, 'Dependencies')
+
+
+def find_submodule_include(submodule_name: str, include_subdirs: tuple, marker_subdirs: tuple) -> str:
+    """ Returns a submodule's include directory, exiting with instructions if the submodule was never checked out. """
+    include_dir = os.path.join(dependencies_dir, submodule_name, *include_subdirs)
+    if not os.path.isdir(os.path.join(include_dir, *marker_subdirs)):
+        sys.exit(f'{submodule_name} submodule not initialized. Run:\n  git submodule update --init\n')
+    return include_dir
+
+
+submodule_includes = [
+    find_submodule_include('xsf', ('include',), ('xsf',)),
+    find_submodule_include('eigen', (), ('Eigen', 'src')),
+    find_submodule_include('spdlog', ('include',), ('spdlog',)),
+    ]
+
+# ======================================================================================================================
+# Extension Modules
+# ======================================================================================================================
 with open(os.path.join(setup_dir, 'cython_extensions.json'), 'r') as cython_ext_file:
     cython_ext_dict = json.load(cython_ext_file)
 
@@ -58,11 +92,12 @@ for ext_data in cython_ext_dict.values():
         Extension(
             name=ext_data['name'],
             sources=[os.path.join(*source_path) for source_path in ext_data['sources']],
-            # Every extension can see NumPy's and CyRK's headers.
+            # Every extension can see NumPy's, CyRK's, and the submodules' headers.
             include_dirs=(
                 [os.path.join(*dir_path) for dir_path in ext_data['include_dirs']]
                 + [np.get_include()]
                 + CyRK.get_include()
+                + submodule_includes
                 ),
             extra_compile_args=specific_compile_args,
             define_macros=macro_list,

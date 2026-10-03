@@ -1,0 +1,67 @@
+# ice_vii: water ice VII (about 2.2 to 30 GPa), melting into liquid water.
+#
+# Solid: the second-order Birch-Murnaghan law and expansivity of Bezacier et al. (2014) (Hemley et al. 1987 and Fei et
+# al. 1993 give 1465 kg m-3, 23.7 GPa, K0' = 4.15). Ice X and superionic phases take over at higher pressure and
+# temperature; above about 30 GPa the Seager et al. (2007) H2O modified polytrope is an option. The shear modulus is
+# the slope of the SeaFreeze VII_X_French law (Journaux et al. 2020) near 1600 kg m-3 and 2.5 GPa.
+#
+# Viscosity: the ice VI activation energy (Barr et al. 2018 use one law for ices VI and VII), with an activation volume
+# fitted here to flatten the viscosity along the ice VII melting curve from 2.2 to 20 GPa, anchored at the curve's
+# low-pressure end (355 K, 2.216 GPa) so the melting-point viscosity stays between about 8e12 and 3e16 Pa s, inside
+# the 1e13 to 1e17 Pa s used for high-pressure ices (Choblet et al. 2017; Kalousova et al. 2018). Conductivity, heat
+# capacity, and latent heat are unsourced (the ice VI values). Tidal rheology: Maxwell (Barr et al. 2018).
+#
+# Melting: a fit to the IAPWS R14-08 (2011) ice VII curve from 2.2 to 20.6 GPa (maximum error 11 K), anchored at
+# 355 K and 2.216 GPa. Liquid: water.
+schema_version = "0.2.0"
+description = "Water ice VII (Bezacier et al. 2014) with a fitted IAPWS melting curve, melting into liquid water."
+category = "icy"
+latent_heat_j_kg = 3.0e5
+
+[solid]
+thermal_conductivity_w_mk = 2.0
+heat_capacity_j_kgk = 2300.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 1442.0
+reference_bulk_modulus_pa = 2.015e10
+bulk_modulus_derivative = 4.0
+thermal_expansion_1_k = 1.16e-4
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 1.5e10
+pressure_derivative = 1.7
+temperature_derivative_pa_k = -1.4e7
+reference_pressure_pa = 2.5e9
+reference_temperature_k = 273.0
+
+[solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 3.0e16
+reference_temperature_k = 355.0
+reference_pressure_pa = 2.216e9
+molar_activation_energy_j_mol = 1.1e5
+molar_activation_volume_m3_mol = 7.1e-6
+
+[solid.shear_rheology]
+model = "maxwell"
+
+[liquid]
+preset = "water"
+
+[melting.solidus]
+model = "simon_glatzel"
+temperature_k = 355.0
+reference_pressure_pa = 2.216e9
+simon_a_pa = 5.47e8
+simon_c = 5.06
+
+[melting.liquidus]
+model = "simon_glatzel"
+temperature_k = 355.0
+reference_pressure_pa = 2.216e9
+simon_a_pa = 5.47e8
+simon_c = 5.06

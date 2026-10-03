@@ -1,0 +1,170 @@
+"""A layered world's solved state: what invalidates it, and what a released solution keeps."""
+import math
+import os
+
+import pytest
+
+from TidalPy.Material import Material, Phase
+from TidalPy.Structures import build_world
+from TidalPy.Structures.layers import Layer
+
+_IO_FREQUENCY = 4.11e-5   # [rad s-1]
+_MANTLE_RADIUS = 1.2e6    # [m], inside Io's mantle
+_IMPOSSIBLE_DENSITY = 1.0e6   # [kg m-3], about 300 times a rock's
+
+
+def _constant_material(density):
+    """A constant-density material with only an equation of state."""
+    return Material(solid=Phase(eos={"model": "constant", "reference_density_kg_m3": density}))
+
+
+def _add_henning_melting(layer, solidus, liquidus):
+    """Give a layer's material a melt phase that melts between ``solidus`` and ``liquidus`` [K] with Henning
+    weakening, and switch the layer's melting on."""
+    melt = Phase(
+        eos={"model": "constant", "reference_density_kg_m3": 3000.0, "bulk_modulus_pa": 2.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0})
+    layer.material = layer.material.replace(
+        liquid=melt,
+        solidus={"model": "constant", "temperature_k": solidus},
+        liquidus={"model": "constant", "temperature_k": liquidus},
+        weakening="henning")
+    layer.use_melting = True
+
+
+def _solved_io(**eos_kwargs):
+    world = build_world("io")
+    world.solve_eos(**eos_kwargs)
+    return world
+
+
+def test_a_released_solution_does_not_follow_a_later_solve():
+    """A released radial solution keeps its structure and moduli after the world re-solves."""
+    world = _solved_io(temperature=1600.0)
+    world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    released = world.release_radial_solution()
+    density = released.get_density(_MANTLE_RADIUS)
+    shear = released.get_shear_modulus(_MANTLE_RADIUS)
+    viscosity = released.get_shear_viscosity(_MANTLE_RADIUS)
+
+    world.solve_eos(temperature=1750.0)
+    world.solve_eos(nondimensionalize=False)
+    assert released.get_density(_MANTLE_RADIUS) == density
+    assert released.get_shear_modulus(_MANTLE_RADIUS) == shear
+    assert released.get_shear_viscosity(_MANTLE_RADIUS) == viscosity
+
+
+def test_changing_a_layer_material_after_a_solve_unsolves_the_world():
+    """A material change clears the solved profile, so no Love solve can use the stale one."""
+    world = _solved_io()
+    density_before = world.get_density(_MANTLE_RADIUS)
+    world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+
+    world.mantle.material = _constant_material(2000.0)
+    assert not world.eos_solved
+    assert math.isnan(world.get_density(_MANTLE_RADIUS))
+    with pytest.raises(ValueError):
+        world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    world.solve_eos()
+    assert world.get_density(_MANTLE_RADIUS) != density_before
+
+
+def test_a_new_melt_model_takes_effect_at_the_next_solve():
+    """A material that melts unsolves the world; the next solve_eos applies it."""
+    world = _solved_io()
+    shear_before = world.get_shear_modulus(_MANTLE_RADIUS)
+    _add_henning_melting(world.mantle, 100.0, 200.0)
+    assert not world.eos_solved
+    assert math.isnan(world.get_shear_modulus(_MANTLE_RADIUS))
+    assert world.molten_regions == []
+    world.solve_eos()
+    assert world.get_shear_modulus(_MANTLE_RADIUS) < shear_before
+
+
+def test_loading_a_binary_file_leaves_the_world_unsolved(tmp_path):
+    """Loading a binary file leaves the world unsolved; a fresh solve matches the original."""
+    world = _solved_io()
+    k2_original = world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
+    path = os.path.join(str(tmp_path), "io.tpyb")
+    world.save_binary(path)
+
+    world.load_binary(path)
+    assert not world.eos_solved
+    assert not world.love_solved
+    assert math.isnan(world.get_density(_MANTLE_RADIUS))
+    assert world.mantle.radius > 0.0
+    with pytest.raises(ValueError):
+        world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    world.solve_eos()
+    k2_reloaded = world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
+    assert k2_reloaded == pytest.approx(k2_original, rel=1e-12)
+
+
+@pytest.mark.parametrize("name", ["io", "earth_prem", "sol"])
+def test_a_load_clears_the_configuration_the_world_was_built_from(name, tmp_path):
+    """After a load the build configurations no longer describe the world, so they are cleared."""
+    world = build_world(name)
+    assert world.config is not None
+    path = os.path.join(str(tmp_path), f"{name}.tpyb")
+    world.save_binary(path)
+
+    world.load_binary(path)
+    assert world.config is None
+    assert world.portable_config is None
+
+
+def test_a_layer_view_cannot_be_loaded_in_place(tmp_path):
+    """load_binary on a world-owned layer view raises."""
+    world = _solved_io()
+    path = os.path.join(str(tmp_path), "mantle.tpyb")
+    world.mantle.save_binary(path)
+    with pytest.raises(ValueError):
+        world.mantle.load_binary(path)
+
+
+def test_a_layer_past_the_world_radius_is_refused():
+    """A layer reaching past the world radius is refused and the world stays solved."""
+    world = _solved_io()
+    top = world.radius
+    shell = Layer(
+        "shell",
+        world.num_layers,
+        top,
+        top + 1.0e4,
+        0.0,
+        _constant_material(1000.0),
+    )
+    with pytest.raises(ValueError, match="past the radius"):
+        world.add_layer(shell)
+    assert world.eos_solved
+    assert math.isfinite(world.get_density(_MANTLE_RADIUS))
+
+
+def test_moving_a_layer_leaves_the_world_unsolved():
+    """Moving a layer leaves the world unsolved and its profile reads NaN."""
+    world = _solved_io()
+    mantle = world.mantle
+    mantle.set_radii(mantle.radius_inner, mantle.radius_outer)
+    assert not world.eos_solved
+    assert math.isnan(world.get_density(_MANTLE_RADIUS))
+
+
+def test_a_failed_solve_leaves_the_world_unsolved():
+    """A failed re-solve leaves the world unsolved until a good solve restores it."""
+    world = _solved_io()
+    # A mantle hundreds of times too dense puts the solved structure far outside the factor of the world's stated mass
+    # that [numerical] maximum_eos_mass_ratio allows, so the solve is rejected whatever the integrator.
+    original_material = world.mantle.material
+    world.mantle.material = _constant_material(_IMPOSSIBLE_DENSITY)
+    result = world.solve_eos()
+    assert not result["success"]
+    assert "stated mass" in result["message"]
+    assert not world.eos_solved
+    assert math.isnan(world.get_density(_MANTLE_RADIUS))
+    assert all(math.isnan(value) for value in result["density"])
+    with pytest.raises(ValueError):
+        world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    world.mantle.material = original_material
+    world.solve_eos()
+    assert world.eos_solved
+    assert world.get_density(_MANTLE_RADIUS) > 0.0

@@ -53,10 +53,6 @@ permissions:
 
 env:
   TIDALPY_TEST_MODE: 1
-  # The Python versions that install the optional burnman extra. Comparing the matrix value numerically does
-  # not work: "3.9" parses as 3.9, which is greater than 3.13, so a numeric test silently drops 3.9. Note that
-  # the reduced suite runs no version on this list, so burnman is exercised only by the full suite.
-  BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
   FULL_PYTHONS: '["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
   REDUCED_PYTHONS: '["3.13", "3.14"]'
   # Accounts allowed to start a manual run, separated by spaces. See `authorize-dispatch`.
@@ -232,12 +228,13 @@ jobs:
     name: Lint TidalPy with ruff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          submodules: 'true'
           ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -279,31 +276,30 @@ jobs:
           - {os: macos-latest,   os-name: MacOS}
           - {os: windows-latest, os-name: Windows}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          submodules: 'true'
           ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      # sympy backs Test_Tides's independent check of the multilayer angular integrals, and nbformat, nbclient, and
+      # ipykernel let Test_Demos execute every demo and benchmark notebook; without them those tests skip
+      # themselves and never run anywhere.
       - name: Install Test Dependencies
-        run: python -m pip install pytest pytest-xdist
+        run: python -m pip install pytest pytest-xdist sympy nbformat nbclient ipykernel
 
-      - name: Install Package with Burnman
-        if: ${{ contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
-        run: python -m pip install -v .[burnman]
-
-      - name: Install Package (No Burnman)
-        if: ${{ !contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
+      - name: Install Package
         run: python -m pip install -v .
 
-      # --capture=sys leaves file-descriptor output alone, so messages the compiled code prints straight to the
-      # console still reach the log; the default pytest capture would swallow them.
+      # --capture=sys leaves file-descriptor output alone, so the spdlog messages from the C++ backend still
+      # reach the log; the default pytest capture would swallow them.
       #
       # `-n logical` rather than `-n auto`: psutil is present in the runner image, which makes xdist read
       # `auto` as physical cores, and that is half of what the Linux and Windows runners offer.

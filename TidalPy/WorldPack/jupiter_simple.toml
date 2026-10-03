@@ -1,0 +1,39 @@
+# Simple single-layer gas-giant world for the Structures world builder, and the minimal example of the
+# schema: one layer of a liquid-only material, a fluid of constant density, spanning the whole planet.
+#
+# The density is Jupiter's mean density, so the solved equation of state reproduces the stated mass, as
+# every other bundled world does. One uniform layer still gives
+# C/MR2 = 0.4, the uniform-sphere value, against Jupiter's 0.264, and a Love number of 1.5, the fluid-sphere
+# limit, against the measured 0.590. See jupiter.toml for the three-layer version that reproduces both.
+#
+# The tide is Jupiter's measured one, as in jupiter.toml: the constant-phase-lag model with k2 = 0.590 and
+# Q = 53500 (Lainey et al. 2009, k2/Q = 1.10e-5). Without it the world would take the packaged gas-giant
+# default, a 600 s constant time lag suited to Earth, which dissipates about 4400 times too much for Jupiter.
+schema_version = "0.2.0"
+name = "Jupiter-Simple"
+type = "gasgiant"
+radius_m = 69911000.0
+mass_kg = 1.898e27
+spin_frequency_rad_s = 1.7585e-4
+
+# The layer temperature below is prescribed, not solved: the one layer has no thermal law worth
+# integrating. The world pins the equation-of-state solve to keep it (a call may still pass
+# solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]
+fixed_q = [53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0]
+
+[layers.envelope]
+layer_index = 0
+radius_fraction = 1.0   # single layer spanning the whole world
+use_tides = true
+temperature_k = 165.0
+use_heating = true
+
+[layers.envelope.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 1326.0841   # the mean density, so the solved mass matches the stated one

@@ -1,21 +1,33 @@
+"""Tests for ``TidalPy.get_include``."""
 import os
+
+import CyRK
+import pytest
 
 import TidalPy
 
+TIDALPY_DIR = os.path.dirname(os.path.abspath(TidalPy.__file__))
 
-def test_get_include():
-    """`get_include` returns TidalPy's C++ source directories plus every CyRK include directory."""
-    import CyRK
 
+def test_includes_cyrk():
+    """The include list holds every CyRK include directory."""
     tidalpy_includes = TidalPy.get_include()
+    assert isinstance(tidalpy_includes, list)
+    for directory in CyRK.get_include():
+        assert directory in tidalpy_includes
 
-    assert type(tidalpy_includes) is list
-    assert len(tidalpy_includes) > 0
 
-    for dir_ in CyRK.get_include():
-        assert dir_ in tidalpy_includes
-
-    # The TidalPy entries point at directories that ship the C++ headers.
-    for dir_ in tidalpy_includes[len(CyRK.get_include()):]:
-        assert os.path.isdir(dir_)
-        assert any(name.endswith((".hpp", ".cpp")) for name in os.listdir(dir_))
+@pytest.mark.parametrize(
+    "header",
+    [
+        "constants_.hpp",
+        os.path.join("Utilities", "arrays", "interp_.hpp"),
+        os.path.join("Utilities", "math", "numerics_.hpp"),
+        os.path.join("RadialSolver", "rs_solution_.hpp"),
+        os.path.join("Material", "eos", "eos_solution_.hpp"),
+    ])
+def test_includes_tidalpy_header_directory(header):
+    """The directory of each widely included TidalPy header is listed."""
+    header_path = os.path.join(TIDALPY_DIR, header)
+    assert os.path.isfile(header_path)
+    assert os.path.dirname(header_path) in TidalPy.get_include()

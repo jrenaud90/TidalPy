@@ -1,0 +1,25 @@
+# PREM Earth with PREM's own attenuation: the quality factors of the radial data file, not a viscosity, set the loss.
+#
+# The same profile as earth_prem.toml (PREM.csv: radius, density, Vp, Vs, and PREM's Q_mu and Q_kappa). With
+# `q_provided = true` every solid layer takes the `seismic_q` rheology, which builds its complex moduli straight from
+# the profile's static moduli and quality factors:
+#     Q(omega) = Q_ref (omega / omega_ref)^a,   Re mu* = mu_ref / (1 + D / Q_ref),   Im mu* = Re mu* / Q(omega),
+# where D is the dispersion that causality ties to the loss, (2 / pi) ln(omega_ref / omega) when a = 0. The quality
+# factors and the moduli are both measured at the reference frequency, PREM's 1 s period. Exponent a = 0 keeps each
+# layer's seismic Q at tidal periods; a > 0 (about 0.1 to 0.3 for Earth's mantle) lets it fall toward them as an
+# absorption band does. Liquid layers (the outer core, Q_mu = 0) take no quality factor.
+#
+# A [layers.layer_N] table may still refine a detected layer, and a seismic_q rheology table in it overrides these
+# world settings for that layer; it may not give the layer a viscosity or melting. See
+# Documentation/Structures/config/toml_schema.md.
+schema_version = "0.2.0"
+name = "Earth-PREM-Q"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"
+
+q_provided = true                                  # use the profile's q_mu and q_kappa columns
+q_reference_frequency_rad_s = 6.283185307179586    # 2 pi rad/s: PREM's 1 s reference period
+q_frequency_exponent = 0.0                         # the seismic Q at every frequency

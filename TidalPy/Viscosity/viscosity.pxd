@@ -1,0 +1,34 @@
+# distutils: language = c++
+
+from libcpp.string cimport string
+from libcpp.memory cimport shared_ptr, unique_ptr
+from libcpp.vector cimport vector
+
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap, c_ThermoPoint
+
+
+cdef extern from "viscosity_base_.hpp" namespace "tidalpy" nogil:
+
+    cdef cppclass c_ViscosityBase(c_PhysicsBase):
+        double calc_viscosity(const c_ThermoPoint& point) const
+        void calc_viscosity_vectorize(
+            const vector[double]& temperature,
+            const vector[double]& pressure,
+            const vector[double]& radius,
+            vector[double]& out_viscosity) except +
+
+
+cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:
+
+    unique_ptr[c_ViscosityBase] c_find_viscosity(const string& model_name, const c_ParamMap& params) except +
+    string c_viscosity_canonical_name(const string& model_name) except +
+    vector[string] c_viscosity_model_names() except +
+
+    cdef cppclass c_CompositeViscosity(c_ViscosityBase):
+        vector[shared_ptr[c_PhysicsBase]] get_mechanism_models() except +
+
+    unique_ptr[c_ViscosityBase] c_make_composite_viscosity(const vector[shared_ptr[c_PhysicsBase]]& mechanisms) except +
+
+
+cdef class ViscosityBase(PhysicsBase):
+    cdef c_ViscosityBase* _viscosity(self) except NULL

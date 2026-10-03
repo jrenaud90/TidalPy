@@ -1,254 +1,91 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport fmax
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
-from scipy.linalg.cython_lapack cimport zgesv
+from libcpp cimport bool as cpp_bool
+from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.constants cimport d_PI, d_NAN, d_EPS
+from TidalPy.RadialSolver.buffer_checks cimport (
+    cy_check_at_least, cy_check_solution_rows, cy_resolve_num_ys)
 
-cdef void cf_apply_surface_bc(
-        double complex* constant_vector_ptr,
-        int* bc_solution_info_ptr,
-        double* bc_pointer,
-        double complex* uppermost_y_per_solution_ptr,
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
+
+def apply_surface_bc(
+        double complex[::1] constant_vector_view,
+        double[::1] bc_view,
+        double complex[:, ::1] uppermost_y_per_solution_view,
         double surface_gravity,
-        double G_to_use,
-        size_t num_sols,
-        size_t max_num_y,
+        object G_to_use,
         size_t ytype_i,
         int layer_type,
         cpp_bool layer_is_static,
-        cpp_bool layer_is_incomp
-        ) noexcept nogil:
+        cpp_bool layer_is_incomp,
+        object max_num_y = None):
     """
-    cf_apply_surface_bc
-
-    Apply boundary conditions at the planet's surface by solving a linear system of equations. 
-    This function calculates the necessary coefficients for the specified boundary conditions.
+    Apply surface boundary conditions by solving a linear system.
 
     Parameters
     ----------
-    constant_vector_ptr : double complex*
-        Pointer to the vector of constants used to collapse the multiple radial solver solutions into a single solution. 
-        This vector is updated in place with the solution to the linear system.
-    bc_solution_info_ptr : int*
-        Pointer to an integer that stores the output status of the LAPACK solver.
-    bc_pointer : double*
-        Pointer to the array holding boundary condition values for the uppermost layer.
-    uppermost_y_per_solution_ptr : double complex*
-        Pointer to the array containing y-values for each solutions at the top of the uppermost layer.
-    surface_gravity : double
-        The gravitational acceleration at the surface of the planet.
-    G_to_use : double
-        The gravitational constant used in calculations.
-    num_sols : size_t
-        Number of solutions being calculated in the current layer.
-    max_num_y : size_t
-        Maximum number of y-values per solution.
-    ytype_i : size_t
-        Index representing the type of y-value to process.
+    constant_vector_view : complex[::1]
+        Output constant vector (overwritten with solution), at least 3 long; entries past the layer's solutions are
+        NaN.
+    bc_view : float[::1]
+        Boundary condition values, 3 per y-type, at least 3 * (ytype_i + 1) long.
+    uppermost_y_per_solution_view : complex[:, ::1]
+        Y values at surface for each solution, a row for each of the layer's solutions.
+    surface_gravity : float
+        Gravitational acceleration at surface [m s-2].
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
+    ytype_i : int
+        Y-type index (tidal=0, loading=1, etc.).
     layer_type : int
-        Integer representing the type of the uppermost layer (0: solid, 1: liquid).
-    layer_is_static : cpp_bool
-        Flag indicating if the uppermost layer is static.
-    layer_is_incomp : cpp_bool
-        Flag indicating if the uppermost layer is incompressible.
-
-    Notes
-    -----
-    - The function handles three two types of layers: solid and liquid.
-    - The LAPACK solver `zgesv` is used to solve the linear equation at the surface.
-    - For solid layers, three boundary conditions are applied. Liquid layers apply one or two, 
-    depending on whether the layer is static or dynamic.
-    - If unused elements are present in the constant vector, they are set to `NAN` to catch unintended usage.
-
-    References
-    ----------
-    - Papers:
-        - KMN15: Kamata et al. (2015; JGR-P)
-        - S74: Saito (1974; JPE)
-        - KTC21: Kervazo et al. (2021; A&A)
-    - ZGESV documentation: https://www.math.utah.edu/software/lapack/lapack-z/zgesv.html
-    - Relevant equations from literature:
-        - B.37 in KTC21, Eq. 16 in KMN15 (solid layer)
-        - Eq. 17, Eq. 10 in S74 (liquid static layer)
-        - Eq. B.38 in KTC21, Eq. 17 in KMN15 (liquid dynamic layer)
-
-    Raises
-    ------
-    None
-        The function assumes correct inputs and does not explicitly raise exceptions. The LAPACK 
-        solver status output (`bc_solution_info_ptr`) should be checked for errors.
-    """
-    
-    # Variables used to solve the linear equation at the planet's surface.
-    # These are passed to the LAPACK solver.
-    # NRHS = number of solutions that will be solved at the same time. Only one will be solved per radial_solver call.
-    cdef int lapack_nrhs = 1
-    cdef int* lapack_nrhs_ptr = &lapack_nrhs
-
-    # IPIV = Integer pivot array that is an additional output provided by ZGESV. It is not used but must be provided.
-    #  It must be at least as large as the largest dimension of the input matrix, for this work that is 3.
-    cdef int[10] lapack_ipiv
-    cdef int* lapack_ipiv_ptr = &lapack_ipiv[0]
-
-    cdef int num_sols_int = <int>num_sols
-    cdef int* num_sols_int_ptr = &num_sols_int
-
-    # Allocate surface matrices. We only need one of these (which one depends on the uppermost layer type).
-    # But, since there are only 3 and all of them are small, we will just allocate all of them separately on the stack.
-    cdef double complex[3][3] surface_matrix_solid
-    cdef double complex[2][2] surface_matrix_liquid_dynamic
-    cdef double complex[1][1] surface_matrix_liquid_static
-    cdef double complex* surface_matrix_ptr
-
-    # Create coefficient matrix based on surface layer type.
-    if (layer_type == 0):
-        # Solid layer
-        # Set pointer to correct matrix
-        surface_matrix_ptr = &surface_matrix_solid[0][0]
-
-        # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
-        # We will set the constant vector equal to the surface boundary condition.
-        #  It will be overwritten with the solution to the linear solution.
-        constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0]
-        constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 1]
-        constant_vector_ptr[2] = bc_pointer[ytype_i * 3 + 2]
-
-        # The definitions above need to be transposed as the zgesv solver requires FORTRAN-ordered arrays.
-        surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
-        surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * max_num_y + 3]
-        surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * max_num_y + 5]
-        surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * max_num_y + 1]
-        surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * max_num_y + 3]
-        surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * max_num_y + 5]
-        surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * max_num_y + 1]
-        surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * max_num_y + 3]
-        surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * max_num_y + 5]
-
-    else:
-        if layer_is_static:
-            # Set pointer to correct matrix
-            surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
-
-            # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
-            #  and one less solution (1 total).
-            #  At the surface, y_7 = S_7 [See: Eq. 17, 10 in S74]
-
-            # We will set the constant vector equal to the surface boundary condition.
-            #  It will be overwritten with the solution to the linear solution.
-            # y_7 = y_6 + (4 pi G / g) y_2
-            constant_vector_ptr[0] = \
-                bc_pointer[ytype_i * 3 + 2] + \
-                bc_pointer[ytype_i * 3 + 0] * (4. * d_PI * G_to_use / surface_gravity)
-
-            # These are unused. Set to NAN so if they do get used we might be able to catch it.
-            constant_vector_ptr[1] = d_NAN
-            constant_vector_ptr[2] = d_NAN
-
-            # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
-            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
-        else:
-            # Set pointer to correct matrix
-            surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
-
-            # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
-            #  less solution (2 total).
-            #  At the surface, y_2 = S_1; y_6 = S_6 [See: Eq. B.38 in KTC21; Eq. 17 in KMN15
-
-            # We will set the constant vector equal to the surface boundary condition.
-            #  It will be overwritten with the solution to the linear solution.
-            # The surface boundary condition will still have 3 members. Drop the one related to y_4
-            constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0]
-            constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 2]
-
-            # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
-            constant_vector_ptr[2] = d_NAN
-
-            # Build y-solution matrix to be applied to the surface.
-            # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively
-            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
-            surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * max_num_y + 3]
-            surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * max_num_y + 1]
-            surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * max_num_y + 3]
-
-    # Find the solution to the linear equation at the surface surface_matrix @ constant_vector = bc
-    # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
-    # See https://www.math.utah.edu/software/lapack/lapack-z/zgesv.html
-    zgesv(
-        num_sols_int_ptr,     # (Input)
-        lapack_nrhs_ptr,      # (Input)
-        surface_matrix_ptr,   # A; (Input & Output)
-        num_sols_int_ptr,     # (Input)
-        lapack_ipiv_ptr,      # (Output)
-        constant_vector_ptr,  # B -> X (Input & Output)
-        num_sols_int_ptr,     # (Input)
-        bc_solution_info_ptr  # (Output)
-        )
-
-
-cdef double cf_estimate_surface_amplification(
-        double complex* constant_vector_ptr,
-        double complex* uppermost_y_per_solution_ptr,
-        size_t num_sols,
-        size_t num_ys,
-        size_t max_num_y
-        ) noexcept nogil:
-    """
-    cf_estimate_surface_amplification
-
-    Estimate how strongly the surface boundary condition solve amplifies error.
-
-    The collapsed surface solution is y_k = sum_s c_s * y_ks over the independent solutions s. When the
-    solution constants c_s are large and cancel (deep starting radii, high harmonic degrees), roundoff and
-    integration error in the y_ks are amplified into the collapsed values by roughly the returned factor:
-    the largest cancellation scale sum_s |c_s| |y_ks| across the y rows divided by the largest collapsed
-    magnitude |y_k|. The relative accuracy of the surface solution, and of the Love numbers derived from it,
-    is then floor limited to about (returned factor) * machine epsilon regardless of integration tolerance.
-
-    Parameters
-    ----------
-    constant_vector_ptr : double complex*
-        Solution constants found by `cf_apply_surface_bc`.
-    uppermost_y_per_solution_ptr : double complex*
-        Y values at the surface for each independent solution.
-    num_sols : size_t
-        Number of independent solutions (1, 2, or 3).
-    num_ys : size_t
-        Number of y values per solution.
-    max_num_y : size_t
-        Stride between solutions in `uppermost_y_per_solution_ptr`.
+        0=solid, 1=liquid.
+    layer_is_static : bool
+    layer_is_incomp : bool
+    max_num_y : int, optional
+        The y values per solution, which must equal the array's column count; None (default) takes it from it.
 
     Returns
     -------
-    double
-        Amplification factor (1 when a single solution leaves no room for cancellation).
+    info : int
+        LAPACK solver info (0=success).
+
+    Raises
+    ------
+    ValueError
+        If an array is too small for the layer's solutions, ys, or the y-type's boundary conditions.
     """
-    cdef size_t y_i
-    cdef size_t solution_i
-    cdef double cancellation_scale
-    cdef double max_cancellation_scale = 0.0
-    cdef double max_collapsed_mag      = 0.0
-    cdef double complex collapsed_value
-    cdef double complex constant
-    cdef double complex y_value
+    cy_check_at_least("apply_surface_bc's constant_vector_view", constant_vector_view.shape[0], 3, "entries")
+    cy_check_at_least("apply_surface_bc's bc_view", bc_view.shape[0], 3 * (ytype_i + 1), "entries")
+    cy_check_solution_rows(
+        "apply_surface_bc's uppermost_y_per_solution_view", uppermost_y_per_solution_view.shape[0], layer_type,
+        layer_is_static)
+    cdef size_t num_ys = cy_resolve_num_ys(
+        "apply_surface_bc", uppermost_y_per_solution_view.shape[1], max_num_y, layer_type, layer_is_static)
+    cdef size_t num_sols = uppermost_y_per_solution_view.shape[0]
+    cdef int bc_solution_info = 0
 
-    for y_i in range(num_ys):
-        cancellation_scale = 0.0
-        collapsed_value    = 0.0
-        for solution_i in range(num_sols):
-            constant = constant_vector_ptr[solution_i]
-            y_value  = uppermost_y_per_solution_ptr[solution_i * max_num_y + y_i]
-            cancellation_scale = cancellation_scale + abs(constant) * abs(y_value)
-            collapsed_value    = collapsed_value + constant * y_value
-        max_cancellation_scale = fmax(max_cancellation_scale, cancellation_scale)
-        max_collapsed_mag      = fmax(max_collapsed_mag, abs(collapsed_value))
+    c_apply_surface_bc(
+        <cpp_complex[double]*>&constant_vector_view[0],
+        &bc_solution_info,
+        &bc_view[0],
+        <cpp_complex[double]*>&uppermost_y_per_solution_view[0, 0],
+        surface_gravity,
+        cy_resolve_G(G_to_use),
+        num_sols,
+        num_ys,
+        ytype_i,
+        layer_type,
+        layer_is_static,
+        layer_is_incomp
+        )
 
-    if max_cancellation_scale <= 0.0:
-        # Degenerate all-zero surface; no cancellation information.
-        return 1.0
-    if max_collapsed_mag <= d_EPS * max_cancellation_scale:
-        # Every y row cancels completely; cap at the largest meaningful amplification.
-        return 1.0 / d_EPS
-    return max_cancellation_scale / max_collapsed_mag
+    return bc_solution_info
