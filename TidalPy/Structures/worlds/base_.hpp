@@ -420,6 +420,19 @@ struct c_RetainedRadialSolve {
     const ::c_RadialSolutionStorage* storage   = nullptr;
 };
 
+// Everything one global tidal solve gathers (c_BaseWorld::calc_tides), before any of it reaches the world: calc_tides
+// commits it, and calc_tides_probe returns it with the world left as it was. A probe fills only tide_result and
+// tide_love; its layer_heating and heating_record stay empty.
+struct c_TideSolveOutcome {
+    c_GlobalTideResult tide_result;
+    // Per-mode Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q); empty for the analytic models.
+    c_IntMap<c_Key4, c_LoveNumbers> tide_love;
+    // Each layer's share of the heating [W] (see calc_tides), NaN where none is resolved.
+    std::vector<double> layer_heating;
+    // What the tidal heat source spreads in later solves.
+    c_TidalHeatingRecord heating_record;
+};
+
 // One tidal layer's part of a quasi-homogeneous Love solve (the homogeneous, cpl, and ctl methods): the Love numbers
 // of a homogeneous planet made of the layer's averaged material, and the tidal scale the world weighs them by.
 struct c_LayerLove {
@@ -2618,6 +2631,12 @@ public:
     // global-potential engine.
     void calc_tides(const c_TideSolveConfig& state);
 
+    // The global tidal solve of calc_tides at another state, as a pure computation: the tide result and per-mode Love
+    // numbers come back in the outcome, and the world keeps its last calc_tides result, layer heating, and tidal heat
+    // source. The per-layer split is not computed. A probe gives none of the once-per-world warnings that depend on
+    // the spin (near-synchronous rotation, unstable dynamic liquids), since its spin is not the world's own.
+    c_TideSolveOutcome calc_tides_probe(const c_TideSolveConfig& state);
+
     // On-demand 3D tidal stress, strain, and heating. The tidal potential is built from the world's [tides]
     // truncation config; there is no potential-model object. The orchestration lives on c_RheologyTide,
     // out-of-line in world_tides_.hpp, which carries the kernel and potential-engine headers.
@@ -3174,10 +3193,16 @@ protected:
     double      p_obliquity  = 0.0;       // [rad]
     double      p_spin_frequency = 0.0;   // [rad/s]
 
+    // The global tidal solve calc_tides and calc_tides_probe share (world_tides_.hpp). A probe skips the per-layer
+    // split and the spin-dependent warnings. Fills `outcome` as it goes, so a failed global potential leaves its error
+    // code in outcome.tide_result when it throws.
+    void p_solve_tides(const c_TideSolveConfig& state, bool is_probe, c_TideSolveOutcome& outcome);
+
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1), a semi-major axis that is not positive, or an orbital frequency that is not finite, and warns
-    // once per world (and truncation level) when the truncations misstate the tides (c_warn_tide_truncations).
-    void p_check_tide_state(const c_TideSolveConfig& state) const {
+    // once per world (and truncation level) when the truncations misstate the tides (c_warn_tide_truncations), and
+    // once per world, unless `warn_near_synchronous` is false, for a nearly synchronous spin.
+    void p_check_tide_state(const c_TideSolveConfig& state, bool warn_near_synchronous = true) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
                 "TidalPy: world '" + this->get_name() + "' tides need an eccentricity in [0, 1); got " +
@@ -3197,7 +3222,7 @@ protected:
             "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
             state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
             this->p_tide_config.max_degree_l, this->p_truncation_warnings_shown);
-        this->p_warn_if_near_synchronous(state);
+        if (warn_near_synchronous) { this->p_warn_if_near_synchronous(state); }
     }
     mutable c_TruncationWarningsShown p_truncation_warnings_shown;
 

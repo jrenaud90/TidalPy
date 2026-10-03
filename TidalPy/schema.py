@@ -205,6 +205,10 @@ CONFIG_ALTERNATE_TYPES = {
 # The [numerical] values must be finite and positive, except these, which may also be 0 (0 love-solve threads picks
 # the count from the machine).
 CONFIG_NUMERICAL_NONNEGATIVE = frozenset(("love_solve_threads",))
+# TidalPy_Configs.toml values that must be finite and lie strictly inside an interval (low, high).
+CONFIG_OPEN_INTERVALS = {
+    "dynamics.spin_lock_tolerance": (0.0, 0.25),
+}
 
 RADIAL_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["radial_solver"])
 SOLVER_TABLES = tuple(_SOLVER_KEY_RULES)

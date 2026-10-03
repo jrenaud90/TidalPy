@@ -157,5 +157,6 @@ def test_system_evolution_defaults(system_name):
     assert evolved, "a bundled system has at least one tidally forced world"
     for entry in evolved:
         for key, value in entry.items():
-            if isinstance(value, float):
+            # A free spin (locks are off by default) reports no lock weight or bracket.
+            if isinstance(value, float) and not key.startswith("spin_lock_"):
                 assert math.isfinite(value), key

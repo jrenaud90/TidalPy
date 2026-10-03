@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-03_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -43,6 +43,7 @@ The file has these sections:
 | `[tides]` | Default tidal model per world family, harmonic degrees, truncation levels, and per-degree fixed parameters. |
 | `[warnings]` | Switches for the Python warnings of the configuration and world-building code. |
 | `[worlds]` | Default world properties (albedo, emissivity, obliquity, spin, and the star-only values). |
+| `[dynamics]` | The spin-orbit resonance lock defaults of the `System` evolution calls. |
 | `[radiogenics]` | The isotope dataset an isotope radiogenics model takes by default, and user-defined isotope datasets. |
 | `[graphics]` | Styling of the plotting helpers. |
 | `[layers]` | The material of a layer that names none. |
@@ -161,6 +162,10 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 ## Worlds
 
 `[worlds]` holds the default world properties: `albedo = 0.3`, `emissivity = 1.0`, `obliquity_rad = 0.0`, `spin_frequency_rad_s = 0.0`, and `moment_of_inertia_factor = 0.4` (the spin model's $C/(M R^2)$, the world's moment of inertia until its EOS is solved). `[worlds.star]` adds the star-only `effective_temperature_k = 5772.0` and `luminosity_w = 0.0` (zero derives the luminosity from the effective temperature) and sets `albedo = 0.0` and `moment_of_inertia_factor = 0.0754` (an $n = 3$ polytrope). A world's own table wins over these, and they win over the class default. A world built by hand (`TerrestrialWorld(name, radius, mass)` and the other classes) takes the same defaults for every property it is not given.
+
+## Dynamics
+
+`[dynamics]` holds the defaults the `System` evolution calls (`calc_world_evolution`, `calc_pair_evolution`, `calc_system_evolution`) take for `use_locks` and `lock_tolerance` when a call leaves them as `None`: `use_spin_locks = false` and `spin_lock_tolerance = 1.0e-5`. With locks on, a spin within the tolerance (in units of the spin ratio, spin over mean motion) of a stable spin-orbit equilibrium is held there; the tolerance must be finite and in $(0, 0.25)$. See [Spin-Orbit Resonance Locks](../Structures/system/system.md#spin-orbit-resonance-locks).
 
 ## Radiogenic Isotope Datasets
 

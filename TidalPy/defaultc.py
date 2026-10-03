@@ -5,8 +5,9 @@ user-editable; the packaged defaults are parsed on every load and the user's fil
 ``[pathing]``, ``[logging]``, and ``[configs]`` set up the package when it is imported. ``[numerical]``,
 ``[eos_solver]``, and ``[radial_solver]`` feed the C++ config singleton through
 ``TidalPy.constants.update_constants``. ``[tides]``, ``[worlds]``, and ``[layers]`` supply the world builder's
-defaults, between the user's own configuration and the C++ or Cython constructor default. ``[radiogenics]`` holds
-the isotope dataset an isotope model takes by default and user-defined isotope datasets.
+defaults, between the user's own configuration and the C++ or Cython constructor default. ``[dynamics]`` holds the
+spin-lock defaults of the ``System`` evolution calls. ``[radiogenics]`` holds the isotope dataset an isotope model
+takes by default and user-defined isotope datasets.
 """
 
 from TidalPy import version
@@ -316,6 +317,23 @@ schema_version = "{SCHEMA_VERSION}"
         # An n = 3 polytrope, a Sun-like, centrally condensed star, as the [tides.star] Love numbers assume (a fully
         # convective M dwarf is closer to n = 1.5, 0.205).
         moment_of_inertia_factor = 0.0754
+
+
+# =====================================================================================================================
+# Orbital and spin evolution defaults
+#
+# Used by the System evolution calls (calc_world_evolution, calc_pair_evolution, calc_system_evolution) when a call
+# leaves the argument as None.
+# =====================================================================================================================
+[dynamics]
+    # Hold a spin at a stable spin-orbit equilibrium (a zero of its spin balance with a restoring torque on both
+    # sides): its spin ratio (spin / mean motion) then follows the orbit, and its rates combine the two sides of the
+    # equilibrium. Each call with locks on runs one more tidal solve.
+    use_spin_locks = false
+    # The width of the hold in spin ratio, and the narrowest equilibrium that is held; in (0, 0.25). 1e-5 is about the
+    # spin's oscillation within one orbit for a close-in planet, below which the orbit-averaged spin equation no
+    # longer describes the spin.
+    spin_lock_tolerance = 1.0e-5
 
 
 # =====================================================================================================================

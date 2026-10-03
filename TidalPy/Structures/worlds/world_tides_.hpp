@@ -8,7 +8,7 @@
  * -Im[k_l] from their fixed per-degree parameters; the rheology model takes it from the world's Love solve at each
  * unique tidal frequency (the EOS must be solved first). Each layer then takes its share of the heating. The Love
  * solves of these paths go into workspaces of their own, so they leave the world's last solve_love_numbers result
- * alone.
+ * alone. calc_tides_probe runs the same global solve without committing anything to the world.
  *
  * This header pulls in the heavy global-potential tables; force-include it only in the extensions that call
  * calc_tides or the 3D paths (the base world and the system).
@@ -40,12 +40,11 @@
 
 namespace tidalpy {
 
-// The global potential of a world's tide config at an orbital state. On failure the world's tide state, passed in as
-// tides_solved and tide_result, is marked unsolved with the engine's error code, and std::runtime_error is thrown.
+// The global potential of a world's tide config at an orbital state. On failure `tide_result` is reset to an unsolved
+// result carrying the engine's error code, and std::runtime_error is thrown.
 inline c_GlobalPotentialStorage c_world_global_potential(
         const c_BaseWorld& world,
         const c_TideSolveConfig& state,
-        bool& tides_solved,
         c_GlobalTideResult& tide_result) {
     const double planet_radius = world.get_radius();
     const double G_to_use = c_get_G();
@@ -68,7 +67,6 @@ inline c_GlobalPotentialStorage c_world_global_potential(
     );
 
     if (potential.error_code != 0) {
-        tides_solved           = false;
         tide_result            = c_GlobalTideResult();
         tide_result.error_code = potential.error_code;
         throw std::runtime_error("TidalPy: global potential failed during calc_tides");
@@ -169,11 +167,39 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     for (const auto& layer_uptr : this->p_layers) {
         layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
     }
+    c_TideSolveOutcome outcome;
+    try {
+        this->p_solve_tides(state, false, outcome);
+    } catch (...) {
+        // A failed global potential reports its error code through get_tide_result.
+        this->p_tide_result.error_code = outcome.tide_result.error_code;
+        throw;
+    }
+
+    // Commit: layer.get_tidal_heating() reports each layer's share.
+    this->p_tide_result         = outcome.tide_result;
+    this->p_tide_solver_love    = std::move(outcome.tide_love);
+    this->p_layer_tidal_heating = outcome.layer_heating;
+    for (std::size_t i = 0; i < this->p_layers.size(); ++i) {
+        this->p_layers[i]->set_tidal_heating(outcome.layer_heating[i]);
+    }
+    this->p_tidal_heating_record = std::move(outcome.heating_record);
+    this->p_tides_solved = true;
+}
+
+inline c_TideSolveOutcome c_BaseWorld::calc_tides_probe(const c_TideSolveConfig& state) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
+    c_TideSolveOutcome outcome;
+    this->p_solve_tides(state, true, outcome);
+    return outcome;
+}
+
+inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_probe, c_TideSolveOutcome& outcome) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
-    this->p_check_tide_state(state);
+    this->p_check_tide_state(state, !is_probe);
 
     const double planet_radius = this->get_radius();
     const double planet_volume =
@@ -182,16 +208,16 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     const std::size_t n_layers = this->p_layers.size();
 
     // Model-independent per-mode terms, plus the unique-frequency maps.
-    const c_GlobalPotentialStorage potential =
-        c_world_global_potential(*this, state, this->p_tides_solved, this->p_tide_result);
+    const c_GlobalPotentialStorage potential = c_world_global_potential(*this, state, outcome.tide_result);
 
-    // Everything is gathered here and committed to the world at the end.
-    c_GlobalTideResult tide_result;
-    c_IntMap<c_Key4, tidalpy::c_LoveNumbers> tide_love;
-    std::vector<double> layer_heating(n_layers, TidalPyConstants::d_NAN);
+    // Everything is gathered into the outcome; calc_tides commits it to the world.
+    c_GlobalTideResult& tide_result = outcome.tide_result;
+    c_IntMap<c_Key4, tidalpy::c_LoveNumbers>& tide_love = outcome.tide_love;
+    std::vector<double>& layer_heating = outcome.layer_heating;
+    layer_heating.assign(is_probe ? 0 : n_layers, TidalPyConstants::d_NAN);
     // What the tidal heat source spreads in later solves: the layer heating, with the radial profile where the
     // heating integral gives one.
-    c_TidalHeatingRecord heating_record;
+    c_TidalHeatingRecord& heating_record = outcome.heating_record;
     if (this->p_tide->needs_radial_solve()) {
         // The per-mode -Im[k_l(omega)] comes from the world's Love solve, which needs a solved EOS.
         if (!this->p_eos_solved || !this->p_eos_solution) {
@@ -207,7 +233,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
         // integral needs the radial solution of exactly these (degree, |omega|) groups.
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
-        const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
+        const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating && !is_probe;
         std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
         // The solve of each (degree_l, unique-frequency index) pair, indexed directly by
@@ -238,8 +264,9 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
             solve_by_mode.set(lmpq_key, solve_index);
         }
 
-        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate.
-        if (!quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
+        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate. A probe's
+        // frequencies are not the world's own, so it leaves the estimate to calc_tides.
+        if (!is_probe && !quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
             this->warn_if_dynamic_liquid_unstable(
                 *std::max_element(solve_degree.begin(), solve_degree.end()),
                 *std::min_element(solve_frequency.begin(), solve_frequency.end()),
@@ -299,6 +326,8 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
 
         tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love);
 
+        // A probe resolves no layer.
+        if (is_probe) { return; }
         if (quasi_homogeneous) {
             // The collapse is linear in each mode's -Im[k], so the layers' own collapses sum to the total.
             std::fill(layer_heating.begin(), layer_heating.end(), 0.0);
@@ -319,6 +348,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
         // fraction its tidal scale is of all the tidal layers' scales, and the layers sum to the total. With no
         // tidal layer the heating has nowhere to go and every layer reports NaN.
         tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+        if (is_probe) { return; }
         double scale_sum = 0.0;
         for (std::size_t i = 0; i < n_layers; ++i) {
             layer_heating[i] = this->p_layers[i]->calc_tidal_scale(planet_volume);
@@ -331,13 +361,6 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
         }
     }
 
-    // Commit: layer.get_tidal_heating() reports each layer's share.
-    this->p_tide_result         = tide_result;
-    this->p_tide_solver_love    = tide_love;
-    this->p_layer_tidal_heating = layer_heating;
-    for (std::size_t i = 0; i < n_layers; ++i) {
-        this->p_layers[i]->set_tidal_heating(layer_heating[i]);
-    }
     heating_record.layer_power = layer_heating;
     // A radial-solver tide with layer_tidal_heating off has the total but no split; the tidal heat source then spreads
     // the total over the tidal layers (use_tides) by their mass, so a thermal solve does not lose it.
@@ -355,8 +378,6 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
             }
         }
     }
-    this->p_tidal_heating_record = std::move(heating_record);
-    this->p_tides_solved = true;
 }
 
 // Each layer's orbit-averaged heating [W] from the radial solution: the secular heating density integrated over
