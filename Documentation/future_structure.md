@@ -124,7 +124,7 @@ The bundled worlds are new TOML files, and the set changed:
 
 `TidalPy.Structures.available_worlds()` lists the bundled worlds. The bundled files are copied to `<Documents>/TidalPy/0.8.X/Worlds`, where they can be edited. `TidalPy.Structures.install_worldpack(force=True)` restores the packaged copies and discards those edits.
 
-A world computes its interior in `solve_eos` and its Love numbers in `solve_love_numbers`. Its tides come from a `System` or from a direct `calc_tides` call that takes the orbital state as arguments.
+A world computes its interior in `solve_eos` and its Love numbers in `solve_love_numbers`. Its tides come from a direct `calc_tides` call that takes the orbital state as arguments, or, for a world in a `System`, takes any argument left out from the system's orbit. `world.copy()` (and `copy.deepcopy` and `pickle`) gives an independent world with the same layers, models, and settings.
 
 | 0.7.X | 0.8.0 |
 |---|---|
@@ -444,7 +444,7 @@ The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity func
 | the complex compliance functions (`rheology.complex_compliance`) | removed: the models return the complex modulus, whose reciprocal is the compliance |
 | `rheology.viscosity` functions (`arrhenius`, `reference`, `constant`) | `make_viscosity(name, config)` and `calc_viscosity(temperature, pressure)` |
 | `rheology.partial_melt` (`spohn`, `henning`, `calculate_melt_fraction`) | `make_melting_curve(name, config)` for the solidus and liquidus and `make_melt_weakening(name, config)` (`none`, `spohn`, `henning`), combined in a `Material`; `Material.calc_state(pressure, temperature, use_melting=True)` returns the melt fraction and the weakened shear modulus and viscosity. Both laws are continuous where 0.7.X stepped: across the breakdown band (`crit_melt_frac` to `crit_melt_frac + crit_melt_frac_width`) the aggregate blends into the liquid's values instead of jumping to them at the band's end, and Spohn starts from the solid's own values at the solidus unless given the absolute anchors `fs_visc_log10_at_solidus = 15.875` and `fs_shear_log10_at_solidus = 10.65` of the 0.7.X fit |
-| `cooling` functions (`convection`, `conduction`, `off`) | `make_cooling(name, config)` and `calc_cooling`, or the direct functions `convective`, `conductive`, `cooling_off` |
+| `cooling` functions (`convection`, `conduction`, `off`) | `make_cooling(name, config)` and `calc_cooling`, or the direct functions `convective`, `conductive`, `cooling_off`; `off` reports a boundary-layer thickness of NaN, where 0.7.X gave half the layer thickness |
 | `radiogenics` functions (`isotope`, `fixed`, `off`) with times in Myr | `make_radiogenics(name, config)` and `calc_heating(time, mass)` with times in seconds; isotope sets are named datasets |
 | `stellar.luminosity_from_mass` | `TidalPy.Stellar.mass_to_luminosity(mass)` or `make_luminosity("mass_to_luminosity")` |
 

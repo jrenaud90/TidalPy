@@ -16,7 +16,7 @@ def test_a_record_of_another_class_is_refused(tmp_path, target_class):
     Sundberg(alpha=0.2).save_binary(path)
     target = target_class()
     before = target.get_config_dict()
-    with pytest.raises(IOError, match="class id"):
+    with pytest.raises(IOError, match=f"a Sundberg file, not a {target_class.__name__} one"):
         target.load_binary(path)
     assert target.get_config_dict() == before
     reloaded = Sundberg()
@@ -29,7 +29,7 @@ def test_a_record_of_another_class_is_refused(tmp_path):
     path = os.path.join(str(tmp_path), "maxwell.tpyb")
     Maxwell().save_binary(path)
     standalone = Layer("probe", 0, 0.0, 1.0e6, 1.0e20)
-    with pytest.raises(IOError, match="class id"):
+    with pytest.raises(IOError, match="a Maxwell file, not a Layer one"):
         standalone.load_binary(path)
     assert standalone.name == "probe"
 

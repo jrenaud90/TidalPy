@@ -99,7 +99,7 @@ def test_potential_derivatives_present():
     """calc_tides fills a nonzero dU/dM."""
     world = _cpl_world()
     _solve(world)
-    dUdM, _, _ = world.get_tidal_potential_derivatives()
+    dUdM, _, _ = world.get_tidal_potential_derivatives().values()
     assert abs(dUdM) > 0.0
 
 

@@ -83,10 +83,10 @@ def test_invalid_use_raises(call, error):
 # Cooling physics
 # =====================================================================================================================
 def test_off_cooling():
-    """Off gives zero flux, a boundary layer of half the thickness, Ra = 0, and Nu = 1."""
+    """Off gives zero flux, no boundary layer (NaN), Ra = 0, and Nu = 1."""
     result = Cooling.OffCooling().calc_cooling(*_inputs())
     assert result.cooling_flux == 0.0
-    assert result.boundary_layer_thickness == pytest.approx(0.5 * _INPUTS["thickness"])
+    assert np.isnan(result.boundary_layer_thickness)
     assert result.rayleigh == 0.0
     assert result.nusselt == 1.0
 
@@ -301,5 +301,5 @@ def test_conductive_off_convenience():
         conductivity * delta_temp / thickness)
     off = Cooling.cooling_off(delta_temp, thickness)
     assert off.cooling_flux == 0.0
-    assert off.boundary_layer_thickness == pytest.approx(0.5 * thickness)
+    assert np.isnan(off.boundary_layer_thickness)
     assert Cooling.conductive(np.array([100.0, 200.0]), thickness, conductivity).cooling_flux.shape == (2,)

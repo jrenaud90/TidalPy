@@ -7,7 +7,7 @@ which C++ callers use directly; these functions check the inputs and form the gr
 """
 
 from TidalPy.constants cimport (
-    d_PI, d_SECONDS_PER_MYR, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr)
+    cy_resolve_G, d_PI, d_SECONDS_PER_MYR, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr)
 
 # Wire this DLL's shared pointer to the process-wide TidalPy config singleton.
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -145,7 +145,7 @@ def orbital_motion2semi_a(
     """
 
     # Read at call time so a reinitialized config is honored.
-    cdef double G_value = tidalpy_config_ptr.d_G if G_to_use is None else <double>G_to_use
+    cdef double G_value = cy_resolve_G(G_to_use)
 
     # Written as `not (x > 0)` so a NaN is refused as well.
     if not (orbital_motion > 0.):
@@ -195,7 +195,7 @@ def semi_a2orbital_motion(
     """
 
     # Read at call time so a reinitialized config is honored.
-    cdef double G_value = tidalpy_config_ptr.d_G if G_to_use is None else <double>G_to_use
+    cdef double G_value = cy_resolve_G(G_to_use)
 
     # Written as `not (x > 0)` so a NaN is refused as well.
     if not (semi_major_axis > 0.):

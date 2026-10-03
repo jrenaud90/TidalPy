@@ -103,9 +103,9 @@ The level of messages saved to a file, if file saving is enabled. The default of
 
 The level of logging printed to the console. The default of `"info"` covers messages you likely want to see, including warnings and errors.
 
-`print_log_notebook = false` and `write_log_notebook = false`
+`print_log_notebook = false`, `notebook_console_level = "warning"`, and `write_log_notebook = false`
 
-Control whether the log is printed below the cell, and whether a log file is written, when TidalPy is used in a Jupyter notebook. Both are off by default, because notebook cell output makes the console log noisy.
+Control what is printed below a cell, and whether a log file is written, when TidalPy is used in a Jupyter notebook. By default a notebook prints only the messages at `notebook_console_level` and above (the accuracy and convergence warnings), and never below `console_level`; `print_log_notebook = true` prints every message at `console_level`. No log file is written from a notebook unless `write_log_notebook` is true, because notebook cell output makes the full log noisy. `TidalPy.capture_log()` collects a block's messages as a list (see [Logging](../Utilities/logging.md)).
 
 ### Configs
 

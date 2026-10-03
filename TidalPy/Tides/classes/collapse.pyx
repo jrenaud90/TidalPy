@@ -8,7 +8,7 @@ the three orbital potential derivatives. Only the analytic models are supported 
 needs per-mode Love numbers from the radial solver and is driven by the world's ``calc_tides``.
 """
 
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport cy_resolve_G, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
@@ -74,7 +74,7 @@ def collapse_global_tides(
         double obliquity,
         double semi_major_axis,
         double host_mass,
-        double G_to_use,
+        object G_to_use,
         str tide_model,
         dict tide_config=None,
         int min_degree_l=2,
@@ -104,8 +104,8 @@ def collapse_global_tides(
         Orbital semi-major axis [m].
     host_mass : float
         Mass of the tidal host [kg].
-    G_to_use : float
-        Gravitational constant to use [m3 kg-1 s-2].
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
     tide_model : str
         Analytic tide model name: 
             - ``"cpl"``/``"fixed_q"``
@@ -165,7 +165,7 @@ def collapse_global_tides(
             "collapse_global_tides supports the analytic tide models only "
             "(cpl/fixed_q, ctl/fixed_dt, ctl_q/fixed_dt_q). The rheology model needs the "
             "radial solver; use the world's calc_tides method.")
-    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
+    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session (and level).
     c_warn_standalone_tide_truncations(
         b"collapse_global_tides", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
         max_degree_l)
@@ -178,7 +178,7 @@ def collapse_global_tides(
         obliquity,
         eccentricity,
         host_mass,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         min_degree_l,
         max_degree_l,
         i_obliquity_truncation,

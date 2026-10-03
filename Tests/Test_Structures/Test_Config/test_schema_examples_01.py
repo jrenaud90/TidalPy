@@ -12,7 +12,7 @@ from TidalPy.Material import available_materials
 from TidalPy.Radiogenics.radiogenics import RADIOGENICS_CONFIG_KEYS, make_radiogenics
 from TidalPy.Rheology.rheology import RHEOLOGY_CONFIG_KEYS
 from TidalPy.Stellar.luminosity import LUMINOSITY_CONFIG_KEYS
-from TidalPy.Structures import build_system, build_world, build_world_from_dict
+from TidalPy.Structures import build_system, build_world
 from TidalPy.Structures.configs.toml_loader import SYSTEM_WORLD_KEYS
 from TidalPy.Tides.classes.tide import TIDE_CONFIG_KEYS
 from TidalPy.Utilities.classes.families import get_family
@@ -46,7 +46,7 @@ def examples():
 def test_example_world_builds_and_round_trips(name):
     world = build_world(_path(name))
     config = world.get_config_dict()
-    rebuilt = build_world_from_dict(config)
+    rebuilt = build_world(config)
     assert rebuilt.get_config_dict() == config
     if world.world_type != "star":
         assert rebuilt.get_solver_defaults() == world.get_solver_defaults()

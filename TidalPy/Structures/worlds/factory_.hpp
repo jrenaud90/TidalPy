@@ -10,7 +10,9 @@
 
 #include <istream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 
 #include "base_.hpp"
 #include "terrestrial_.hpp"
@@ -33,9 +35,23 @@ inline std::shared_ptr<c_BaseWorld> c_world_from_binary(std::istream& in, bool f
         case BinaryClassID::GasGiantWorld:    world = std::make_shared<c_GasGiantWorld>();    break;
         case BinaryClassID::StarWorld:        world = std::make_shared<c_StarWorld>();        break;
         default:
-            throw std::runtime_error("TidalPy: unknown world class id in binary stream");
+            throw std::runtime_error(
+                "TidalPy: the binary record is a " + c_binary_class_name(header.class_id) + ", not a world");
     }
     world->read_binary(in, force);
+    return world;
+}
+
+// A world rebuilt from one complete world record held in memory (c_TidalPyBaseClass::write_binary_bytes), as a copy,
+// an unpickled world, or a world file read whole is. Throws std::runtime_error for a record that is not a world's, is
+// corrupt, or has bytes after it; force relaxes only the schema-version check.
+inline std::shared_ptr<c_BaseWorld> c_world_from_binary_bytes(const std::string& record_bytes, bool force = false) {
+    std::istringstream in(record_bytes, std::ios::in | std::ios::binary);
+    std::shared_ptr<c_BaseWorld> world = c_world_from_binary(in, force);
+    if (in.fail() || (in.peek() != std::char_traits<char>::eof())) {
+        throw std::runtime_error(
+            "TidalPy: corrupt binary data: the world record does not end where its bytes do");
+    }
     return world;
 }
 

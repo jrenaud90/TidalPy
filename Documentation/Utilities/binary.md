@@ -37,7 +37,7 @@ A minor version bump can change a class's member layout, and reading an old payl
 
 `load_binary` refuses a file, raising `IOError`, when:
 
-- The root record's class id is not the class id of the object being loaded into.
+- The root record's class id is not the class id of the object being loaded into. The message names both classes, as in "it is a GasGiantWorld file, not a TerrestrialWorld one".
 - The magic bytes are wrong, or the byte order is not this machine's.
 - The schema version is incompatible and `force=True` was not given.
 - Any record's header claims a payload larger than what is left in the file.
@@ -55,18 +55,22 @@ A load that raises an error leaves every setting the object had before the call.
 ## Python API
 
 ```python
-from TidalPy.Structures.worlds import TerrestrialWorld
-from TidalPy.Utilities.binary import check_binary_file, get_current_schema_version
+from TidalPy.Structures import TerrestrialWorld, load_world
+from TidalPy.Utilities.binary import binary_file_class, check_binary_file, get_current_schema_version
 
 TerrestrialWorld("world", 1.0e6, 1.0e22).save_binary("world.tpyb")   # A world with no layers yet
 info = check_binary_file("world.tpyb")
 # {'schema_major': 0, 'schema_minor': 2, 'schema_patch': 0,
 #  'schema_version': '0.2.0', 'class_id': 201, 'payload_size': 148}
 
-get_current_schema_version()   # '0.2.0'
+binary_file_class("world.tpyb")   # 'TerrestrialWorld'
+world = load_world("world.tpyb")  # A new TerrestrialWorld, no placeholder object needed
+get_current_schema_version()      # '0.2.0'
 ```
 
 `check_binary_file(path)` reads only the header, so it is cheap and safe on a file of unknown provenance. It raises `FileNotFoundError` if the path does not exist and `IOError` if the magic bytes are wrong, the byte order is not this machine's, or the file is shorter than the header. It does not compare the payload size with the file. That check is done by `load_binary`.
+
+`binary_file_class(path)` also reads only the header and returns the name of the class whose record the file holds, or `None` for a file that does not start with the TidalPy magic bytes (a TOML file, say). `TidalPy.Structures.load_world(path)` and `load_system(path)` use it to read a file into a new object of the class that saved it, and `build_world` and `build_system` use it to load a binary file they are given instead of reading it as TOML.
 
 `get_current_schema_version()` returns the version compiled into this build, which is what a file would be written with now.
 
@@ -79,6 +83,8 @@ get_current_schema_version()   # '0.2.0'
 | `write_binary(out)` | Writes the class's payload to memory through `p_write_payload`, then the header, with the measured payload size, and the payload. |
 | `read_binary(in, force)` | Reads and checks the header (`c_read_binary_record_header` and the class id), then passes `p_read_payload` a stream that holds only the payload, and raises unless it read every byte. |
 | `get_binary_class_id()` | The `BinaryClassID` of the class's records. Every concrete class returns its own. |
+| `write_binary_bytes()` | The object's whole record (header and payload) as a byte string, the in-memory form of `save_binary`; a world's and a system's `copy()` and pickle go through it, read back by `c_world_from_binary_bytes` (`Structures/worlds/factory_.hpp`) or `load_binary_bytes`. |
+| `load_binary_bytes(record_bytes, source, force)` | `load_binary` from a record held in memory (`load_binary` reads the file and calls it); `source` names the record in the error messages. |
 | `p_write_payload(out)`, `p_read_payload(in, force)` | The class's payload. An override calls its parent's first, then writes or reads its own fields and the records of the sub-objects it owns, so a record holds its parent's payload followed by its own additions. |
 | `make_binary_scratch()` | Optional: a new object of the class that `load_binary` reads a file into first (see [Integrity Checks](#integrity-checks)). |
 
@@ -97,12 +103,14 @@ Include `binary_.hpp` in any code that reads or writes these files directly. It 
 | `write_binary_header(out, class_id, payload_size)` | Write the 20-byte header. |
 | `read_binary_header(in)` | Read the 20-byte header, validating the magic bytes and byte order. |
 | `read_binary_header_from_file(path)` | Open a path and read its header. |
+| `c_binary_file_class_id(path)` | The class id of the record a file holds, or `BinaryClassID::Unknown` (0) for a file that does not start with the magic bytes. |
 | `c_peek_binary_header(in)` | Read the header at the read position and rewind to it, for a factory that picks the class to read the record. |
 | `check_binary_schema_version(header, force)` | Validate the version, logging a warning on mismatch. |
 | `c_read_binary_record_header(in, force)` | Read a header before loading its record: validates the magic bytes, byte order, and schema version, and refuses a payload larger than the rest of the stream. |
 | `binary_bytes_remaining(in)` | The bytes left in a seekable stream after its read position. |
 | `check_binary_count(in, count, element_bytes, what)` | Throw when a count read from a file needs more bytes than are left. |
 | `c_host_binary_byte_order()` | The `byte_order` value this machine writes. |
+| `c_binary_class_name(class_id)` | The Python class a record of that class id loads into (`"TerrestrialWorld"`, `"Maxwell"`), which the load errors name. |
 | `c_binary_temporary_path(target)` | The temporary sibling path `save_binary` writes before renaming over the target. |
 | `write_binary_string(out, text)` and `read_binary_string(in)` | Length-prefixed string input and output. |
 | `write_optional_binary(out, pointer)` | Write an optional owned sub-object: a presence flag, then its record if present. |

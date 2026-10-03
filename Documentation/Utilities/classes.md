@@ -49,8 +49,8 @@ This class is abstract, so instantiate a concrete subclass instead. It provides 
 | Method | Returns | Description |
 |---|---|---|
 | `get_schema_version_str()` | `str` | The schema version, for example `"0.2.0"`. |
-| `save_binary(path)` | | Serialize to a binary file. |
-| `load_binary(path, force=False)` | | Load from a binary file. |
+| `save_binary(path)` | | Serialize to a binary file (`path` a `str` or `os.PathLike`). |
+| `load_binary(path, force=False)` | | Load from a binary file. A file of another class is refused with both classes named ("it is a Sundberg file, not a Maxwell one"). |
 | `get_config_dict()` | `dict` | Empty at this level; subclasses fill it. |
 | `save_config(path)` | | Write `get_config_dict()` as TOML, under the comment header naming the TidalPy, SciPy, and CyRK versions, with LF newlines. |
 
@@ -90,7 +90,7 @@ PhysicsBase(model_name: str)
 | `get_parameter_info()` | `list` | One dict per parameter: `name`, `key` (the config key), `kind`, `default`, `bounds`, and `doc`. |
 | `with_parameters(**changes)` | model | A new model with some parameters changed, validated like a new one; this model is unchanged. |
 
-Every concrete physics model is declared through a parameter table (`c_SpecModel`, `spec_model_.hpp`), which gives it the methods above, and its parameters also read as attributes (`model.alpha`). A bare `PhysicsBase` is a name alone: it reports no parameters, and the methods that copy it raise. Models are not changed in place, so one model can be shared by several layers or worlds, and `copy.copy` returns the model itself.
+Every concrete physics model is declared through a parameter table (`c_SpecModel`, `spec_model_.hpp`), which gives it the methods above, and its parameters also read as attributes (`model.alpha`). A bare `PhysicsBase` is a name alone: it reports no parameters, and the methods that copy it raise. Models are not changed in place, so one model can be shared by several layers or worlds, and `copy.copy` returns the model itself. `repr(model)` is one line with the class, the model name, and the first three parameters in table order (`Andrade('andrade', alpha=0.3, zeta=1)`; `...` follows when there are more), the form every family shares; `Phase` and `Material` list their components instead.
 
 Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name, and `c_SpecModel` appends each parameter from its table. A model that holds state outside its table (the isotope labels of a radiogenics model) extends the override using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
 

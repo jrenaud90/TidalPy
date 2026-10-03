@@ -649,6 +649,11 @@ public:
         return this->p_tide != nullptr;
     }
     const c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
+    // The attached model as the generic handle the Python wrappers hold; empty without one.
+    std::shared_ptr<c_PhysicsBase> share_tide_model() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return c_share_physics_of(this->p_tide);
+    }
 
     // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees), a
     // non-positive Love-method Q or negative time lag (NaN leaves either unset), or an exact eccentricity tolerance
@@ -685,6 +690,10 @@ public:
     double get_tidal_heating() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.tidal_heating : TidalPyConstants::d_NAN;
+    }
+    // The tidal heating spread over the world's surface [W m-2], heating / (4 pi R^2); NaN before a calc_tides.
+    double get_tidal_heat_flux() const noexcept {
+        return this->get_tidal_heating() / this->calc_surface_area(this->get_radius());
     }
     double get_tidal_dU_dM() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
@@ -751,15 +760,24 @@ public:
         this->p_tidal_heating_record = c_TidalHeatingRecord();
     }
 
-    // Why add_layer would refuse `layer`, or an empty string when it would take it: the layer must continue the
-    // stack (its inner radius at the previous layer's outer radius), stay inside the world radius, and carry a
-    // name no other layer has, since layers are reached by name.
+    // Why add_layer would refuse `layer`, or an empty string when it would take it: the layer's index must be its
+    // place in the stack, the layer must continue the stack (its inner radius at the previous layer's outer radius),
+    // stay inside the world radius, and carry a name no other layer has, since layers are reached by name.
     std::string layer_rejection_reason(const c_Layer& layer) const {
+        const std::size_t position = this->p_layers.size();
+        if (layer.get_layer_index() != static_cast<int>(position)) {
+            return "TidalPy: layer '" + layer.get_name() + "' has layer_index " +
+                   std::to_string(layer.get_layer_index()) + ", but it would be layer " + std::to_string(position) +
+                   " of world '" + this->get_name() + "' (indices count from 0, inner to outer); give layer_index " +
+                   std::to_string(position) + " or leave it out.";
+        }
         const double prev_outer = this->p_layers.empty() ? 0.0
                                 : this->p_layers.back()->get_radius_outer();
         if (std::abs(layer.get_radius_inner() - prev_outer) > layer_continuity_tol(prev_outer)) {
-            return "TidalPy: layer geometry is not continuous. Inner radius does not match the previous layer's "
-                   "outer radius (add layers inner-to-outer, innermost starting at radius 0).";
+            return "TidalPy: layer geometry is not continuous. Layer '" + layer.get_name() + "' starts at " +
+                   std::to_string(layer.get_radius_inner()) + " m, but the stack of world '" + this->get_name() +
+                   "' ends at " + std::to_string(prev_outer) + " m (add layers inner-to-outer, innermost starting at "
+                   "radius 0; leave radius_inner out to start at the top of the stack).";
         }
         if (layer.get_radius_outer() > this->p_radius + layer_continuity_tol(this->p_radius)) {
             return "TidalPy: layer '" + layer.get_name() + "' reaches " + std::to_string(layer.get_radius_outer()) +
@@ -1597,6 +1615,28 @@ protected:
     // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built
     // on them. Called when the layers no longer match what was solved (a layer added, a binary load) and when a
     // solve throws, so no reader can mistake an old structure for the current one.
+    // A solved mass more than this fraction away from the stated mass is warned about (p_warn_if_mass_differs).
+    static constexpr double mass_mismatch_warn_fraction = 1.0e-2;
+
+    // Warns, once per world, when a successful solve's mass differs from the stated mass by more than
+    // mass_mismatch_warn_fraction: the two then describe different planets.
+    void p_warn_if_mass_differs() {
+        const double stated_mass = this->get_mass();
+        if (this->p_mass_mismatch_warned || !(stated_mass > 0.0) || !std::isfinite(this->p_planet_mass_eos)) {
+            return;
+        }
+        const double mass_difference = std::abs(this->p_planet_mass_eos / stated_mass - 1.0);
+        if (!(mass_difference > mass_mismatch_warn_fraction)) { return; }
+        this->p_mass_mismatch_warned = true;
+        TIDALPY_LOG_WARN(
+            "TidalPy: world '{}' solved to a mass of {:.6e} kg, {:.1f} percent off its stated mass of {:.6e} kg. Its "
+            "Love numbers, tides, and moment of inertia follow the solved structure, while its orbit in a System, "
+            "calc_surface_gravity, and calc_mean_density use the stated mass. Adjust the layers' materials or radii, "
+            "or the stated mass, so the two agree. Shown once per world.",
+            this->get_name(), this->p_planet_mass_eos, 100.0 * mass_difference, stated_mass);
+    }
+    bool p_mass_mismatch_warned = false;
+
     void p_reset_solved_state() {
         this->mark_structure_dirty();
         this->p_eos_solved  = false;
@@ -1610,10 +1650,13 @@ protected:
     }
 
 public:
-    // Solve the EOS and copy its result out before any other thread can start a solve on this world.
+    // Solve the EOS and copy its result out before any other thread can start a solve on this world. A world's own
+    // solve also checks its solved mass against its stated one (p_warn_if_mass_differs); the temporary profile world
+    // of the standalone radial solver, whose stated mass only sets its scales, calls solve_eos and skips the check.
     c_WorldEOSReport solve_eos_report(const c_WorldEOSSolveConfig& cfg) {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->solve_eos(cfg);
+        if (this->p_eos_solved) { this->p_warn_if_mass_differs(); }
         return this->get_eos_report();
     }
 
@@ -1690,6 +1733,17 @@ public:
         this->p_spin = spin;
     }
     const c_Spin&  get_spin_model() const noexcept { return this->p_spin; }
+
+    // C / (M R^2) [dimensionless] from the solved moment of inertia and the solved mass; NaN before a successful
+    // EOS solve (the spin model's factor, the fallback get_moment_of_inertia uses then, is a separate setting).
+    double get_moment_of_inertia_factor() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (!this->p_eos_solved) { return TidalPyConstants::d_NAN; }
+        const double radius = this->get_radius();
+        const double denominator = this->p_planet_mass_eos * radius * radius;
+        if (!(denominator > TidalPyConstants::d_EPS)) { return TidalPyConstants::d_NAN; }
+        return this->p_planet_moi_eos / denominator;
+    }
 
     // The EOS-solved value once the EOS has been solved, else the spin model's factor * M R^2 estimate.
     double get_moment_of_inertia() const noexcept {
@@ -2527,6 +2581,19 @@ public:
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_love(ytype_idx).l;
     }
+    // The quality factor -s |k| / Im(k) and phase lag arctan2(-s Im(k), |Re(k)|) [rad] (s the sign of Re(k)) of the
+    // last solve's k for a boundary-condition ytype, by the definitions of ::c_LoveNumbers (RadialSolver/love_.hpp)
+    // that the standalone radial solver reports; NaN when no solve describes the structure (get_love_number_k NaN).
+    double get_love_q_k(std::size_t ytype_idx = 0) const noexcept {
+        const std::complex<double> love_k = this->get_love_number_k(ytype_idx);
+        if (!std::isfinite(love_k.real())) { return TidalPyConstants::d_NAN; }
+        return ::c_LoveNumbers(love_k, love_k, love_k).get_Q_k();
+    }
+    double get_love_lag_k(std::size_t ytype_idx = 0) const noexcept {
+        const std::complex<double> love_k = this->get_love_number_k(ytype_idx);
+        if (!std::isfinite(love_k.real())) { return TidalPyConstants::d_NAN; }
+        return ::c_LoveNumbers(love_k, love_k, love_k).get_lag_k();
+    }
     // Surface y-value (SI) for a ytype and y-index (0..5 -> y1..y6). NaN if unsolved or after an analytic
     // solve, which has no radial functions.
     std::complex<double> get_love_surface_y(
@@ -3109,7 +3176,7 @@ protected:
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1), a semi-major axis that is not positive, or an orbital frequency that is not finite, and warns
-    // once per world when the truncations misstate the tides (c_warn_tide_truncations).
+    // once per world (and truncation level) when the truncations misstate the tides (c_warn_tide_truncations).
     void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
@@ -3130,8 +3197,32 @@ protected:
             "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
             state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
             this->p_tide_config.max_degree_l, this->p_truncation_warnings_shown);
+        this->p_warn_if_near_synchronous(state);
     }
     mutable c_TruncationWarningsShown p_truncation_warnings_shown;
+
+    // A spin within this fraction of the mean motion, but not equal to it, is taken for a synchronous rotation the
+    // caller did not quite set (p_warn_if_near_synchronous).
+    static constexpr double near_synchronous_warn_fraction = 1.0e-3;
+
+    // Warns, once per world, when the spin is within near_synchronous_warn_fraction of the orbital mean motion but
+    // not equal to it: the slow forcing term at (spin - n) then adds heating that can differ from the synchronous
+    // value by orders of magnitude, which is rarely what was meant.
+    void p_warn_if_near_synchronous(const c_TideSolveConfig& state) const {
+        if (this->p_near_synchronous_warned || !(std::abs(state.orbital_frequency) > TidalPyConstants::d_EPS)) {
+            return;
+        }
+        const double spin_offset = std::abs(state.spin_frequency / state.orbital_frequency - 1.0);
+        if (!((spin_offset > 0.0) && (spin_offset < near_synchronous_warn_fraction))) { return; }
+        this->p_near_synchronous_warned = true;
+        TIDALPY_LOG_WARN(
+            "TidalPy: world '{}' spins at {:.6e} rad s-1, a fraction {:.2e} away from its orbital mean motion of "
+            "{:.6e} rad s-1. A slightly non-synchronous spin adds a slow forcing term that can change the tidal "
+            "heating by orders of magnitude. A synchronous world should spin at exactly its orbital frequency "
+            "(System.set_synchronous_rotation, or spin_frequency = orbital_frequency). Shown once per world.",
+            this->get_name(), state.spin_frequency, spin_offset, state.orbital_frequency);
+    }
+    mutable bool p_near_synchronous_warned = false;
 
     // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the
     // results are not (recompute with calc_tides).

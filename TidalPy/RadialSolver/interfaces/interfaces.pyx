@@ -11,6 +11,11 @@ from libcpp.complex cimport complex as cpp_complex
 from TidalPy.RadialSolver.buffer_checks cimport (
     c_layer_num_solutions, cy_check_solution_rows, cy_resolve_num_ys)
 
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
 
 def solve_upper_y_at_interface(
         double complex[:, ::1] lower_layer_y_view,
@@ -21,7 +26,7 @@ def solve_upper_y_at_interface(
         cpp_bool upper_is_static,
         double interface_gravity,
         double liquid_density,
-        double G_to_use,
+        G_to_use=None,
         object max_num_y = None):
     """
     Calculate the initial conditions for an overlying layer given the lower layer's y values.
@@ -44,8 +49,8 @@ def solve_upper_y_at_interface(
         Gravity at the interface [m s-2].
     liquid_density : float
         Density of the liquid at the interface [kg m-3].
-    G_to_use : float
-        Gravitational constant.
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
     max_num_y : int, optional
         The y values per solution, which must equal the arrays' column count; None (default) takes it from them.
 
@@ -84,5 +89,5 @@ def solve_upper_y_at_interface(
         upper_is_static,
         interface_gravity,
         liquid_density,
-        G_to_use
+        cy_resolve_G(G_to_use)
         )

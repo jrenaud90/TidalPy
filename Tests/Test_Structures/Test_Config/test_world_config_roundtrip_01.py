@@ -5,7 +5,6 @@ import pytest
 
 from TidalPy.Structures import build_world
 from TidalPy.Structures.configs import build_system
-from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION, WORLD_TYPES, validate_world_config
 from TidalPy.Structures.worlds.base import BUILDER_WORLD_TYPES, BaseWorld
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
@@ -44,7 +43,7 @@ def test_bundled_world_rebuilds_from_config_dict(world_name):
     assert "num_layers" not in cfg
     validate_world_config(cfg)
 
-    rebuilt = construct_world(cfg)
+    rebuilt = build_world(cfg)
     assert type(rebuilt) is type(world)
     assert rebuilt.name == world.name
     assert rebuilt.radius == pytest.approx(world.radius)
@@ -145,7 +144,7 @@ def test_hand_built_world_rebuilds_from_config_dict():
     assert cfg["tides"]["obliquity_trunc_lvl"] == 2
     validate_world_config(cfg)
 
-    rebuilt = construct_world(cfg)
+    rebuilt = build_world(cfg)
     assert _nan_equal(rebuilt.get_config_dict(), cfg)
     assert rebuilt.calc_internal_heating(0.0) == pytest.approx(world.calc_internal_heating(0.0), rel=1e-12)
     world.solve_eos(verbose=False)
@@ -208,14 +207,14 @@ def _liquid_core_config(**core_flags):
 
 
 def test_layer_assumption_flags_round_trip_through_the_builder(tmp_path):
-    world = construct_world(_liquid_core_config(state="liquid", is_incompressible=True))
+    world = build_world(_liquid_core_config(state="liquid", is_incompressible=True))
     assert (world.core.is_liquid, world.core.is_static, world.core.is_incompressible) == (True, True, True)
     assert (world.mantle.is_liquid, world.mantle.is_static, world.mantle.is_incompressible) == (False, True, False)
 
     cfg = world.get_config_dict()
     assert (cfg["layers"]["core"]["state"], cfg["layers"]["core"]["is_incompressible"]) == ("liquid", True)
     validate_world_config(cfg)
-    assert _nan_equal(construct_world(cfg).get_config_dict(), cfg)
+    assert _nan_equal(build_world(cfg).get_config_dict(), cfg)
 
     # Forces the get_config_dict fallback of save_to_toml.
     world.source_config = None
@@ -228,10 +227,10 @@ def test_layer_assumption_flags_round_trip_through_the_builder(tmp_path):
 def test_liquid_layer_key_matches_setting_the_flag_on_the_built_layer():
     """A liquid layer declared in the config gives the same Love number as flagging the built layer."""
     frequency = 2.0 * math.pi / 86400.0
-    declared = construct_world(_liquid_core_config(state="liquid"))
-    flagged = construct_world(_liquid_core_config())
+    declared = build_world(_liquid_core_config(state="liquid"))
+    flagged = build_world(_liquid_core_config())
     flagged.core.state = "liquid"
-    solid = construct_world(_liquid_core_config())
+    solid = build_world(_liquid_core_config())
     for world in (declared, flagged, solid):
         world.solve_eos(verbose=False)
         world.solve_love_numbers(frequency)

@@ -11,9 +11,11 @@ methods on this class. TerrestrialWorld, GasGiantWorld, and StarWorld subclass i
 cimport numpy as cnp
 cnp.import_array()
 
+import contextlib
 import copy
 import math
 import os
+import textwrap
 import weakref
 
 import numpy as np
@@ -36,10 +38,13 @@ from TidalPy.Utilities.classes.classes cimport (
     StructureBase,
     c_TidalPyBaseClass,
     c_PhysicsBase,
+    c_binary_class_name,
     cy_physics_model_config,
+    cy_wrap_model,
 )
+from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Tides.classes.tide cimport TideBase
-from TidalPy.Tides.classes.tide import make_tide
+from TidalPy.Tides.classes.tide import make_tide, tide_config_keys, TIDE_CONFIG_KEYS
 from TidalPy.Structures.layers.layer cimport (
     Layer, c_Layer, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
     C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
@@ -96,20 +101,106 @@ cdef list cy_layer_names(c_BaseWorld* world_ptr):
     cdef size_t layer_i
     return [world_ptr.get_layer(layer_i).get_name().decode("utf-8") for layer_i in range(world_ptr.get_num_layers())]
 
-# A layer of the world by name or integer index, as its index; ValueError for one the world does not have, or for an
-# index that is not an integer.
+# A layer of the world by name or integer index (a negative one counts from the outermost layer), as its index. Every
+# method that takes a layer resolves it here: KeyError, listing the layer names, for a name the world does not have;
+# IndexError for an index out of range; TypeError for anything else.
 cdef size_t cy_layer_index(c_BaseWorld* world_ptr, object layer) except? 0:
     cdef list names = cy_layer_names(world_ptr)
+    cdef Py_ssize_t num_layers = len(names)
+    cdef Py_ssize_t index
     if isinstance(layer, str):
         if layer not in names:
-            raise ValueError(f"TidalPy: the world has no layer named '{layer}'; its layers are {names}.")
+            raise KeyError(
+                f"TidalPy: world '{world_ptr.get_name().decode('utf-8')}' has no layer named '{layer}'"
+                f"{did_you_mean(layer, names)}; its layers are {names}.")
         return <size_t>names.index(layer)
     if isinstance(layer, bool) or not isinstance(layer, (int, np.integer)):
-        raise ValueError(f"TidalPy: a layer is named by its name or an integer index; got {layer!r}.")
+        raise TypeError(f"TidalPy: a layer is given by its name or an integer index, not {layer!r}.")
     index = int(layer)
-    if not (0 <= index < len(names)):
-        raise ValueError(f"TidalPy: the world has no layer at index {index}; it has {len(names)}.")
+    if index < 0:
+        index += num_layers
+    if not (0 <= index < num_layers):
+        raise IndexError(
+            f"TidalPy: layer index {int(layer)} is out of range for world "
+            f"'{world_ptr.get_name().decode('utf-8')}', which has {num_layers} layers.")
     return <size_t>index
+
+
+# The orbital-state arguments of calc_tides and the 3D tide methods, in their order (also get_tide_state's keys).
+TIDE_STATE_ARGUMENTS = (
+    "orbital_frequency",
+    "spin_frequency",
+    "eccentricity",
+    "obliquity",
+    "semi_major_axis",
+    "host_mass",
+)
+
+# The keys set_tide_config takes: get_tide_config's, and the older spellings of three of them.
+TIDE_SETTING_ALIASES = {
+    "eccentricity_truncation": "eccentricity_trunc_lvl",
+    "obliquity_truncation": "obliquity_trunc_lvl",
+    "love_fixed_dt": "love_fixed_dt_s",
+}
+TIDE_SETTING_KEYS = frozenset((
+    "min_degree_l",
+    "max_degree_l",
+    "eccentricity_trunc_lvl",
+    "eccentricity_exact_tolerance",
+    "obliquity_trunc_lvl",
+    "layer_tidal_heating",
+    "love_method",
+    "love_fixed_q",
+    "love_fixed_dt_s",
+)) | frozenset(TIDE_SETTING_ALIASES)
+
+# The keys of a tide model table that name its model (a TOML [tides] table uses the second).
+TIDE_MODEL_NAME_KEYS = ("model", "global_tidal_model")
+
+# Points per layer at which BaseWorld.summary reads the solved density for its range.
+SUMMARY_DENSITY_SAMPLES = 9
+
+
+# The orbital state of a tide solve from the six orbital-state arguments in their order: a value given is used, and
+# each None comes from the world's get_tide_state (the system the world belongs to). ValueError names the arguments
+# still missing, for a world outside a system or without a tidal host; `method` names the caller in it.
+cdef c_TideSolveConfig cy_resolve_tide_state(
+        BaseWorld world,
+        str method,
+        object orbital_frequency,
+        object spin_frequency,
+        object eccentricity,
+        object obliquity,
+        object semi_major_axis,
+        object host_mass) except *:
+    cdef list values = [orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass]
+    cdef object system_state = None
+    cdef list missing = []
+    cdef Py_ssize_t argument_i
+    cdef cpp_bool any_missing = False
+    for argument_i in range(len(values)):
+        if values[argument_i] is None:
+            any_missing = True
+    if any_missing:
+        system_state = world.get_tide_state()
+        for argument_i in range(len(values)):
+            if values[argument_i] is not None:
+                continue
+            if system_state is None:
+                missing.append(TIDE_STATE_ARGUMENTS[argument_i])
+            else:
+                values[argument_i] = system_state[TIDE_STATE_ARGUMENTS[argument_i]]
+        if missing:
+            raise ValueError(
+                f"TidalPy: world '{world.name}' {method} needs {', '.join(missing)}: pass them, or add the world to a "
+                f"System with a tidal host so they come from its orbit (see get_tide_state).")
+    return cy_tide_state(
+        <double>values[0],
+        <double>values[1],
+        <double>values[2],
+        <double>values[3],
+        <double>values[4],
+        <double>values[5])
 
 # The solid and liquid zones of a solve as dicts: the layer's name, the radii [m] and enclosed masses [kg] at the zone's
 # two ends, and its state ("solid" or "liquid").
@@ -126,8 +217,31 @@ cdef list cy_zones_to_list(const vector[c_EOSZone]& zones, list layer_names):
             'state':        'liquid' if zones[zone_i].liquid else 'solid'})
     return out
 
-# The solve_eos result dict from a report copied under the world's call lock (c_BaseWorld::get_eos_report).
-cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names):
+# Width of the key list in an EOSResult summary [characters].
+EOS_RESULT_REPR_WIDTH = 120
+
+
+class EOSResult(dict):
+    """The result of :meth:`BaseWorld.solve_eos`: a ``dict`` in every respect (item access, equality with a plain
+    ``dict``, copying, pickling, ``isinstance(result, dict)``) whose ``repr`` is a short summary instead of every
+    profile array, so a notebook cell ending in a solve prints a few lines.
+    """
+
+    def __repr__(self):
+        radius = self.get("radius")
+        surface_radius = float(radius[-1]) if (radius is not None) and (len(radius) > 0) else math.nan
+        summary = (
+            f"EOSResult(success={self.get('success')}, iterations={self.get('iterations')}, "
+            f"message={self.get('message')!r})\n"
+            f"    planet_mass = {self.get('planet_mass', math.nan):.6g} kg, radius = {surface_radius:.6g} m, "
+            f"central_pressure = {self.get('central_pressure', math.nan):.6g} Pa\n")
+        return summary + textwrap.fill(
+            ", ".join(str(key) for key in self), width=EOS_RESULT_REPR_WIDTH, initial_indent="    keys: ",
+            subsequent_indent="          ")
+
+
+# The solve_eos result from a report copied under the world's call lock (c_BaseWorld::get_eos_report).
+cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names):
     cdef size_t j
     cdef size_t num_layers = report.layer_thermal.size()
     cdef list layer_temperature        = []
@@ -176,7 +290,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         layer_heating_prescribed.append(
             report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Prescribed])
 
-    return {
+    return EOSResult({
         'success':          bool(report.success),
         'message':          report.message.decode('utf-8'),
         'iterations':       report.iterations,
@@ -221,7 +335,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         'layer_in_thermal_network': layer_in_thermal_network,
         'layer_latent_capacity':    layer_latent_capacity,
         'layer_thermal_capacity': layer_thermal_capacity,
-    }
+    })
 
 
 def build_layered_world_from_profile(
@@ -324,6 +438,80 @@ def build_layered_world_from_profile(
     return BaseWorld._wrap(world_sptr)
 
 
+# The world classes a binary world record is written by (c_binary_class_name spells them so).
+WORLD_CLASS_NAMES = ("BaseWorld", "TerrestrialWorld", "GasGiantWorld", "StarWorld")
+
+# The Python-side configurations a world carries beside its C++ state, which a copy or a pickle keeps.
+WORLD_CONFIG_ATTRIBUTES = ("source_config", "portable_config", "built_config")
+
+
+def world_from_bytes(object world_class, bytes record, dict configs=None, cpp_bool force=False):
+    """A world rebuilt from one binary world record held in memory, as :meth:`BaseWorld.copy`, unpickling, and
+    :func:`~TidalPy.Structures.load_world` make one.
+
+    Parameters
+    ----------
+    world_class : type
+        ``BaseWorld`` or a subclass: the class of the world that wrote the record.
+    record : bytes
+        The world's binary record, the bytes ``save_binary`` writes to a file.
+    configs : dict, optional
+        ``source_config``, ``portable_config``, and ``built_config`` for the new world, each copied; a key left out
+        leaves that configuration ``None``.
+    force : bool, optional
+        Read the record even on a schema version mismatch. Default False.
+
+    Returns
+    -------
+    BaseWorld
+        A world of ``world_class`` with the record's state (layers, materials, models, tide model and settings,
+        pinned solver settings, prescribed heating), unsolved and outside any system.
+
+    Raises
+    ------
+    TypeError
+        ``world_class`` is not a world class, or the record was written by another world class.
+    IOError
+        The record is not a world's, or it is corrupt.
+    """
+    if not (isinstance(world_class, type) and issubclass(world_class, BaseWorld)):
+        raise TypeError(f"TidalPy: world_from_bytes builds a BaseWorld or a subclass of it, not {world_class!r}.")
+    cdef shared_ptr[c_BaseWorld] world_sptr
+    try:
+        world_sptr = c_world_from_binary_bytes(record, force)
+    except RuntimeError as exc:
+        raise IOError(str(exc)) from exc
+    cdef str record_class = c_binary_class_name(world_sptr.get().get_binary_class_id()).decode("utf-8")
+    cdef str expected_class = next(cls.__name__ for cls in world_class.__mro__ if cls.__name__ in WORLD_CLASS_NAMES)
+    if record_class != expected_class:
+        raise TypeError(
+            f"TidalPy: the binary record is a {record_class}, not a {expected_class}; rebuild it as a {record_class}.")
+    cdef BaseWorld world = world_class.__new__(world_class)
+    world._bind(world_sptr)
+    cy_set_world_configs(world, configs)
+    return world
+
+
+# The configurations a copy or a pickle of a world carries over (WORLD_CONFIG_ATTRIBUTES), by attribute name.
+cdef dict cy_world_configs(BaseWorld world):
+    return {attribute: getattr(world, attribute) for attribute in WORLD_CONFIG_ATTRIBUTES}
+
+
+# Gives a world copies of the configurations cy_world_configs took from another (None for any left out).
+cdef void cy_set_world_configs(BaseWorld world, dict configs) except *:
+    cdef str attribute
+    for attribute in WORLD_CONFIG_ATTRIBUTES:
+        setattr(world, attribute, copy.deepcopy((configs or {}).get(attribute)))
+
+
+# A world's binary record, the bytes a copy or a pickle rebuilds it from; RuntimeError, naming the class, for a wrapper
+# that holds no world.
+cdef bytes cy_world_record(BaseWorld world):
+    if world._world_ptr.get() == NULL:
+        raise RuntimeError(f"TidalPy: this {type(world).__name__} holds no world to copy.")
+    return world._world_ptr.get().write_binary_bytes()
+
+
 # One 3D grid axis as a contiguous 1-D float64 array (a scalar becomes one value), with its data pointer and
 # length written out; the caller keeps the array alive for as long as the pointer is used.
 cdef cnp.ndarray cy_grid_axis(object values, const double** data_out, size_t* num_out):
@@ -342,6 +530,15 @@ cdef tuple cy_grid_axes(object radii, object colatitudes, object longitudes, obj
     if axes.num_radii == 0 or axes.num_colatitudes == 0 or axes.num_longitudes == 0 or axes.num_times == 0:
         raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
     return radii_arr, colat_arr, lon_arr, time_arr
+
+
+cdef int cy_require_arguments(str method, tuple names, tuple values) except -1:
+    """Raise TypeError naming the arguments of ``names`` whose ``values`` are None: the point or grid arguments of the
+    3D tide methods, which follow the optional orbital state and so take a None default."""
+    cdef list missing = [names[argument_i] for argument_i in range(len(names)) if values[argument_i] is None]
+    if missing:
+        raise TypeError(f"TidalPy: {method} needs {', '.join(missing)}.")
+    return 0
 
 
 cdef int cy_check_num_threads(int num_threads) except -1:
@@ -575,13 +772,16 @@ cdef class BaseWorld(StructureBase):
         Parameters
         ----------
         layer : Layer
-            Its inner radius must match the current outermost radius (0 for the first layer).
+            A layer constructed without a ``layer_index`` takes its place in the stack (the number of layers already
+            added), and one without a ``radius_inner`` starts at the current outermost radius (0 for the first layer).
+            A given index or inner radius must match those.
 
         Raises
         ------
         ValueError
-            If ``layer`` has already been added or moved, is a view of another world's layer, does not continue
-            the existing stack, reaches past the world radius, or shares its name with a layer already added.
+            If ``layer`` has already been added or moved, is a view of another world's layer, has another index than
+            its place in the stack, does not continue the existing stack, reaches past the world radius, or shares
+            its name with a layer already added.
         """
         if layer._layer_ptr.get() == NULL:
             raise ValueError(
@@ -590,12 +790,29 @@ cdef class BaseWorld(StructureBase):
             raise ValueError(
                 "This layer is a non-owning view into a world-owned layer and cannot be "
                 "added to another world. Construct a new layer instead.")
-        # Validate continuity before transferring ownership so a rejected layer
-        # stays usable (the C++ add_layer would otherwise consume it on throw).
-        cdef string rejection = self._world_ptr.get().layer_rejection_reason(deref(layer._layer_ptr.get()))
-        if rejection.size() > 0:
-            raise ValueError(rejection.decode('utf-8'))
         cdef c_Layer* added_layer_ptr = layer._layer_ptr.get()
+        cdef size_t position = self._world_ptr.get().get_num_layers()
+        cdef double stack_top = 0.0
+        if position > 0:
+            stack_top = self._world_ptr.get().get_layer(position - 1).get_radius_outer()
+        cdef int index_before = added_layer_ptr.get_layer_index()
+        cdef double inner_before = added_layer_ptr.get_radius_inner()
+        if (not layer.p_inner_given) and (added_layer_ptr.get_radius_outer() < stack_top):
+            raise ValueError(
+                f"TidalPy: layer '{layer.name}' ends at {added_layer_ptr.get_radius_outer()} m, below the top of the "
+                f"stack of world '{self.name}' at {stack_top} m.")
+        # What the constructor was not given comes from the layer's place in the stack; what it was given is checked.
+        if not layer.p_index_given:
+            added_layer_ptr.set_layer_index(<int>position)
+        if not layer.p_inner_given:
+            added_layer_ptr.set_radii(stack_top, added_layer_ptr.get_radius_outer())
+        # Validate before transferring ownership so a rejected layer stays usable, as it was constructed (the C++
+        # add_layer would otherwise consume it on throw).
+        cdef string rejection = self._world_ptr.get().layer_rejection_reason(deref(added_layer_ptr))
+        if rejection.size() > 0:
+            added_layer_ptr.set_layer_index(index_before)
+            added_layer_ptr.set_radii(inner_before, added_layer_ptr.get_radius_outer())
+            raise ValueError(rejection.decode('utf-8'))
         self._world_ptr.get().add_layer(move(layer._layer_ptr))
         layer._init_view(added_layer_ptr, self)
         self._track_view(layer)
@@ -603,7 +820,82 @@ cdef class BaseWorld(StructureBase):
         self._layer_views = None
         self._layer_view_by_name = None
 
-    def load_binary(self, str path, cpp_bool force=False):
+    def copy(self):
+        """An independent world of the same class with the same state.
+
+        The copy goes through the binary record (:meth:`save_binary` without the file), so it has this world's
+        layers, materials, physics models, tide model and tide settings, pinned solver settings, spin model, and
+        prescribed heating, and its own copies of :attr:`source_config`, :attr:`portable_config`, and
+        :attr:`built_config`. Like a loaded world it is unsolved (run ``solve_eos`` and ``calc_tides`` again), holds
+        no tidal heat source, and belongs to no system. ``copy.copy``, ``copy.deepcopy``, and ``pickle`` use it, so a
+        world can be handed to a process pool.
+
+        Returns
+        -------
+        BaseWorld
+            A world of this world's class.
+        """
+        return world_from_bytes(type(self), cy_world_record(self), cy_world_configs(self))
+
+    def __copy__(self):
+        return self.copy()
+
+    def __deepcopy__(self, memo):
+        return self.copy()
+
+    def __reduce__(self):
+        # Pickled as its binary record and its configurations, rebuilt by world_from_bytes (see copy).
+        return (world_from_bytes, (type(self), cy_world_record(self), cy_world_configs(self)))
+
+    def __repr__(self):
+        """One line: the class, the name, the radius [km], the mass [kg], and the number of layers."""
+        if self._world_ptr.get() == NULL:
+            return f"{type(self).__name__}(no world)"
+        return (f"{type(self).__name__}({self.name!r}, radius_km={self.radius / 1.0e3:.6g}, "
+                f"mass_kg={self.mass:.4e}, num_layers={self.num_layers})")
+
+    def summary(self) -> str:
+        """A multi-line description of the world and its layers.
+
+        The first line is the world (class, name, radius, mass, and whether its EOS is solved); then one row per
+        layer, inner to outer: its name, radii [km], state, material phases, density [kg m-3] (the range of the solved
+        profile, ``-`` before a solve), temperature [K], and shear rheology.
+
+        Returns
+        -------
+        str
+        """
+        cdef list lines = [
+            f"{type(self).__name__} '{self.name}': radius {self.radius / 1.0e3:.6g} km, mass {self.mass:.4e} kg, "
+            f"{self.num_layers} layers, EOS {'solved' if self.eos_solved else 'not solved'}"]
+        cdef list rows = [("layer", "radii [km]", "state", "material", "density [kg m-3]", "temperature [K]",
+                           "rheology")]
+        cdef list phases
+        for layer in self._ensure_layer_views():
+            material = layer.material
+            phases = [] if material is None else [
+                slot for slot in ("solid", "liquid") if getattr(material, slot) is not None]
+            density_text = "-"
+            if self.eos_solved:
+                sample_radii = np.linspace(layer.radius_inner, layer.radius_outer, SUMMARY_DENSITY_SAMPLES)
+                density = layer.get_density(sample_radii)
+                if np.any(np.isfinite(density)):
+                    density_text = f"{np.nanmin(density):.0f} to {np.nanmax(density):.0f}"
+            rheology = layer.shear_rheology
+            rows.append((
+                layer.name,
+                f"{layer.radius_inner / 1.0e3:.6g} to {layer.radius_outer / 1.0e3:.6g}",
+                layer.state,
+                "+".join(phases) if phases else "-",
+                density_text,
+                f"{layer.temperature:.6g}",
+                "-" if rheology is None else rheology.model_name))
+        cdef list widths = [max(len(row[column]) for row in rows) for column in range(len(rows[0]))]
+        for row in rows:
+            lines.append("  " + "  ".join(text.ljust(width) for text, width in zip(row, widths)).rstrip())
+        return "\n".join(lines)
+
+    def load_binary(self, path, cpp_bool force=False):
         """Load this world's state, its layers included, from a TidalPy binary file.
 
         The load replaces the world's layers, so layer views taken from this world before it (``world.<name>``,
@@ -617,7 +909,7 @@ cdef class BaseWorld(StructureBase):
 
         Parameters
         ----------
-        path : str
+        path : str or os.PathLike
             Source file path.
         force : bool, optional
             Attempt the load even on a schema version mismatch.
@@ -627,7 +919,8 @@ cdef class BaseWorld(StructureBase):
         FileNotFoundError
             ``path`` does not exist.
         IOError
-            The file holds a record of another class, has an incompatible schema version, or is corrupt.
+            The file holds a record of another class (the message names both, as in "a StarWorld file, not a
+            TerrestrialWorld one"), has an incompatible schema version, or is corrupt.
         """
         cdef object view_ref
         cdef Layer view
@@ -702,26 +995,36 @@ cdef class BaseWorld(StructureBase):
         """Mean density [kg/m^3] = M / V_sphere(R)."""
         return self._world_ptr.get().calc_mean_density()
 
-    def calc_equilibrium_temperature(self, double insolation_flux) -> float:
+    def calc_equilibrium_temperature(self, insolation_flux):
         """Radiative-equilibrium temperature [K] for a given insolation flux.
 
         T_eq = [ (1 − A)·F / (4·ε·σ) ]^(1/4)
 
         Parameters
         ----------
-        insolation_flux : float
+        insolation_flux : float or np.ndarray
             Incident stellar flux [W/m^2].
 
         Returns
         -------
-        float
-            Equilibrium temperature [K]; 0.0 for non-positive flux.
+        float or np.ndarray
+            Equilibrium temperature [K], shaped like ``insolation_flux``; 0.0 for non-positive flux.
 
         Assumptions
         -----------
         - Fast-rotator, uniform-temperature surface.
         """
-        return self._world_ptr.get().calc_equilibrium_temperature(insolation_flux)
+        cdef c_BaseWorld* world_ptr = self._world_ptr.get()
+        if np.ndim(insolation_flux) == 0:
+            return world_ptr.calc_equilibrium_temperature(<double>insolation_flux)
+        cdef cnp.ndarray flux_array = np.ascontiguousarray(insolation_flux, dtype=np.float64)
+        cdef cnp.ndarray out = np.empty_like(flux_array)
+        cdef double[::1] flux_view = flux_array.reshape(-1)
+        cdef double[::1] out_view = out.reshape(-1)
+        cdef Py_ssize_t flux_i
+        for flux_i in range(flux_view.shape[0]):
+            out_view[flux_i] = world_ptr.calc_equilibrium_temperature(flux_view[flux_i])
+        return out
 
     def set_spin_frequency(self, double freq):
         """Set the rotation rate [rad/s].
@@ -741,18 +1044,81 @@ cdef class BaseWorld(StructureBase):
         self._world_ptr.get().set_obliquity(obliq)
 
     # Global (1D) tidal dissipation (analytic path; common to all world types)
-    def set_tide_model(self, TideBase tide not None):
+    def set_tide_model(self, tide):
         """Attach a global tide dissipation model.
 
-        The model is shared, not copied (models are not changed in place), so ``tide`` stays usable and can be
+        A model is shared, not copied (models are not changed in place), so ``tide`` stays usable and can be
         attached to other worlds.
 
         The analytic models (``cpl``/``ctl``/``ctl_q``) work on any world, layers or not; the ``rheology`` model
         needs layers and a solved EOS.
+
+        Parameters
+        ----------
+        tide : TideBase, str, dict, or None
+            A tide model; a model name (``"fixed_q"``, ``"cpl"``, ...), built by ``make_tide`` with its defaults; or
+            a table like a world file's ``[tides]`` table: the model name under ``model`` or ``global_tidal_model``,
+            the model's parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s``; another model's lists are ignored, as
+            the world builder ignores them), and optionally any :meth:`set_tide_config` setting, which is applied
+            too. ``None`` detaches the model.
+
+        Raises
+        ------
+        TypeError
+            ``tide`` is none of these.
+        ValueError
+            A table without a model name or with a key that is neither a tide model parameter nor a tide setting,
+            an unknown model name, or a bad parameter or setting. Nothing changes then.
         """
-        if tide._model_sptr.get() == NULL:
-            raise ValueError("This tide model holds no C++ object.")
-        self._world_ptr.get().set_tide_model_handle(tide._model_sptr)
+        cdef dict settings = {}
+        cdef dict table
+        cdef str model_name
+        cdef frozenset model_keys
+        cdef list unknown
+        if tide is None or isinstance(tide, TideBase):
+            model = tide
+        elif isinstance(tide, str):
+            model = make_tide(tide)
+        elif isinstance(tide, dict):
+            table = dict(tide)
+            names = [key for key in TIDE_MODEL_NAME_KEYS if key in table]
+            if len(names) != 1:
+                raise ValueError(
+                    f"TidalPy: a tide model table names its model under one of {list(TIDE_MODEL_NAME_KEYS)}; got the "
+                    f"keys {sorted(table)}.")
+            model_name = str(table.pop(names[0]))
+            model_keys = tide_config_keys(model_name)
+            parameters = {key: table.pop(key) for key in list(table) if key in model_keys}
+            settings = {key: table.pop(key) for key in list(table) if key in TIDE_SETTING_KEYS}
+            unknown = [key for key in table if key not in TIDE_CONFIG_KEYS]
+            if unknown:
+                accepted = sorted(model_keys | TIDE_SETTING_KEYS)
+                raise ValueError(
+                    f"TidalPy: the tide model table has no key '{unknown[0]}'{did_you_mean(unknown[0], accepted)}; "
+                    f"it takes {', '.join(accepted)}, plus the model name.")
+            model = make_tide(model_name, parameters)
+        else:
+            raise TypeError(
+                f"TidalPy: a world's tide model is a TideBase, a model name, a tide model table, or None, not "
+                f"{type(tide).__name__}.")
+        cdef shared_ptr[c_PhysicsBase] handle
+        if model is not None:
+            handle = (<TideBase>model)._model_sptr
+            if handle.get() == NULL:
+                raise ValueError("This tide model holds no C++ object.")
+        # The settings are checked and applied before the model is attached, so a bad one leaves the world as it was.
+        if settings:
+            self.set_tide_config(**settings)
+        self._world_ptr.get().set_tide_model_handle(handle)
+
+    @property
+    def tide_model(self):
+        """The attached tide model (a ``TideBase``), or None. Setting it calls :meth:`set_tide_model`."""
+        return cy_wrap_model(self._world_ptr.get().share_tide_model())
+
+    @tide_model.setter
+    def tide_model(self, value):
+        self.set_tide_model(value)
 
     @property
     def tide_model_set(self) -> bool:
@@ -769,23 +1135,31 @@ cdef class BaseWorld(StructureBase):
             eccentricity_exact_tolerance=None,
             love_method=None,
             love_fixed_q=None,
-            love_fixed_dt=None):
+            love_fixed_dt=None,
+            *,
+            eccentricity_trunc_lvl=None,
+            obliquity_trunc_lvl=None,
+            love_fixed_dt_s=None):
         """Change the stored ``[tides]`` truncation/degree configuration and the world's Love-number method.
 
         Only the arguments given change; every other setting keeps its current value (see
-        :meth:`get_tide_config`), so a call can adjust one setting without resetting the rest.
+        :meth:`get_tide_config`), so a call can adjust one setting without resetting the rest. Every key
+        :meth:`get_tide_config` returns is accepted, so ``world.set_tide_config(**world.get_tide_config())`` restores
+        a configuration; ``eccentricity_trunc_lvl``, ``obliquity_trunc_lvl``, and ``love_fixed_dt_s`` (the world file's
+        key names) are the same settings as ``eccentricity_truncation``, ``obliquity_truncation``, and
+        ``love_fixed_dt``, and a call gives each setting under one name only.
 
         Parameters
         ----------
         min_degree_l, max_degree_l : int, optional
             Tidal harmonic degree range (2..10).
-        eccentricity_truncation : int, optional
+        eccentricity_truncation, eccentricity_trunc_lvl : int or str, optional
             Eccentricity-function truncation level N: every product of two eccentricity functions is kept through
             e^N. Tabulated levels: ``TidalPy.Tides.eccentricity.ECCENTRICITY_TRUNCATIONS`` (2, 4, 6, 8, 10, 20,
             50), or ``"exact"`` for the functions from the exact orbit (any e < 1).
         eccentricity_exact_tolerance : float, optional
             Heating tail tolerance in (0, 1) that sets the mode range of ``"exact"`` (ignored by the levels).
-        obliquity_truncation : int or str, optional
+        obliquity_truncation, obliquity_trunc_lvl : int or str, optional
             Obliquity truncation level N: every product of two obliquity functions is kept through I^N. Tabulated
             levels: ``TidalPy.Tides.obliquity.OBLIQUITY_TRUNCATIONS`` (0 or ``"off"``, 2, 4), or ``"gen"`` for
             the general functions (any obliquity).
@@ -798,10 +1172,31 @@ cdef class BaseWorld(StructureBase):
             ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``), ``'propagation_matrix'``
             (``'prop_matrix'``, ``'pm'``, ``'prop'``), ``'homogeneous'`` (``'homogen'``), ``'cpl'``, ``'ctl'``,
             or ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``; reserved: raises ``NotImplementedError``).
-        love_fixed_q, love_fixed_dt : float, optional
+        love_fixed_q, love_fixed_dt (love_fixed_dt_s) : float, optional
             Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. A NaN clears the
             value, after which the attached tide model's per-degree fixed Q / time lag is used.
+
+        Raises
+        ------
+        ValueError
+            A setting given under both of its names, or a value out of range.
         """
+        cdef tuple spelling_pairs = (
+            ("eccentricity_truncation", eccentricity_truncation, "eccentricity_trunc_lvl", eccentricity_trunc_lvl),
+            ("obliquity_truncation", obliquity_truncation, "obliquity_trunc_lvl", obliquity_trunc_lvl),
+            ("love_fixed_dt", love_fixed_dt, "love_fixed_dt_s", love_fixed_dt_s))
+        cdef Py_ssize_t pair_i
+        for pair_i in range(len(spelling_pairs)):
+            if (spelling_pairs[pair_i][1] is not None) and (spelling_pairs[pair_i][3] is not None):
+                raise ValueError(
+                    f"TidalPy: set_tide_config got both '{spelling_pairs[pair_i][0]}' and "
+                    f"'{spelling_pairs[pair_i][2]}', two names for one setting; give one.")
+        if eccentricity_trunc_lvl is not None:
+            eccentricity_truncation = eccentricity_trunc_lvl
+        if obliquity_trunc_lvl is not None:
+            obliquity_truncation = obliquity_trunc_lvl
+        if love_fixed_dt_s is not None:
+            love_fixed_dt = love_fixed_dt_s
         if eccentricity_truncation is not None:
             eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
         if eccentricity_exact_tolerance is not None:
@@ -829,6 +1224,39 @@ cdef class BaseWorld(StructureBase):
         if love_fixed_dt is not None:
             cfg.love_fixed_dt = <double>love_fixed_dt
         self._world_ptr.get().set_tide_config(cfg)
+
+    @contextlib.contextmanager
+    def temporary_tide_config(self, **settings):
+        """A context manager that applies tide settings for the duration of a ``with`` block.
+
+        On entry it calls :meth:`set_tide_config` with ``settings``; on exit, also when the block raises, it restores
+        the configuration :meth:`get_tide_config` reported before. A new tide configuration clears the last tidal
+        result, so read the result inside the block (``calc_tides`` returns it).
+
+        Parameters
+        ----------
+        **settings
+            Any :meth:`set_tide_config` keyword.
+
+        Yields
+        ------
+        BaseWorld
+            This world.
+
+        Examples
+        --------
+        >>> with world.temporary_tide_config(eccentricity_truncation=20):
+        ...     result = world.calc_tides()
+        """
+        cdef dict previous = self.get_tide_config()
+        # get_tide_config leaves an unset Love-method Q or time lag out; NaN clears whatever the block set.
+        previous.setdefault("love_fixed_q", math.nan)
+        previous.setdefault("love_fixed_dt_s", math.nan)
+        self.set_tide_config(**settings)
+        try:
+            yield self
+        finally:
+            self.set_tide_config(**previous)
 
     def get_tide_state(self):
         """The orbital state this world's tides are raised in, as the system it belongs to sees it.
@@ -868,13 +1296,25 @@ cdef class BaseWorld(StructureBase):
         """Total global tidal heating [W] (NaN if unsolved)."""
         return self._world_ptr.get().get_tidal_heating()
 
-    def get_tidal_potential_derivatives(self) -> tuple:
-        """The three orbital potential derivatives ``(dUdM, dUdw, dUdO)`` [J kg-1 rad-1]."""
-        return (
-            self._world_ptr.get().get_tidal_dU_dM(),
-            self._world_ptr.get().get_tidal_dU_dw(),
-            self._world_ptr.get().get_tidal_dU_dO(),
-        )
+    def get_tidal_heat_flux(self) -> float:
+        """The tidal heating spread over the surface [W m-2]: :meth:`get_tidal_heating` / (4 pi R^2); NaN before a
+        :meth:`calc_tides`."""
+        return self._world_ptr.get().get_tidal_heat_flux()
+
+    def get_tidal_potential_derivatives(self) -> dict:
+        """The three orbital potential derivatives of the last :meth:`calc_tides` [J kg-1 rad-1]; NaN before one.
+
+        Returns
+        -------
+        dict
+            ``dU_dM`` (by the mean anomaly), ``dU_dw`` (by the argument of pericenter), and ``dU_dO`` (by the
+            longitude of the ascending node), the names :meth:`System.calc_world_evolution` uses.
+        """
+        return {
+            "dU_dM": self._world_ptr.get().get_tidal_dU_dM(),
+            "dU_dw": self._world_ptr.get().get_tidal_dU_dw(),
+            "dU_dO": self._world_ptr.get().get_tidal_dU_dO(),
+        }
 
     def get_tidal_dU_dM_minus_dw(self) -> float:
         """The per-mode sum of ``dUdM - dUdw`` from the last tide solve [J kg-1 rad-1]; NaN before one.
@@ -899,18 +1339,22 @@ cdef class BaseWorld(StructureBase):
         return PyComplex_FromDoubles(k.real(), k.imag())
 
     @staticmethod
-    def build(source, force=False, base_dir=None):
+    def build(source, overrides=None, force=False, base_dir=None):
         """Build a world from a configuration source (the public builder entry point).
 
         This is a factory: the concrete subclass returned (``BaseWorld``, ``TerrestrialWorld``,
         ``GasGiantWorld``, or ``StarWorld``) follows the configuration's world ``type``, whichever class ``build`` is
-        called on. The
-        normalized configuration is retained on :attr:`source_config` so the world can be written back to TOML.
+        called on. The normalized configuration is retained on :attr:`source_config` so the world can be written back
+        to TOML. A path to a binary file (``save_binary``) is loaded instead (:func:`~TidalPy.Structures.load_world`).
 
         Parameters
         ----------
-        source : str or dict
-            A bundled world name, a path to a ``.toml`` file, or a configuration dict.
+        source : str, os.PathLike, or dict
+            A bundled world name, a path to a ``.toml`` or binary file, or a configuration dict.
+        overrides : dict, optional
+            Values merged over the configuration before it is built, table by table, so a nested table only needs the
+            keys it changes (``{"tides": {"eccentricity_trunc_lvl": 20}}``). Not accepted with a binary file.
+            Default None.
         force : bool, optional
             If True, bypass the schema-version compatibility warning. Default False.
         base_dir : str, optional
@@ -922,28 +1366,34 @@ cdef class BaseWorld(StructureBase):
         -------
         BaseWorld
             The constructed world, with ``source_config`` populated.
+
+        Raises
+        ------
+        ValueError
+            The configuration fails validation, or ``overrides`` is given with a binary file.
         """
         # Deferred imports: the builder helpers import the world subclasses, so
         # importing them at module load would be circular.
         from TidalPy.Structures.configs.world_builder import (
             _construct_owned_world,
-            _resolve_source)
-        from TidalPy.Structures.configs.toml_loader import (
-            load_toml,
-            merge_with_defaults,
-            validate_schema_version)
-        from TidalPy.Structures.configs.worldpack import resolve_data_file
+            _resolve_source,
+            load_world)
+        from TidalPy.Structures.configs.toml_loader import load_build_config
+        from TidalPy.Structures.configs.worldpack import binary_source_class, resolve_data_file
 
         # `_resolve_source` hands back whatever the caller gave (a path string, a Path, or an already-parsed
         # mapping), so this one stays `object`; the rest have a single concrete type.
         cdef object resolved = _resolve_source(source)
-        cdef dict config = load_toml(resolved)
+        if binary_source_class(resolved) is not None:
+            if overrides is not None:
+                raise ValueError(
+                    f"TidalPy: '{resolved}' is a binary file, which overrides cannot change; load it and then change "
+                    "the world.")
+            return load_world(resolved, force=force)
+        cdef dict config = load_build_config(resolved, overrides, force)
         cdef object given_data_file = None
         cdef object data_base_dir
         cdef BaseWorld world
-        # Checked before the defaults fill a missing version in, so a file without one says so.
-        validate_schema_version(config, force=force)
-        config = merge_with_defaults(config)
         # Resolve a companion data file (e.g. a PREM profile) relative to the world
         # file's directory so the builder can open it directly.
         if "data_file" in config:
@@ -1108,22 +1558,17 @@ cdef class BaseWorld(StructureBase):
                 self._layer_view_by_name[view.name] = view
         return self._layer_views
 
-    def get_layer(self, index: int) -> Layer:
-        """Return a wrapper around the layer at ``index`` (0 = innermost).
+    def get_layer(self, layer) -> Layer:
+        """Return a wrapper around a layer, given by its index (0 = innermost) or its name.
 
         The returned object is a non-owning view: the world still owns the C++ layer, so the view exposes the
         matching subclass API but must not outlive the world (it holds a reference to the world to prevent
-        that). Views are cached, so repeated access is cheap. Negative indices count from the end; an index
-        out of range raises ``IndexError``.
+        that). Views are cached, so repeated access is cheap. Negative indices count from the end. An index out of
+        range raises ``IndexError``, and a name the world does not have ``KeyError`` (listing the layer names), as
+        every method that takes a layer does.
         """
         cdef list views = self._ensure_layer_views()
-        cdef Py_ssize_t n = len(views)
-        cdef Py_ssize_t i = index
-        if i < 0:
-            i += n
-        if i < 0 or i >= n:
-            raise IndexError(f"layer index {index} out of range (world has {n} layers)")
-        return views[i]
+        return views[cy_layer_index(self._world_ptr.get(), layer)]
 
     @property
     def layers(self) -> list:
@@ -1143,10 +1588,11 @@ cdef class BaseWorld(StructureBase):
         return iter(self._ensure_layer_views())
 
     def __getitem__(self, index):
-        """Index or slice the layers: ``world[0]`` (a view) or ``world[:2]`` (a list of views).
+        """Index, name, or slice the layers: ``world[0]`` or ``world["mantle"]`` (a view), or ``world[:2]`` (a list of
+        views).
 
-        Integer indices accept negatives and raise ``IndexError`` out of range; a slice returns
-        the corresponding list of views.
+        Integer indices accept negatives and raise ``IndexError`` out of range, and an unknown name raises
+        ``KeyError`` (see :meth:`get_layer`); a slice returns the corresponding list of views.
         """
         if isinstance(index, slice):
             return self._ensure_layer_views()[index]
@@ -1185,23 +1631,25 @@ cdef class BaseWorld(StructureBase):
 
     def solve_eos(
             self,
+            *,
             double surface_pressure = 0.0,
-            slices_per_layer        = None,
-            double G_to_use         = -1.0,
-            integration_method      = None,
-            rtol                    = None,
-            atol                    = None,
-            pressure_tol            = None,
-            max_iters               = None,
-            nondimensionalize       = None,
-            temperature             = None,
-            solve_temperature       = None,
-            surface_temperature     = None,
-            reset_layer_masses      = False,
-            cpp_bool verbose        = False,
-            time                    = None,
-            max_thermal_passes      = None,
-            thermal_tol             = None) -> dict:
+            slices_per_layer = None,
+            G_to_use = None,
+            integration_method = None,
+            rtol = None,
+            atol = None,
+            pressure_tol = None,
+            max_iters = None,
+            nondimensionalize = None,
+            temperature = None,
+            solve_temperature = None,
+            surface_temperature = None,
+            reset_layer_masses = False,
+            cpp_bool verbose = False,
+            time = None,
+            max_thermal_passes = None,
+            thermal_tol = None,
+            raise_on_fail = False) -> EOSResult:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
@@ -1213,7 +1661,11 @@ cdef class BaseWorld(StructureBase):
 
         Every solver setting left as ``None`` takes the ``[eos_solver]`` value of the TidalPy configuration
         (``TidalPy.config``), the same defaults the standalone ``radial_solver`` uses, unless this world's file
-        pinned the key (see :meth:`set_solver_defaults`).
+        pinned the key (see :meth:`set_solver_defaults`). Every argument is keyword-only.
+
+        After a successful solve whose mass differs from the world's stated ``mass`` by more than 1 percent, a
+        warning (once per world) names both: the Love numbers and tides use the solved structure, while the orbit
+        in a ``System``, ``calc_surface_gravity``, and ``calc_mean_density`` use the stated mass.
 
         Parameters
         ----------
@@ -1222,7 +1674,7 @@ cdef class BaseWorld(StructureBase):
         slices_per_layer : int, optional
             Number of radial sample points generated per layer (>= 2).
         G_to_use : float, optional
-            Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the TidalPy config value is used.
+            Gravitational constant [m^3 kg^-1 s^-2]. ``None`` (default) uses the TidalPy configuration's value.
         integration_method : str, optional
             CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the implicit (stiff) methods
             ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at the planet's center, where
@@ -1270,11 +1722,15 @@ cdef class BaseWorld(StructureBase):
             mass its current boundaries hold in this solve. Default False. A layer that holds its mass ends where it
             encloses that mass, which the integration finds itself; the layers above it move with it, keeping their
             volumes, and the world's radius becomes the top of the outermost layer.
+        raise_on_fail : bool, optional
+            Raise ``SolutionFailedError`` (a ``RuntimeError``) with the solve's message when the solve fails, rather
+            than returning a result with ``success = False``. Default False.
 
         Returns
         -------
-        dict
-            ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
+        EOSResult
+            A ``dict`` whose ``repr`` is a short summary (:class:`EOSResult`) holding ``success``, ``message``,
+            ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
             profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
             ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
             ``central_pressure``, ``planet_mass``, ``planet_moi``), the iteration report (``thermal_passes``,
@@ -1302,6 +1758,8 @@ cdef class BaseWorld(StructureBase):
         ValueError
             If the world has no layers, any layer lacks a material, an unsupported integration
             method is given, or ``slices_per_layer < 2``.
+        SolutionFailedError
+            With ``raise_on_fail``, when the solve fails.
 
         Assumptions
         -----------
@@ -1312,7 +1770,8 @@ cdef class BaseWorld(StructureBase):
         # world's file pinned on top (set_solver_defaults); only the arguments given here override it.
         cdef c_WorldEOSSolveConfig cfg = self._world_ptr.get().make_eos_solve_config()
         cfg.surface_pressure = surface_pressure
-        cfg.G_to_use         = G_to_use
+        # A negative G is the C++ solve's "from the configuration".
+        cfg.G_to_use         = -1.0 if G_to_use is None else <double>G_to_use
         cfg.verbose          = <cpp_bool>verbose
         if temperature is not None:
             cfg.temperature = <double>temperature
@@ -1355,11 +1814,15 @@ cdef class BaseWorld(StructureBase):
                 f"mismatch above pressure_tol = {cfg.pressure_tol:0.1e}, so the world is left unsolved. Its layers "
                 f"may have no hydrostatic structure at this radius and mass; otherwise raise max_iters, or keep "
                 f"pressure_tol above the integration rtol ({cfg.rtol:0.1e}).")
+        if raise_on_fail and not report.success:
+            raise SolutionFailedError(
+                f"TidalPy: the EOS solve of world '{self.name}' failed: {report.message.decode('utf-8')}")
 
         return cy_eos_report_to_dict(report, cy_layer_names(self._world_ptr.get()))
 
     def _build_eos_result(self):
-        """The result dict of the last ``solve_eos``, from a copy of the solution taken under the world's call lock."""
+        """The result (an ``EOSResult``) of the last ``solve_eos``, from a copy of the solution taken under the world's
+        call lock."""
         return cy_eos_report_to_dict(self._world_ptr.get().get_eos_report(), cy_layer_names(self._world_ptr.get()))
 
     @property
@@ -1509,10 +1972,7 @@ cdef class BaseWorld(StructureBase):
         """Solve the EOS when asked to or when the world is unsolved, raising SolutionFailedError (with the solve's
         message) when that solve fails, rather than letting the calc_* getters return NaN profiles."""
         if force_recalc or not self._world_ptr.get().get_eos_solved():
-            report = self.solve_eos()
-            if not report["success"]:
-                raise SolutionFailedError(
-                    f"TidalPy: the EOS solve of world '{self.name}' failed: {report['message']}")
+            self.solve_eos(raise_on_fail=True)
 
     def calc_density(self, radius, cpp_bool force_recalc=False):
         """Density [kg/m^3]; solves the EOS first if needed."""
@@ -1578,6 +2038,17 @@ cdef class BaseWorld(StructureBase):
     def planet_moi_eos(self) -> float:
         """Planet moment of inertia [kg m^2] from the last EOS solve, or NaN if not solved."""
         return self._world_ptr.get().get_planet_moi_eos()
+
+    @property
+    def moment_of_inertia_factor(self) -> float:
+        """C / (M R^2) [dimensionless] of the solved structure: :attr:`planet_moi_eos` over :attr:`planet_mass_eos`
+        times the radius squared. NaN before a successful :meth:`solve_eos`.
+
+        Before a solve, a spin calculation uses the spin model's factor instead (the ``moment_of_inertia_factor`` of
+        a world file or of ``[worlds]`` in the TidalPy configuration; see :meth:`get_moment_of_inertia`), which this
+        property does not report.
+        """
+        return self._world_ptr.get().get_moment_of_inertia_factor()
 
     @property
     def zones(self) -> list:
@@ -1652,7 +2123,8 @@ cdef class BaseWorld(StructureBase):
             cpp_bool warnings  = True,
             love_method        = None,
             fixed_q            = None,
-            fixed_dt           = None) -> dict:
+            fixed_dt           = None,
+            raise_on_fail      = False) -> dict:
         """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
         Requires :meth:`solve_eos` first. Each layer's attached rheology is evaluated at ``frequency`` for the
@@ -1720,6 +2192,9 @@ cdef class BaseWorld(StructureBase):
             values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``, the ``love_fixed_q`` and
             ``love_fixed_dt_s`` keys of a world file) are used, then the attached tide
             model's fixed Q or time lag for this degree (``ValueError`` when none is available).
+        raise_on_fail : bool, optional
+            Raise ``SolutionFailedError`` (a ``RuntimeError``) with the solve's message when the solve fails, rather
+            than returning a result with ``success = False``. Default False.
 
         Returns
         -------
@@ -1731,6 +2206,8 @@ cdef class BaseWorld(StructureBase):
         ------
         ValueError
             If the EOS has not been solved or the frequency is too small.
+        SolutionFailedError
+            With ``raise_on_fail``, when the solve fails.
 
         Assumptions
         -----------
@@ -1766,7 +2243,65 @@ cdef class BaseWorld(StructureBase):
             cy_check_surface_solve_conditioning(
                 self._world_ptr.get().get_love_surface_amplification(), cfg.rtol,
                 self._world_ptr.get().get_love_surface_rcond())
-        return self._build_love_result()
+        result = self._build_love_result()
+        if raise_on_fail and not result["success"]:
+            raise SolutionFailedError(
+                f"TidalPy: the Love-number solve of world '{self.name}' at frequency {frequency:.6e} rad s-1 "
+                f"failed: {result['message']}")
+        return result
+
+    def calc_love_numbers(self, frequencies, **solve_love_numbers_kwargs) -> dict:
+        """Love numbers over a set of forcing frequencies, one :meth:`solve_love_numbers` per frequency.
+
+        A solve that fails gives NaN at its frequency and does not stop the sweep; only bad input raises.
+
+        Parameters
+        ----------
+        frequencies : float or array-like
+            Forcing frequencies [rad s-1].
+        **solve_love_numbers_kwargs
+            Any other :meth:`solve_love_numbers` argument (``degree_l``, ``love_method``, ``rtol``, ...), the same for
+            every frequency.
+
+        Returns
+        -------
+        dict
+            ``frequency`` [rad s-1] and, each shaped like it, ``k``, ``h``, ``l`` (complex; NaN where a solve failed,
+            and the first entry of a ``solve_for`` sequence), ``success`` (bool), and ``message`` (str objects).
+
+        Raises
+        ------
+        TypeError
+            ``frequency`` or ``raise_on_fail`` given as a keyword.
+        ValueError
+            Bad input to a solve, such as an unsolved EOS or a frequency that is too small.
+        """
+        for keyword in ("frequency", "raise_on_fail"):
+            if keyword in solve_love_numbers_kwargs:
+                raise TypeError(f"TidalPy: calc_love_numbers takes no '{keyword}' argument.")
+        cdef cnp.ndarray frequency_array = np.array(frequencies, dtype=np.float64)
+        cdef cnp.ndarray flat_frequencies = frequency_array.reshape(-1)
+        cdef Py_ssize_t num_frequencies = flat_frequencies.shape[0]
+        cdef dict out = {
+            "frequency": frequency_array,
+            "k": np.full(num_frequencies, np.nan, dtype=np.complex128),
+            "h": np.full(num_frequencies, np.nan, dtype=np.complex128),
+            "l": np.full(num_frequencies, np.nan, dtype=np.complex128),
+            "success": np.zeros(num_frequencies, dtype=np.bool_),
+            "message": np.empty(num_frequencies, dtype=object),
+        }
+        cdef Py_ssize_t frequency_i
+        for frequency_i in range(num_frequencies):
+            result = self.solve_love_numbers(frequency=flat_frequencies[frequency_i], **solve_love_numbers_kwargs)
+            out["success"][frequency_i] = result["success"]
+            out["message"][frequency_i] = result["message"]
+            if result["success"]:
+                out["k"][frequency_i] = result["love_number_k"]
+                out["h"][frequency_i] = result["love_number_h"]
+                out["l"][frequency_i] = result["love_number_l"]
+        for key in ("k", "h", "l", "success", "message"):
+            out[key] = out[key].reshape(np.shape(frequency_array))
+        return out
 
     def solve_love_numbers_supplied(
             self,
@@ -1984,6 +2519,24 @@ cdef class BaseWorld(StructureBase):
         return PyComplex_FromDoubles(v.real(), v.imag())
 
     @property
+    def love_q_k(self) -> float:
+        """Quality factor of the last solve's k [dimensionless]: Q = -s |k| / Im(k), with s the sign of Re(k).
+
+        The definition ``RadialSolverSolution.Q_k`` uses (``c_LoveNumbers::get_Q_k``); infinite for a purely elastic
+        k, NaN when :attr:`love_number_k` is.
+        """
+        return self._world_ptr.get().get_love_q_k(<size_t>0)
+
+    @property
+    def love_lag_k(self) -> float:
+        """Phase lag of the last solve's k [rad]: arctan2(-s Im(k), |Re(k)|), with s the sign of Re(k).
+
+        The definition ``RadialSolverSolution.lag_k`` uses (``c_LoveNumbers::get_lag_k``); 0 for a purely elastic
+        k, NaN when :attr:`love_number_k` is.
+        """
+        return self._world_ptr.get().get_love_lag_k(<size_t>0)
+
+    @property
     def love_number_h(self) -> complex:
         """Complex radial displacement Love number h2 from the last radial solve (NaN+0j if unsolved)."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_h(<size_t>0)
@@ -2010,16 +2563,43 @@ cdef class BaseWorld(StructureBase):
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_l(<size_t>ytype_idx)
         return PyComplex_FromDoubles(v.real(), v.imag())
 
-    def get_love_radial_y(self, double radius, ytype_idx: int = 0, y_idx: int = 0) -> complex:
+    def get_love_radial_y(self, radius, ytype_idx: int = 0, y_idx: int = 0):
         """Radial function y[y_idx + 1] (SI) at ``radius`` from the last radial-solver Love solve.
 
         The shooting method evaluates its dense per-layer interpolants at the radius; the propagation
         matrix interpolates its grid. NaN if unsolved, after an analytic (homogeneous/cpl/ctl) solve, out
         of range, or below the solver's starting radius. ``y_idx`` 0..5 selects y1..y6.
+
+        Parameters
+        ----------
+        radius : float or np.ndarray
+            Radius [m].
+        ytype_idx : int, optional
+            The boundary-condition entry of the solve's ``solve_for``. Default 0.
+        y_idx : int, optional
+            0..5 for y1..y6. Default 0.
+
+        Returns
+        -------
+        complex or np.ndarray
+            A complex for a scalar radius, else a complex array shaped like ``radius``.
         """
-        cdef cpp_complex[double] v = self._world_ptr.get().get_radial_solution_y(
-            radius, <size_t>ytype_idx, <size_t>y_idx)
-        return PyComplex_FromDoubles(v.real(), v.imag())
+        cdef c_BaseWorld* world_ptr = self._world_ptr.get()
+        cdef size_t ytype = <size_t>ytype_idx
+        cdef size_t y_index = <size_t>y_idx
+        cdef cpp_complex[double] v
+        if np.ndim(radius) == 0:
+            v = world_ptr.get_radial_solution_y(<double>radius, ytype, y_index)
+            return PyComplex_FromDoubles(v.real(), v.imag())
+        cdef cnp.ndarray radius_array = np.ascontiguousarray(radius, dtype=np.float64)
+        cdef cnp.ndarray out = np.empty(np.shape(radius_array), dtype=np.complex128)
+        cdef double[::1] radius_view = radius_array.reshape(-1)
+        cdef double complex[::1] out_view = out.reshape(-1)
+        cdef Py_ssize_t radius_i
+        for radius_i in range(radius_view.shape[0]):
+            v = world_ptr.get_radial_solution_y(radius_view[radius_i], ytype, y_index)
+            out_view[radius_i] = v.real() + 1j * v.imag()
+        return out
 
     def get_love_surface_y(self, ytype_idx: int, y_idx: int) -> complex:
         """Complex radial y-solution value at the surface for the given ytype and y index."""
@@ -2030,45 +2610,61 @@ cdef class BaseWorld(StructureBase):
     # Global (1D) tidal dissipation
     def calc_tides(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass):
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None) -> dict:
         """Solve the global tidal dissipation for the given orbital/spin state.
 
-        Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
-        :attr:`tidal_heating`, the three potential derivatives, and per-layer heating.
+        Requires an attached tide model (:meth:`set_tide_model`). The analytic models (cpl/ctl/ctl_q) collapse from
+        their fixed per-degree parameters. The rheology model instead runs the world radial solver at each unique
+        tidal frequency to find the global Love numbers, so the EOS must be solved first (:meth:`solve_eos`). The
+        result stays on the world for the getters (:meth:`get_tidal_heating`, :meth:`get_tidal_potential_derivatives`,
+        :meth:`get_layer_tidal_heating`) until the next solve, and becomes its tidal heat source
+        (:attr:`tidal_heat_source`).
 
-        The analytic models (cpl/ctl/ctl_q) collapse from their fixed per-degree parameters.
-        The rheology model instead runs the world radial solver at each unique tidal
-        frequency to find the global Love numbers, so the EOS must be solved first
-        (:meth:`solve_eos`).
+        Each orbital-state argument left as ``None`` comes from :meth:`get_tide_state`, the state the system the
+        world belongs to gives it (its orbit about its tidal host, the host's mass, and its own spin and obliquity),
+        so ``world.calc_tides()`` solves a world of a system in its current state, and
+        ``world.calc_tides(eccentricity=0.05)`` changes one value.
 
         Parameters
         ----------
-        orbital_frequency : float
+        orbital_frequency : float, optional
             Orbital mean motion [rad s-1].
-        spin_frequency : float
+        spin_frequency : float, optional
             Spin rate of the deformed body [rad s-1].
-        eccentricity : float
+        eccentricity : float, optional
             Orbital eccentricity [dimensionless].
-        obliquity : float
+        obliquity : float, optional
             Axial tilt [radians].
-        semi_major_axis : float
+        semi_major_axis : float, optional
             Orbital semi-major axis [m].
-        host_mass : float
+        host_mass : float, optional
             Mass of the tidal host [kg].
+
+        Returns
+        -------
+        dict
+            ``tidal_heating`` [W], the potential derivatives ``dU_dM``, ``dU_dw``, and ``dU_dO`` [J kg-1 rad-1] (see
+            :meth:`get_tidal_potential_derivatives`), ``num_tidal_modes``, and ``layer_tidal_heating`` (each layer's
+            heating [W] by name, as :meth:`get_layer_tidal_heating` gives it).
 
         Raises
         ------
+        ValueError
+            If an orbital-state argument is left out and the world has no tide state to take it from (it is not in a
+            system, or has no tidal host), or the state is invalid (an eccentricity outside [0, 1), say).
         RuntimeError
             If no tide model is attached, the rheology model is selected but the EOS has
             not been solved, a radial-solver Love-number solve fails, or the global
             potential solve fails.
         """
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "calc_tides",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2077,16 +2673,42 @@ cdef class BaseWorld(StructureBase):
             host_mass)
         with nogil:
             self._world_ptr.get().calc_tides(state)
+        cdef dict result = {"tidal_heating": self._world_ptr.get().get_tidal_heating()}
+        result.update(self.get_tidal_potential_derivatives())
+        result["num_tidal_modes"] = self._world_ptr.get().get_num_tidal_modes()
+        result["layer_tidal_heating"] = self.get_layer_tidal_heating()
+        return result
 
-    def get_layer_tidal_heating(self, index: int) -> float:
-        """Tidal heating [W] the last ``calc_tides`` put in layer ``index``; NaN before one.
+    def get_layer_tidal_heating(self, layer=None):
+        """Tidal heating [W] the last ``calc_tides`` put in a layer; NaN before one.
 
         With a radial-solver Love method it is the volume integral of the radial solution's heating density over the
         layer (NaN when the tides config's ``layer_tidal_heating`` is off); with the ``homogeneous``, ``cpl``, or
         ``ctl`` method, the heating of the layer's own scaled Love numbers; with an analytic tide model, the total
         times the layer's tidal scale.
+
+        Parameters
+        ----------
+        layer : int or str, optional
+            The layer's index (negative counts from the outermost) or name. Left out, every layer's heating.
+
+        Returns
+        -------
+        float or dict
+            The layer's heating [W], or with no ``layer`` a dict of each layer's heating by name, inner to outer.
+
+        Raises
+        ------
+        IndexError, KeyError
+            A layer index out of range, or a name the world does not have (see :meth:`get_layer`).
         """
-        return self._world_ptr.get().get_layer_tidal_heating(<size_t>index)
+        cdef c_BaseWorld* world_ptr = self._world_ptr.get()
+        cdef list names
+        cdef size_t layer_i
+        if layer is None:
+            names = cy_layer_names(world_ptr)
+            return {names[layer_i]: world_ptr.get_layer_tidal_heating(layer_i) for layer_i in range(len(names))}
+        return world_ptr.get_layer_tidal_heating(cy_layer_index(world_ptr, layer))
 
     @property
     def tidal_heat_source(self) -> dict:
@@ -2213,24 +2835,25 @@ cdef class BaseWorld(StructureBase):
                 out_view[radius_i] = world_ptr.get_heating(radius_view[radius_i])
         return out
 
-    def get_layer_tidal_scale(self, index: int) -> float:
-        """The tidal scale layer ``index`` carries in the quasi-homogeneous Love methods [dimensionless].
+    def get_layer_tidal_scale(self, layer) -> float:
+        """The tidal scale a layer carries in the quasi-homogeneous Love methods [dimensionless].
 
         The layer's configured ``tidal_scale``, or its volume over the planet's when none is set; 0 for a layer that
-        is not tidal.
+        is not tidal. ``layer`` is its index (negative counts from the outermost) or name; ``IndexError`` or
+        ``KeyError`` for one the world does not have (see :meth:`get_layer`).
         """
-        return self._world_ptr.get().get_layer_tidal_scale(<size_t>index)
+        return self._world_ptr.get().get_layer_tidal_scale(cy_layer_index(self._world_ptr.get(), layer))
 
     def get_3d_tidal_heating(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass,
-            double radius,
-            double colatitude) -> float:
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None,
+            radius=None,
+            colatitude=None) -> float:
         """Secular (cycle and orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
 
         This is the longitude mean of the time-averaged power density. The active tidal modes come from the
@@ -2247,8 +2870,17 @@ cdef class BaseWorld(StructureBase):
 
         Each call solves every radial response again, which costs about as much as the whole of
         :meth:`get_3d_tidal_heating_array` over hundreds of points; for more than one point, use that.
+
+        The six orbital-state arguments are those of :meth:`calc_tides`, each ``None`` taken from
+        :meth:`get_tide_state`; ``radius`` [m] and ``colatitude`` [rad] are required (by keyword when the orbital
+        state is left out).
         """
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cy_require_arguments("get_3d_tidal_heating", ("radius", "colatitude"), (radius, colatitude))
+        cdef double point_radius = <double>radius
+        cdef double point_colatitude = <double>colatitude
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "get_3d_tidal_heating",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2257,27 +2889,29 @@ cdef class BaseWorld(StructureBase):
             host_mass)
         cdef double heating
         with nogil:
-            heating = self._world_ptr.get().get_3d_tidal_heating(state, radius, colatitude)
+            heating = self._world_ptr.get().get_3d_tidal_heating(state, point_radius, point_colatitude)
         return heating
 
     def get_3d_tidal_heating_array(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass,
-            radii,
-            colatitudes,
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None,
+            radii=None,
+            colatitudes=None,
             int num_threads=0):
         """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
-        Batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired, equal-length 1D
-        arrays (point ``i`` is ``(radii[i], colatitudes[i])``) and a same-shape ``np.ndarray`` of heating is
-        returned. Same physics and preconditions as the scalar method, but the world radial response is solved
-        once per unique ``(degree l, |omega|)`` and reused across all points, so this is the efficient way to
-        build a zonal-mean heating map.
+        Batch form of :meth:`get_3d_tidal_heating`: ``radii`` [m] and ``colatitudes`` [rad] are paired, equal-length
+        1D arrays (point ``i`` is ``(radii[i], colatitudes[i])``), or one of them is a scalar that pairs with every
+        value of the other, and a 1D ``np.ndarray`` of heating, one value per point, is returned. Same physics and
+        preconditions as the scalar method, but the world radial response is solved once per unique
+        ``(degree l, |omega|)`` and reused across all points, so this is the efficient way to build a zonal-mean
+        heating map. The six orbital-state arguments are those of :meth:`calc_tides`, each ``None`` taken from
+        :meth:`get_tide_state`.
 
         ``num_threads`` spreads the radial solves (one per degree and frequency, from ``[numerical]``
         ``love_solve_min_parallel`` of them on) and then the per-point evaluation over that many threads; the result
@@ -2285,8 +2919,16 @@ cdef class BaseWorld(StructureBase):
         inside a process or thread pool that already occupies the machine.
         """
         cy_check_num_threads(num_threads)
-        cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
-        cdef cnp.ndarray colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
+        cy_require_arguments("get_3d_tidal_heating_array", ("radii", "colatitudes"), (radii, colatitudes))
+        cdef cnp.ndarray radii_arr = np.atleast_1d(np.asarray(radii, dtype=np.float64)).ravel()
+        cdef cnp.ndarray colat_arr = np.atleast_1d(np.asarray(colatitudes, dtype=np.float64)).ravel()
+        # A scalar (one value) pairs with every point of the other axis.
+        if (radii_arr.shape[0] == 1) and (np.ndim(radii) == 0):
+            radii_arr = np.full(colat_arr.shape[0], radii_arr[0])
+        if (colat_arr.shape[0] == 1) and (np.ndim(colatitudes) == 0):
+            colat_arr = np.full(radii_arr.shape[0], colat_arr[0])
+        radii_arr = np.ascontiguousarray(radii_arr)
+        colat_arr = np.ascontiguousarray(colat_arr)
         if radii_arr.shape[0] != colat_arr.shape[0]:
             raise ValueError("radii and colatitudes must have the same length")
 
@@ -2299,7 +2941,9 @@ cdef class BaseWorld(StructureBase):
         cdef double[::1] colat_view = colat_arr
         cdef double[::1] out_view   = out_arr
 
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "get_3d_tidal_heating_array",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2319,16 +2963,16 @@ cdef class BaseWorld(StructureBase):
 
     def calc_3d_displacements(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass,
-            radii,
-            colatitudes,
-            longitudes,
-            times,
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None,
+            radii=None,
+            colatitudes=None,
+            longitudes=None,
+            times=None,
             int num_threads=0) -> dict:
         """Instantaneous tidal displacements [m] on the grid ``(radius, colatitude, longitude, time)``.
 
@@ -2341,10 +2985,11 @@ cdef class BaseWorld(StructureBase):
 
         Parameters
         ----------
-        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float
-            The orbital/spin state, as for :meth:`calc_tides`.
+        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float, optional
+            The orbital/spin state, as for :meth:`calc_tides`: each ``None`` comes from :meth:`get_tide_state`.
         radii, colatitudes, longitudes, times : array-like of float
-            Grid axes [m], [rad], [rad], [s]; scalars are accepted.
+            Grid axes [m], [rad], [rad], [s]; scalars are accepted. Required (by keyword when the orbital state is
+            left out).
         num_threads : int, optional
             Threads for the radial solves (one per degree and frequency) and the per-point evaluation.
             Default 0, the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that
@@ -2363,12 +3008,18 @@ cdef class BaseWorld(StructureBase):
           and y3 (tangential) of each mode's radial solution.
         """
         cy_check_num_threads(num_threads)
+        cy_require_arguments(
+            "calc_3d_displacements",
+            ("radii", "colatitudes", "longitudes", "times"),
+            (radii, colatitudes, longitudes, times))
         cdef c_Grid3DAxes axes
         radii_arr, colat_arr, lon_arr, time_arr = cy_grid_axes(radii, colatitudes, longitudes, times, &axes)
         cdef cnp.ndarray out_arr = np.empty(
             (axes.num_radii, axes.num_colatitudes, axes.num_longitudes, axes.num_times, 3), dtype=np.float64)
         cdef double[:, :, :, :, ::1] out_view = out_arr
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "calc_3d_displacements",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2393,16 +3044,16 @@ cdef class BaseWorld(StructureBase):
 
     def calc_3d_stress_strain(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass,
-            radii,
-            colatitudes,
-            longitudes,
-            times,
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None,
+            radii=None,
+            colatitudes=None,
+            longitudes=None,
+            times=None,
             cpp_bool return_stress=True,
             cpp_bool return_strain=True,
             int num_threads=0) -> dict:
@@ -2417,10 +3068,11 @@ cdef class BaseWorld(StructureBase):
 
         Parameters
         ----------
-        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float
-            The orbital and spin state, as for :meth:`calc_tides`.
+        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float, optional
+            The orbital and spin state, as for :meth:`calc_tides`: each ``None`` comes from :meth:`get_tide_state`.
         radii, colatitudes, longitudes, times : array-like of float
-            Grid axes [m], [rad], [rad], [s]; scalars are accepted.
+            Grid axes [m], [rad], [rad], [s]; scalars are accepted. Required (by keyword when the orbital state is
+            left out).
         return_stress, return_strain : bool, optional
             Which tensors to compute; each takes 48 bytes per grid point and time. Default both.
         num_threads : int, optional
@@ -2455,6 +3107,10 @@ cdef class BaseWorld(StructureBase):
         if not (return_stress or return_strain):
             raise ValueError("At least one of return_stress and return_strain must be True.")
         cy_check_num_threads(num_threads)
+        cy_require_arguments(
+            "calc_3d_stress_strain",
+            ("radii", "colatitudes", "longitudes", "times"),
+            (radii, colatitudes, longitudes, times))
         cdef c_Grid3DAxes axes
         radii_arr, colat_arr, lon_arr, time_arr = cy_grid_axes(radii, colatitudes, longitudes, times, &axes)
         cdef tuple tensor_shape = (axes.num_radii, axes.num_colatitudes, axes.num_longitudes, axes.num_times, 6)
@@ -2475,7 +3131,9 @@ cdef class BaseWorld(StructureBase):
             strain_view = strain_arr
             strain_ptr = &strain_view[0, 0, 0, 0, 0]
 
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "calc_3d_stress_strain",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2505,12 +3163,12 @@ cdef class BaseWorld(StructureBase):
 
     def calc_3d_tides(
             self,
-            double orbital_frequency,
-            double spin_frequency,
-            double eccentricity,
-            double obliquity,
-            double semi_major_axis,
-            double host_mass,
+            orbital_frequency=None,
+            spin_frequency=None,
+            eccentricity=None,
+            obliquity=None,
+            semi_major_axis=None,
+            host_mass=None,
             radii=None,
             colatitudes=None,
             longitudes=None,
@@ -2550,7 +3208,8 @@ cdef class BaseWorld(StructureBase):
         ``times`` is required when ``orbit_averaged=False``. The returned dict carries the surviving axes plus
         either ``heating`` (ordered radius, colatitude, longitude, time) or, when all three spatial axes are
         summed, ``total`` [W] and ``per_layer`` [W] (innermost first, each an array over time when
-        instantaneous). Requires the rheology tide model and a solved EOS.
+        instantaneous). Requires the rheology tide model and a solved EOS. The six orbital-state arguments are those of
+        :meth:`calc_tides`, each ``None`` taken from :meth:`get_tide_state`.
 
         With ``latitude_summed``, ``longitude_summed``, and ``orbit_averaged`` the colatitude integral uses the
         precomputed analytic angular Gram table of the longitude mean (exact, no theta grid);
@@ -2617,7 +3276,9 @@ cdef class BaseWorld(StructureBase):
                 raise ValueError("times must be provided when orbit_averaged is False")
             time_arr = cy_grid_axis(times, &time_ptr, &num_time)
 
-        cdef c_TideSolveConfig state = cy_tide_state(
+        cdef c_TideSolveConfig state = cy_resolve_tide_state(
+            self,
+            "calc_3d_tides",
             orbital_frequency,
             spin_frequency,
             eccentricity,
@@ -2775,9 +3436,11 @@ cdef class BaseWorld(StructureBase):
         -------
         dict
             Keys: ``schema_version``, ``name``, ``type``, ``radius_m``, ``mass_kg``, ``albedo``, ``emissivity``,
-            ``obliquity_rad``, ``spin_frequency_rad_s``, ``moment_of_inertia_factor`` (the attached spin model's),
-            ``tides`` when set, the ``eos_solver`` and ``radial_solver`` tables when the world pins any solver key
-            (:meth:`set_solver_defaults`), ``layers`` when there are any, and ``prescribed_heating`` (by layer name,
+            ``obliquity_rad``, ``spin_frequency_rad_s``, ``moment_of_inertia_factor`` (the attached spin model's, when
+            the source configuration gave it or it differs from the ``[worlds]`` default for the world type; the
+            solved structure's factor is :attr:`moment_of_inertia_factor`), ``tides`` when set, the ``eos_solver``
+            and ``radial_solver`` tables when the world pins any solver key (:meth:`set_solver_defaults`), ``layers``
+            when there are any, and ``prescribed_heating`` (by layer name,
             ``power_w`` or ``specific_rate_w_kg``) when a layer has prescribed heating.
 
         Raises
@@ -2785,7 +3448,7 @@ cdef class BaseWorld(StructureBase):
         ValueError
             If two layers share a name (the table needs unique keys).
         """
-        from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION
+        from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION, world_type_defaults
         cdef c_BaseWorld* p = self._world_ptr.get()
         cdef dict config = {
             "schema_version":       SCHEMA_VERSION,
@@ -2804,8 +3467,12 @@ cdef class BaseWorld(StructureBase):
             tides["global_tidal_model"] = tides.pop("model")
             tides.update(self.get_tide_config())
             config["tides"] = tides
-        config["moment_of_inertia_factor"] = (
-            self._world_ptr.get().get_spin_model().get_config().moment_of_inertia_factor)
+        # The spin model's factor is written when the source configuration gave it or it differs from the [worlds]
+        # default this world type would take again; the default itself is the configuration's to supply.
+        cdef double moment_of_inertia_factor = p.get_spin_model().get_config().moment_of_inertia_factor
+        if (("moment_of_inertia_factor" in (self.source_config or {}))
+                or (moment_of_inertia_factor != world_type_defaults(config["type"]).get("moment_of_inertia_factor"))):
+            config["moment_of_inertia_factor"] = moment_of_inertia_factor
         config.update(self.get_solver_defaults())
         cdef dict layers = {}
         cdef dict layer_config

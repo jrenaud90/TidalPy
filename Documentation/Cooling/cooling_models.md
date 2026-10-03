@@ -50,7 +50,7 @@ flux, boundary_layer, rayleigh, nusselt = result
 
 | Model | Cooling flux $q$ [W m$^{-2}$] | Boundary layer | Ra | Nu | Profile in a thermal solve |
 |---|---|---|---|---|---|
-| `OffCooling` | $0$ | $0.5 \times$ thickness | 0 | 1 | Isothermal |
+| `OffCooling` | $0$ | none (NaN) | 0 | 1 | Isothermal |
 | `ConductiveCooling` | $k \, \Delta T / d$ | thickness $d$ | 0 | 1 | Two conducting halves |
 | `ConvectiveCooling` | $k \, \Delta T / \delta$ | $\delta = d / \mathrm{Nu}$ | see below | see below | Boundary layers around an adiabatic interior |
 

@@ -91,7 +91,7 @@ def test_spin_derivative_uses_eos_moi():
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     world.calc_tides(orbital_frequency=_N, spin_frequency=1.5 * _N, eccentricity=_ECC,
                      obliquity=0.0, semi_major_axis=sma, host_mass=_HOST)
-    _, _, dU_dO = world.get_tidal_potential_derivatives()
+    _, _, dU_dO = world.get_tidal_potential_derivatives().values()
     moi = world.get_moment_of_inertia()
     expected = Spin().calc_dspin_dt(_HOST, dU_dO, moi)
     assert math.isclose(world.calc_spin_derivative(_HOST), expected, rel_tol=1e-14)
@@ -109,7 +109,7 @@ def test_energy_balance(spin_factor):
                      obliquity=0.0, semi_major_axis=sma, host_mass=_HOST)
 
     heating = world.get_tidal_heating()
-    dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives()
+    dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives().values()
     moi = world.get_moment_of_inertia()
     dspin_dt = world.calc_spin_derivative(_HOST)
 

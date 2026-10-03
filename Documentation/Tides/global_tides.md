@@ -57,10 +57,14 @@ A zero or absent $Q_{l}$ is treated as purely elastic (no dissipation) rather th
 from TidalPy.Tides.classes import (
     RheologyTide, FixedQTide, FixedLagTide, CTLQTide,
     make_tide, collapse_global_tides)
-from TidalPy.constants import G
 
 # Build a model directly or by name (aliases, case-insensitive):
 tide = make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]})
+same_tide = make_tide(
+    "cpl",
+    fixed_k=[0.3],
+    fixed_q=[50.0])                                              # The same model, parameters as keywords
+print(tide)                                                      # FixedQTide('fixed_q', fixed_k=[0.3], fixed_q=[50])
 
 love    = tide.calc_love_numbers(degree_l=2, frequency=4.1e-5)   # LoveNumbers(k=0.3-0.006j, h=nan, l=nan)
 neg_imk = tide.calc_neg_imk(degree_l=2, frequency=4.1e-5)        # 0.006
@@ -77,7 +81,7 @@ result = collapse_global_tides(
     obliquity=0.0,
     semi_major_axis=4.22e8,
     host_mass=1.898e27,
-    G_to_use=G,
+    G_to_use=None,            # None takes the configured G (SciPy's)
     tide_model="cpl",
     tide_config={"fixed_k": [0.3], "fixed_q": [50.0]},
     max_degree_l=2,
@@ -87,7 +91,7 @@ result = collapse_global_tides(
 
 **Parameters**
 
-Constructors take the model's parameters by argument name or config key, as keywords, positionally in the order `get_parameter_info()` lists them, or as one table through `config=`. `make_tide(model_name, config=None)` resolves a name or alias case-insensitively and builds the model from `config`. A list left out (or `None`) takes its `[tides]` value of the TidalPy configuration, through the class and `make_tide` alike, so `FixedQTide([0.3])` has the configured Q rather than none.
+Constructors take the model's parameters by argument name or config key, as keywords, positionally in the order `get_parameter_info()` lists them, or as one table through `config=`. `make_tide(model_name, config=None, **parameters)` resolves a name or alias case-insensitively and builds the model from `config`, with keyword parameters (argument names or config keys) merged over it. A list left out (or `None`) takes its `[tides]` value of the TidalPy configuration, through the class and `make_tide` alike, so `FixedQTide([0.3])` has the configured Q rather than none.
 
 | Parameter | Config key | Default | Bounds | Models |
 |---|---|---|---|---|
@@ -107,7 +111,7 @@ The parameters read as attributes (`tide.fixed_k`, a list), and every model has 
 | `calc_neg_imk(degree_l, frequency, solver_love=None)` | float | Dissipation multiplier `−Im[k_l]`. |
 | `needs_radial_solve` | bool | `True` only for `RheologyTide`. |
 | `get_fixed_k(degree_l)`, `get_fixed_q(degree_l)`, `get_fixed_dt(degree_l)` | float | Static Love number, quality factor, and time lag \[s\] for that degree, 0 past the end of the list. Defined on every model: a model that does not carry the parameter (the `rheology` model carries none) returns NaN, which is how a world's `cpl` or `ctl` Love method decides whether it can fall back to the attached tide model. See [Love numbers](love/love_numbers.md). |
-| `model_name` | str | The model's canonical name, for example `fixed_q`. |
+| `model_name` | str | The model's canonical name, for example `fixed_q`. `repr(tide)` shows it with the first parameters, the one-line form every physics model shares. |
 | `get_config_dict()` | dict | `model` plus the model's per-degree lists by config key, as given (not padded to nine degrees). |
 | `save_config(path)`, `save_binary(path)`, `load_binary(path)`, `get_schema_version_str()` | - | Configuration output, the binary record (its parameters written by key), and the schema version, shared by every physics model; see [Base Classes](../Utilities/classes.md). |
 

@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from TidalPy.Structures.configs.world_builder import construct_world
+from TidalPy.Structures.configs.world_builder import build_world
 
 _RADIUS = 2.0e6            # [m]
 _CORE_FRACTION = 0.5
@@ -47,7 +47,7 @@ def _config(core_floats=False, mantle_floats=False, core_density=_CORE_DENSITY, 
 
 
 def _solve(config, **kwargs):
-    world = construct_world(config)
+    world = build_world(config)
     result = world.solve_eos(**kwargs)
     assert result["success"], result["message"]
     return world, result
@@ -59,7 +59,7 @@ def test_is_volume_fixed_defaults_to_true_and_round_trips():
     assert world.get_config_dict()["layers"]["core"]["is_volume_fixed"] is True
     floating, _ = _solve(_config(core_floats=True))
     assert floating.core.is_volume_fixed is False
-    rebuilt = construct_world(floating.get_config_dict())
+    rebuilt = build_world(floating.get_config_dict())
     assert rebuilt.core.is_volume_fixed is False
 
 
@@ -111,7 +111,7 @@ def test_a_compressible_floating_layer_conserves_its_mass():
         "reference_density_kg_m3": _CORE_DENSITY,
         "reference_bulk_modulus_pa": 1.3e11,
         "bulk_modulus_derivative": 4.5}}}
-    reference = construct_world(_config())
+    reference = build_world(_config())
     reference.solve_eos()
     target_mass = reference.core.mass
     config["layers"]["core"]["mass_kg"] = target_mass

@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from TidalPy.Structures.configs.world_builder import construct_world
+from TidalPy.Structures.configs.world_builder import build_world
 
 _RADIUS = 2.0e6           # [m]
 _CORE_FRACTION = 0.5
@@ -30,7 +30,7 @@ def _config(core, core_density=8000.0, mantle_cooling="conduction", **mantle_key
 
 
 def _solve(config):
-    world = construct_world(config)
+    world = build_world(config)
     result = world.solve_eos(surface_temperature=_SURFACE_TEMPERATURE)
     assert result["success"], result["message"]
     return world, result

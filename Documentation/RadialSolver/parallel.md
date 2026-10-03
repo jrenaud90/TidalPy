@@ -1,6 +1,6 @@
 # Parallel Love Solves
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-02_
 
 Both entry points to the radial solver, the standalone `radial_solver` and `BaseWorld.solve_love_numbers`, release Python's interpreter lock while the solve runs, so a thread pool can run several solves at once. A process pool works as well, with the setup described below. `calc_tides` and the 3D grid methods also use threads of their own.
 
@@ -108,7 +108,7 @@ for thread_index, chunk in enumerate(chunks):
     k2[thread_index::num_threads] = chunk     # Back into the order of `frequencies`
 ```
 
-This ran 6.6 times faster than a serial loop on one world, with identical results. To copy a world that was built or edited in code rather than loaded by name, rebuild it from its configuration with `build_world(world.get_config_dict())`. The copy starts unsolved, so you need to call `solve_eos` on it again.
+This ran 6.6 times faster than a serial loop on one world, with identical results. To copy a world that was built or edited in code rather than loaded by name, use `world.copy()` (or `copy.deepcopy(world)`), which carries every layer, model, and setting through the world's binary record. The copy starts unsolved, so you need to call `solve_eos` on it again.
 
 ### Sharing One World
 
@@ -150,7 +150,7 @@ The lock lets only one solve run at a time, so the threads wait on each other in
 
 A process pool also runs world-attached and standalone solves in parallel, and each process has its own worlds and configuration, so none of the races above can occur between processes. Three points differ from threads:
 
-- Worlds cannot be pickled, so they cannot be sent to a worker. Send what the world is built from instead: a bundled name, a TOML path, or the dict from `world.get_config_dict()`, and build and solve the world inside the worker.
+- A world pickles through its binary record, so it can be sent to a worker, where it arrives unsolved: call `solve_eos` inside the worker. Sending what the world is built from (a bundled name, a TOML path, or the dict from `world.get_config_dict()`) works as well.
 - On Windows and macOS, workers are started fresh (the `spawn` method) and load the configuration file, so a `TidalPy.reinit(provided_config=...)` override made in the main process does not reach them. Pass the same override to each worker through the pool's `initializer`.
 - The script's main code must sit under `if __name__ == "__main__":`, because each spawned worker imports the script.
 

@@ -111,7 +111,7 @@ def test_rheology_per_mode_love_is_dissipative():
 def test_rheology_potential_derivatives_present():
     """calc_tides fills a nonzero dU/dM."""
     world = _solved_rheology_world()
-    dUdM, _, _ = world.get_tidal_potential_derivatives()
+    dUdM, _, _ = world.get_tidal_potential_derivatives().values()
     assert abs(dUdM) > 0.0
 
 

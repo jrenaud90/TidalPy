@@ -80,8 +80,8 @@ public:
         const std::string class_id_str = std::to_string(header.class_id);
         if (header.class_id != this->get_binary_class_id()) {
             throw std::runtime_error(
-                "TidalPy: corrupt binary data: a record of class id " + class_id_str + " stands where a record of "
-                "class id " + std::to_string(this->get_binary_class_id()) + " belongs");
+                "TidalPy: corrupt binary data: a " + c_binary_class_name(header.class_id) + " record stands where a "
+                + c_binary_class_name(this->get_binary_class_id()) + " record belongs");
         }
         // c_read_binary_record_header checked that the stream holds the whole payload.
         std::string payload(static_cast<std::size_t>(header.payload_size), '\0');
@@ -149,29 +149,34 @@ public:
     // schema-version check. The record must end exactly at the end of the file: bytes left over mean the reader and
     // the writer disagree about the layout, or the file is corrupt, so the load raises.
     void load_binary(const std::string& path, bool force = false) {
-        const std::string record_bytes = c_read_binary_file(path);
+        this->load_binary_bytes(c_read_binary_file(path), "binary file " + path, force);
+    }
+
+    // load_binary from one complete record held in memory (write_binary_bytes), as a copy or an unpickled object is
+    // read; source names the record in the error messages.
+    void load_binary_bytes(const std::string& record_bytes, const std::string& source, bool force = false) {
         std::istringstream header_stream(record_bytes, std::ios::in | std::ios::binary);
         const c_BinaryHeader file_header = c_peek_binary_header(header_stream);
         const uint32_t own_class_id = this->get_binary_class_id();
         if (file_header.class_id != own_class_id) {
+            const std::string file_class = c_binary_class_name(file_header.class_id);
             throw std::runtime_error(
-                "TidalPy: cannot load binary file " + path + ": it holds a record of class id "
-                + std::to_string(file_header.class_id) + ", not this object's class id "
-                + std::to_string(own_class_id) + "; load it into an object of the class that saved it");
+                "TidalPy: cannot load " + source + ": it is a " + file_class + " file, not a "
+                + c_binary_class_name(own_class_id) + " one; load it into a " + file_class);
         }
 
         // A scratch of a parent class, from a subclass that does not override make_binary_scratch, cannot read this
         // record, so it takes the snapshot path instead.
         const std::unique_ptr<c_TidalPyBaseClass> scratch = this->make_binary_scratch();
         if (scratch && (scratch->get_binary_class_id() == own_class_id)) {
-            this->p_read_whole_record(*scratch, record_bytes, path, force);
-            this->p_read_whole_record(*this, record_bytes, path, force);
+            this->p_read_whole_record(*scratch, record_bytes, source, force);
+            this->p_read_whole_record(*this, record_bytes, source, force);
             return;
         }
 
         const std::string snapshot_bytes = this->p_write_binary_bytes();
         try {
-            this->p_read_whole_record(*this, record_bytes, path, force);
+            this->p_read_whole_record(*this, record_bytes, source, force);
         }
         catch (const std::exception& load_error) {
             try {
@@ -189,6 +194,12 @@ public:
             }
             throw;
         }
+    }
+
+    // This object's whole record (header and payload) as bytes, the in-memory form of save_binary; a world's copy and
+    // pickle go through it.
+    std::string write_binary_bytes() const {
+        return this->p_write_binary_bytes();
     }
 
     // A new object of this object's own concrete class in its default state, which load_binary reads a file into
@@ -218,19 +229,19 @@ protected:
     }
 
     // Reads the record held in record_bytes into target, then raises unless the read stayed within the bytes and
-    // ended exactly at their end. path names the file in the error messages.
+    // ended exactly at their end. source names the file or record in the error messages.
     static void p_read_whole_record(
-            c_TidalPyBaseClass& target, const std::string& record_bytes, const std::string& path, bool force) {
+            c_TidalPyBaseClass& target, const std::string& record_bytes, const std::string& source, bool force) {
         std::istringstream in(record_bytes, std::ios::in | std::ios::binary);
         target.read_binary(in, force);
         if (in.fail()) {
             throw std::runtime_error(
-                "TidalPy: corrupt or truncated binary data: reading " + path + " ran past the end of the file");
+                "TidalPy: corrupt or truncated binary data: reading " + source + " ran past the end of its data");
         }
         if (in.peek() != std::char_traits<char>::eof()) {
             const uint64_t num_trailing = binary_bytes_remaining(in);
             throw std::runtime_error(
-                "TidalPy: corrupt binary data: " + path + " holds " + std::to_string(num_trailing)
+                "TidalPy: corrupt binary data: " + source + " holds " + std::to_string(num_trailing)
                 + " bytes after the end of its record, so it was written with a layout this TidalPy build does not "
                 "read, or it is corrupt");
         }

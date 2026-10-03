@@ -17,6 +17,8 @@ import toml
 
 import TidalPy
 from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir
+from TidalPy.Utilities.binary import binary_file_class
+from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Utilities.data_pack import DataPack
 
 
@@ -153,8 +155,8 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
         + ", ".join(candidates))
 
 
-def resolve_world_path(name: str) -> str:
-    """Resolve a bundled world name to a TOML file path.
+def resolve_world_path(name: str, kind: str = WORLD_CONFIG) -> str:
+    """Resolve a bundled world or system name to a TOML file path.
 
     The packaged worlds are installed into the data directory first; the data
     directory is then searched, falling back to the packaged directory.
@@ -162,40 +164,67 @@ def resolve_world_path(name: str) -> str:
     Parameters
     ----------
     name : str
-        A bundled world name (without the ``.toml`` extension).
+        A bundled name (without the ``.toml`` extension).
+    kind : str, optional
+        :data:`WORLD_CONFIG` (default) or :data:`SYSTEM_CONFIG`: the kind of configuration looked for, whose bundled
+        names an unknown name's error lists.
 
     Returns
     -------
     str
-        Absolute path to the world's TOML file.
+        Absolute path to the configuration's TOML file.
 
     Raises
     ------
     FileNotFoundError
-        If no bundled world of that name exists in either location.
+        If no bundled configuration of that name exists in either location; the message names the closest bundled
+        name and lists them all.
     """
     # The bundled names are lowercase; matching them that way works the same on case-sensitive file systems.
     path = WORLD_PACK.find(name.lower() + ".toml")
     if path is not None:
         return path
+    names = _available_configs(kind)
     raise FileNotFoundError(
-        f"No bundled WorldPack world named '{name}' was found in the data "
-        f"directory ({WORLD_PACK.install()}) or the packaged worlds "
-        f"({PACKAGED_WORLDPACK_DIR}).")
+        f"No bundled WorldPack {kind} named '{name}'{did_you_mean(name.lower(), names)} was found in the data "
+        f"directory ({WORLD_PACK.install()}) or the packaged worlds ({PACKAGED_WORLDPACK_DIR}). Bundled {kind}s: "
+        f"{', '.join(names)}.")
+
+
+def binary_source_class(source):
+    """The class a resolved source holds when it is a TidalPy binary file, else None.
+
+    A builder checks this first, so a binary file given to ``build_world`` or ``build_system`` is loaded rather than
+    read as TOML.
+
+    Parameters
+    ----------
+    source : str or dict
+        A resolved source (:func:`resolve_source`).
+
+    Returns
+    -------
+    str or None
+        The class name the binary record names (``"TerrestrialWorld"``, ``"System"``, ...), or None for a dict or a
+        file that is not a TidalPy binary file.
+    """
+    if isinstance(source, str) and os.path.isfile(source):
+        return binary_file_class(source)
+    return None
 
 
 def resolve_source(source, kind: str):
     """Resolve a world or system source to a file path or a configuration dict.
 
     A ``dict`` is returned unchanged. A string (or path-like object) is a file path when it ends in ``.toml`` or
-    names an existing file; otherwise it is looked up as a bundled name in the shared pack (data directory
-    preferred over the packaged copy, see :func:`resolve_world_path`). Worlds and systems live side by side
-    there, told apart by content.
+    names an existing file (a TOML file or a binary file, see :func:`binary_source_class`); otherwise it is looked up
+    as a bundled name in the shared pack (data directory preferred over the packaged copy, see
+    :func:`resolve_world_path`). Worlds and systems live side by side there, told apart by content.
 
     Parameters
     ----------
     source : str, os.PathLike, or dict
-        A bundled name, a path to a ``.toml`` file, or a configuration dict.
+        A bundled name, a path to a ``.toml`` or binary file, or a configuration dict.
     kind : str
         :data:`WORLD_CONFIG` or :data:`SYSTEM_CONFIG`, named in the error for an unsupported source.
 
@@ -218,7 +247,7 @@ def resolve_source(source, kind: str):
     if isinstance(source, str):
         if source.endswith(".toml") or os.path.isfile(source):
             return source
-        return resolve_world_path(source)
+        return resolve_world_path(source, kind)
     raise TypeError(
         f"Unsupported {kind} source type: {type(source)}. Provide a bundled {kind} "
         "name, a path to a .toml file, or a configuration dict.")

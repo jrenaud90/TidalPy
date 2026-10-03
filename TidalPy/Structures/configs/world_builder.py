@@ -4,9 +4,9 @@ Turns a validated configuration dict into a fully wired C++/Cython world: the wo
 stack of layers, and each layer's material and attached physics models.
 
 :func:`build_world` resolves a source (bundled name, file path, or dict), validates it, and returns the
-built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed dict, and
-:func:`build_world_from_dict` and :func:`build_layer_from_dict` rebuild an object from the dictionary its
-``get_config_dict`` returns.
+built world, so ``build_world(world.get_config_dict())`` rebuilds a world; :func:`load_world` reads a binary file
+into a new world; :func:`build_layer_from_dict` rebuilds a standalone layer from the dictionary its
+``get_config_dict`` returns, and :func:`construct_layer` builds one layer of a world from its table.
 
 A layer's material is a MatPack name or a material table (:func:`TidalPy.Material.load_material`); a layer that names
 none takes ``[layers] material`` of ``TidalPy_Configs.toml``. Every other value a layer table omits takes the
@@ -15,12 +15,13 @@ layer's or the model factory's own default.
 
 import copy
 import math
+import os
 import re
 import warnings
 from typing import Optional, Union, Callable
 
 from TidalPy.Structures.layers.layer import Layer
-from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Structures.worlds.base import BaseWorld, world_from_bytes
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
@@ -53,6 +54,7 @@ from TidalPy.Structures.configs.toml_loader import (
     world_type_defaults,
 )
 from TidalPy.Structures.configs import worldpack
+from TidalPy.Utilities.binary import binary_file_class
 
 # Model table of a layer -> the factory that builds it. Each model is passed as the Layer constructor argument of the
 # same name.
@@ -809,45 +811,33 @@ def _expand_radial_data(config: dict) -> dict:
     return config
 
 
-# What a world built from a radial profile pins on itself; see construct_world.
+# What a world built from a radial profile pins on itself; see _construct_owned_world.
 DATA_FILE_EOS_INTEGRATION_METHOD = "RK45"
 
 
-def construct_world(config: dict):
-    """Construct a world (and all its layers) from a validated configuration dict.
+def _construct_owned_world(config: dict):
+    """Construct a world (and all its layers) from a configuration dict the caller hands over, which the world keeps.
 
-    If the config carries a radial profile (``data_file``, a path, or ``data``, a mapping of
-    arrays) instead of layer tables, its layers are detected from that profile (and merged with any
-    user ``[layers.*]`` tables) before construction; see :func:`_expand_radial_data`.
+    The one world builder behind :meth:`BaseWorld.build` (and so :func:`build_world`), which hands it a private copy
+    of the configuration. If the config carries a radial profile (``data_file``, a path, or ``data``, a mapping of
+    arrays) instead of layer tables, its layers are detected from that profile (and merged with any user
+    ``[layers.*]`` tables) before construction; see :func:`_expand_radial_data`.
 
     Parameters
     ----------
     config : dict
-        The world configuration dictionary. It is not modified, and the world keeps a copy of its own.
+        The world configuration dictionary, kept by the world as its ``source_config``.
 
     Returns
     -------
     BaseWorld
-        The constructed Cython world object (``TerrestrialWorld``, ``GasGiantWorld``, ``StarWorld``, or
-        ``BaseWorld`` for the ``layered`` type), with the normalized ``config`` retained on its
-        ``source_config`` attribute (so it can be written back to TOML via
-        ``world.save_to_toml``).
+        The constructed world (``TerrestrialWorld``, ``GasGiantWorld``, ``StarWorld``, or ``BaseWorld`` for the
+        ``layered`` type).
 
     Raises
     ------
     ValueError
-        If the configuration fails structural validation.
-    """
-    # Copied so that editing the caller's dict afterwards (a parameter sweep, say) leaves the world's record of
-    # what it was built from as it was.
-    return _construct_owned_world(copy.deepcopy(config))
-
-
-def _construct_owned_world(config: dict):
-    """:func:`construct_world` for a configuration the caller hands over, which the world keeps as it is.
-
-    A caller that already holds a private copy of the configuration (:meth:`BaseWorld.build` makes one while
-    loading it) uses this to avoid a second copy.
+        If the configuration fails validation.
     """
     given = config
     config = _expand_radial_data(config)
@@ -1103,9 +1093,10 @@ def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
         The world's radius [m], used to resolve fractional outer-radius specifiers.
     """
     radius_inner = 0.0
-    for index, layer_name, layer_cfg in ordered_layers(layers_cfg):
+    # A file's layer_index only orders the layers (it may skip values); each layer's index is its place in the stack.
+    for position, (_, layer_name, layer_cfg) in enumerate(ordered_layers(layers_cfg)):
         radius_outer = outer_radius_from_spec(layer_name, layer_cfg, radius_inner, world_radius)
-        layer = construct_layer(layer_name, layer_cfg, layer_index=index,
+        layer = construct_layer(layer_name, layer_cfg, layer_index=position,
                                 radius_inner=radius_inner, radius_outer=radius_outer)
         world.add_layer(layer)
         radius_inner = radius_outer
@@ -1116,17 +1107,21 @@ def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
     return worldpack.resolve_source(source, worldpack.WORLD_CONFIG)
 
 
-def build_world(source: Union[str, dict], force: bool = False):
-    """Build a world from a bundled name, file path, or config dict.
+def build_world(source: Union[str, dict], overrides: Optional[dict] = None, force: bool = False):
+    """Build a world from a bundled name, a file path, or a config dict.
 
-    Thin wrapper over :meth:`BaseWorld.build
-    <TidalPy.Structures.worlds.base.BaseWorld.build>`. Returns the concrete world class for the
-    configuration's ``type``, with the normalized configuration on its ``source_config`` attribute.
+    Thin wrapper over :meth:`BaseWorld.build <TidalPy.Structures.worlds.base.BaseWorld.build>`. Returns the concrete
+    world class for the configuration's ``type``, with the normalized configuration on its ``source_config``
+    attribute. ``build_world(world.get_config_dict())`` rebuilds a world of the same class, with the same parameters,
+    layers, models, and tide settings (unsolved). A path to a binary file is loaded with :func:`load_world`.
 
     Parameters
     ----------
-    source : str or dict
-        A bundled world name, a path to a ``.toml`` file, or a configuration dict.
+    source : str, os.PathLike, or dict
+        A bundled world name, a path to a ``.toml`` or binary file, or a configuration dict (not modified).
+    overrides : dict, optional
+        Values merged over the configuration before the build, table by table, so a nested table only needs the keys
+        it changes: ``build_world("io", {"tides": {"eccentricity_trunc_lvl": 20}})``. Default None.
     force : bool, optional
         If True, bypass the schema-version compatibility warning. Default False.
 
@@ -1135,42 +1130,55 @@ def build_world(source: Union[str, dict], force: bool = False):
     BaseWorld
         The constructed world (a ``BaseWorld`` subclass).
     """
-    return BaseWorld.build(source, force=force)
+    return BaseWorld.build(source, overrides=overrides, force=force)
 
 
-def build_world_from_dict(config: dict, force: bool = False):
-    """Rebuild a world from the dictionary its ``get_config_dict`` returns.
+# The world classes by the class name a binary world record gives (TidalPy.Utilities.binary.binary_file_class).
+_WORLD_CLASSES_BY_NAME = {
+    world_class.__name__: world_class for world_class in (BaseWorld, TerrestrialWorld, GasGiantWorld, StarWorld)}
 
-    The rebuilt world is of the same class, with the same parameters, layers, attached models, and tide
-    settings. Solved state (the EOS, Love numbers, tides) is not part of a configuration, so run the solves
-    again on the new world.
+
+def load_world(path, force: bool = False):
+    """Load a world from a TidalPy binary file (``save_binary``) as a new world of the class that saved it.
+
+    The world comes back with its layers, materials, physics models, tide model and settings, pinned solver settings,
+    spin model, and prescribed heating, unsolved (run ``solve_eos`` and ``calc_tides`` again) and outside any system.
 
     Parameters
     ----------
-    config : dict
-        A world configuration, as returned by ``world.get_config_dict()`` or written by hand to the same
-        schema. It is not modified, and the new world does not share it.
+    path : str or os.PathLike
+        The binary file.
     force : bool, optional
-        If True, bypass the schema-version compatibility warning. Default False.
+        Load even on a schema version mismatch. Default False.
 
     Returns
     -------
     BaseWorld
-        The rebuilt world (a ``BaseWorld`` subclass).
+        A ``BaseWorld``, ``TerrestrialWorld``, ``GasGiantWorld``, or ``StarWorld``.
 
     Raises
     ------
-    TypeError
-        If ``config`` is not a dict (use :func:`build_world` for a bundled name or a file path).
-    ValueError
-        If the configuration fails validation.
+    FileNotFoundError
+        ``path`` does not exist.
+    IOError
+        The file is not a world's binary file (the message names what it holds), or it is corrupt or of an
+        incompatible schema version.
     """
-    if not isinstance(config, dict):
-        raise TypeError(
-            f"build_world_from_dict needs a configuration dict, not {type(config)}. "
-            "Use build_world for a bundled world name or a file path.")
-    # BaseWorld.build copies a dict source before using it, so the caller's dict is neither kept nor edited.
-    return BaseWorld.build(config, force=force)
+    file_path = os.fspath(path)
+    class_name = binary_file_class(file_path)
+    if class_name not in _WORLD_CLASSES_BY_NAME:
+        what = "not a TidalPy binary file" if class_name is None else f"a {class_name} file"
+        hint = "; load it with load_system" if class_name == "System" else ""
+        raise IOError(f"TidalPy: cannot load '{file_path}' as a world: it is {what}{hint}.")
+    with open(file_path, "rb") as file:
+        record = file.read()
+    try:
+        return world_from_bytes(_WORLD_CLASSES_BY_NAME[class_name], record, force=force)
+    except IOError as error:
+        detail = str(error)
+        if detail.startswith("TidalPy: "):
+            detail = detail[len("TidalPy: "):]
+        raise IOError(f"TidalPy: cannot load binary file '{file_path}': {detail}") from error
 
 
 def available_worlds() -> list:

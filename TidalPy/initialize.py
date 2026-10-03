@@ -17,10 +17,12 @@ def is_notebook() -> bool:
 def build_logging_config() -> dict:
     """Map the ``[logging]`` configuration section onto the C++ (spdlog) logger configuration.
 
-    The console and file levels carry over; the console is silenced in a notebook unless ``print_log_notebook`` is
-    set; and the file sink is enabled only when ``write_log_to_disk`` is set (and ``write_log_notebook`` in a
-    notebook) outside test mode. The log file is timestamped and lives in the run output directory (``use_cwd``) or
-    the TidalPy data directory's ``Logs`` folder; without a usable data directory that second choice writes none.
+    The console and file levels carry over. In a notebook the console keeps its messages for
+    :func:`register_notebook_log_printer` to print below each cell, and prints only those at
+    ``notebook_console_level`` and above (warnings, by default) unless ``print_log_notebook`` is set. The file sink
+    is enabled only when ``write_log_to_disk`` is set (and ``write_log_notebook`` in a notebook) outside test mode.
+    The log file is timestamped and lives in the run output directory (``use_cwd``) or the TidalPy data directory's
+    ``Logs`` folder; without a usable data directory that second choice writes none.
 
     Returns
     -------
@@ -29,6 +31,7 @@ def build_logging_config() -> dict:
     """
     import TidalPy
     from TidalPy.paths import get_log_dir, timestamped_str
+    from TidalPy.Utilities.logging.logger import resolve_log_level
 
     if not TidalPy.config or TidalPy.config.get('logging') is None:
         return {}
@@ -37,7 +40,9 @@ def build_logging_config() -> dict:
 
     console_level = logging_config['console_level']
     if in_notebook and not logging_config['print_log_notebook']:
-        console_level = 'off'
+        # The stricter of the two, so a notebook prints the warnings but never more than the console would.
+        console_level = max(
+            resolve_log_level(console_level), resolve_log_level(logging_config['notebook_console_level']))
 
     log_to_file = bool(logging_config['write_log_to_disk']) and not TidalPy._test_mode
     if in_notebook and not logging_config['write_log_notebook']:
@@ -63,7 +68,23 @@ def build_logging_config() -> dict:
         'file_level': logging_config['file_level'],
         'log_to_file': log_to_file,
         'log_file_path': log_file_path,
+        'console_pending': in_notebook,
     }
+
+
+def register_notebook_log_printer():
+    """Print the log messages a notebook's console keeps below each cell once the cell has run.
+
+    Registers ``TidalPy.Utilities.logging.logger.print_pending_messages`` as an IPython ``post_run_cell`` hook, once
+    per kernel. A notebook kernel does not show what C++ writes to the process's stdout on every platform, so the
+    console sink keeps its messages (``console_pending``) and this hook writes them to the cell through
+    ``sys.stderr``.
+    """
+    from TidalPy.Utilities.logging.logger import print_pending_messages
+
+    events = get_ipython().events
+    if print_pending_messages not in events.callbacks['post_run_cell']:
+        events.register('post_run_cell', print_pending_messages)
 
 
 def initialize(provided_config=None):
@@ -110,6 +131,8 @@ def initialize(provided_config=None):
 
     # Logging.
     init_logger(build_logging_config())
+    if TidalPy._in_jupyter:
+        register_notebook_log_printer()
     if TidalPy._tidalpy_init:
         TidalPy._tidalpy_init = False
         log_debug('TidalPy reinitializing...')

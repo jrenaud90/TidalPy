@@ -39,7 +39,7 @@ welcome_to_earth = BaseWorld(
 )                                                     # A world with no layers yet
 ```
 
-**Read-only properties:** `name`, `world_type`, `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`.
+**Read-only properties:** `name`, `world_type`, `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`, and `moment_of_inertia_factor` ($C / (M R^2)$ of the solved structure: the solved moment of inertia over the solved mass times the radius squared; NaN before a successful `solve_eos`, while a spin calculation uses the spin model's factor, see [Other World Members](#other-world-members)).
 
 **Methods**
 
@@ -48,11 +48,24 @@ welcome_to_earth = BaseWorld(
 | `calc_surface_gravity()` | float [m/s²] | $GM/R^{2}$. |
 | `calc_escape_velocity()` | float [m/s] | $\sqrt{2GM/R}$. |
 | `calc_mean_density()` | float [kg/m³] | $M / (\tfrac{4}{3}\pi R^{3})$. |
-| `calc_equilibrium_temperature(F)` | float [K] | $\left[(1-A)\,F/(4\varepsilon\sigma)\right]^{1/4}$ (fast rotator, $F$ = insolation flux [W/m²]). |
+| `calc_equilibrium_temperature(F)` | float or array [K] | $\left[(1-A)\,F/(4\varepsilon\sigma)\right]^{1/4}$ (fast rotator, $F$ = insolation flux [W/m²], a float or an array of any shape). |
 | `set_spin_frequency(ω)` | - | Set rotation rate [rad/s]. A `System` reads it when it builds the world's tidal state; `calc_tides` takes its spin rate as an argument, so a tidal result already solved is left alone. |
 | `set_obliquity(θ)` | - | Set axial obliquity [rad]. The same holds as for the spin rate. |
+| `copy()` | world | An independent world of the same class with the same state, built through the binary record (see [Binary Serialization](#binary-serialization)). `copy.copy`, `copy.deepcopy`, and `pickle` use it, so a world can be sent to a process pool. |
+| `summary()` | str | A multi-line description: the world, then one row per layer with its name, radii [km], state, material phases, solved density range [kg/m³], temperature [K], and shear rheology. |
 
-`get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius_m`, `mass_kg`, `albedo`, `emissivity`, `obliquity_rad`, `spin_frequency_rad_s`, `moment_of_inertia_factor` (the spin model's), a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`), the `eos_solver` and `radial_solver` tables when the world pins any solver key, and a `layers` table when the world has layers. Each layer entry is the layer's own config dict (scalars, `material`, and model sub-tables) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure. A world constructed directly in Python with no tide model attached writes no `tides` table, so its rebuild takes the builder's default tide model for its type (`rheology` for a terrestrial or layered world, `fixed_dt` for a gas giant, `fixed_q` for a star). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`. `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
+`repr(world)` is one line with the class, name, radius [km], mass [kg], and number of layers, as in `TerrestrialWorld('Io', radius_km=1821.49, mass_kg=8.9298e+22, num_layers=3)`.
+
+```python
+from TidalPy.Structures import build_world
+
+io = build_world("io")                                # A bundled world
+io.solve_eos()                                        # The solved structure fills the summary's densities
+print(io.summary())                                   # One row per layer
+print(io.moment_of_inertia_factor)                    # C / (M R^2) of the solved structure
+```
+
+`get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius_m`, `mass_kg`, `albedo`, `emissivity`, `obliquity_rad`, `spin_frequency_rad_s`, `moment_of_inertia_factor` (the spin model's, written when the world's source configuration gave it or it differs from the `[worlds]` default for the world type, which a rebuild takes again), a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`), the `eos_solver` and `radial_solver` tables when the world pins any solver key, and a `layers` table when the world has layers. Each layer entry is the layer's own config dict (scalars, `material`, and model sub-tables; `mass_kg` only once the layer has a mass) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure. A world constructed directly in Python with no tide model attached writes no `tides` table, so its rebuild takes the builder's default tide model for its type (`rheology` for a terrestrial or layered world, `fixed_dt` for a gas giant, `fixed_q` for a star). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`; the binary methods take a `str` or `os.PathLike` path. `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
 
 ## Layers
 
@@ -64,20 +77,24 @@ from TidalPy.Structures.worlds import TerrestrialWorld
 
 world = TerrestrialWorld("Earth", 6.371e6, 5.972e24)
 world.add_layer(Layer(
-    "core", 0, 0.0, 3.485e6,
+    "core",
+    radius_outer=3.485e6,
     material="simple_iron_core",
-    temperature=4000.0))                              # Innermost layer, starting at r = 0
+    temperature=4000.0))                              # Innermost layer: index 0, starting at r = 0
 world.add_layer(Layer(
-    "mantle", 1, 3.485e6, 6.371e6,
+    "mantle",
+    radius_outer=6.371e6,
     material="simple_rock",
-    temperature=1600.0))                              # Continues the stack to the surface
+    temperature=1600.0))                              # Index 1, starting where the core ends
 ```
+
+A layer constructed without a `layer_index` or a `radius_inner` takes them from its place in the stack when it is added. The positional form `Layer("core", 0, 0.0, 3.485e6, ...)` gives both, and `add_layer` then checks them.
 
 **Layer management**
 
 | Member | Description |
 |--------|-------------|
-| `add_layer(layer)` | Add a layer inner-to-outer. Ownership of the layer (and its attached models) transfers into the world; the passed wrapper stays usable as a non-owning view of that layer, like the one `world.<layer name>` returns. Raises `ValueError` if the layer was already added, if it does not continue the stack (the innermost starts at 0), if it reaches past the world radius, or if its name is taken. |
+| `add_layer(layer)` | Add a layer inner-to-outer. A layer constructed without a `layer_index` gets its place in the stack (the number of layers already added), and one without a `radius_inner` starts at the current outermost radius (0 for the first layer). Ownership of the layer (and its attached models) transfers into the world; the passed wrapper stays usable as a non-owning view of that layer, like the one `world.<layer name>` returns. Raises `ValueError` if the layer was already added, if a given index is not its place in the stack, if it does not continue the stack (the innermost starts at 0), if it reaches past the world radius, or if its name is taken; a refused layer is left as it was constructed. |
 | `num_layers` | Number of layers (property). |
 | `calc_total_mass()` | Sum of the layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
 | `calc_internal_heating(time)` | Sum of the radiogenic heating [W] of every layer with a radiogenics model, at a time [s], whatever the layer's `use_heating`. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
@@ -89,11 +106,13 @@ Python reaches a world's layers through non-owning views:
 
 | Access | Returns |
 |--------|---------|
-| `world.get_layer(i)` / `world[i]` | the layer at index `i` (0 = innermost; negative indices allowed) |
+| `world.get_layer(i)` / `world[i]` | the layer at index `i` (0 = innermost; negative indices count from the outermost), or with a name, the layer of that name (`world["mantle"]`) |
 | `world[a:b]` | a list of the sliced layer views |
 | `world.layers` | a list of all layer views, inner to outer |
 | `world.<layer_name>` | the layer with that name (e.g. `world.mantle`) |
 | `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count (a world is always true, even with no layers) |
+
+Every world method that takes a layer (`get_layer`, `world[...]`, `get_layer_tidal_heating`, `get_layer_tidal_scale`, `set_prescribed_heating`, `calc_layer_temperature_rate`) takes its index or its name the same way: an index out of range raises `IndexError`, a name the world does not have raises `KeyError` listing the layer names (with the closest one), and anything else raises `TypeError`.
 
 Each view is a `Layer` with the layer's full API (`world.mantle.temperature = 1700.0`, `world.mantle.get_tidal_heating()`, `world.core.calc_complex_shear_modulus(r, ω)`). A setting changed through a view reaches the world, which forgets its solved structure when the solve reads that setting (see [Changes That Clear a Solve](../layers/layer.md#changes-that-clear-a-solve)). The view keeps the world alive, so it is safe to hold. Views are built once and cached (rebuilt only when a layer is added), so repeated access returns the same object (`world.mantle is world.mantle`). Access by layer name runs only after normal attribute lookup, so defined members win, and it ignores names starting with `_`.
 
@@ -102,7 +121,7 @@ Each view is a `Layer` with the layer's full API (`world.mantle.temperature = 17
 Each layer's [material](../layers/layer.md#material) is its density source. Once every layer has one (`all_materials_set`), `BaseWorld.solve_eos(...)` integrates the planet's radial structure from center to surface. It populates every layer's profile (density, gravity, pressure, temperature, heat flow, and the material state) and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places in the layer. Before the solve, a layer's mass is the value it was constructed with. The TOML builder uses 0.0 when a file gives none, which is the usual case.
 
 ```python
-result = world.solve_eos(surface_pressure=0.0)  # Dict of profile arrays and scalars
+result = world.solve_eos(surface_pressure=0.0)  # EOSResult: a dict of profile arrays and scalars
 rho    = world.get_density(5.0e6)               # [kg/m³] at radius 5000 km
 g      = world.get_gravity(world.radius)        # Surface gravity [m/s²]
 p0     = world.get_pressure(0.0)                # Central pressure [Pa]
@@ -111,9 +130,9 @@ print(result["success"], world.planet_mass_eos) # True and the solved mass [kg]
 
 The central pressure is found by a secant iteration on the surface-pressure mismatch. The first step assumes a unit slope (exact for an incompressible planet), and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. For large, soft planets the surface pressure can at first fall as the central pressure rises. While the measured slope is not positive, the step doubles each pass. Once the mismatch has changed sign, the root is bracketed and found by secant, false-position, and bisection steps (as in Brent's method). The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so the tolerances mean the same thing for every planet. Every result is returned in SI.
 
-**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, reset_layer_masses=False, verbose=False, time=None, max_thermal_passes=None, thermal_tol=None) -> dict`**
+**`solve_eos(*, surface_pressure=0.0, slices_per_layer=None, G_to_use=None, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, reset_layer_masses=False, verbose=False, time=None, max_thermal_passes=None, thermal_tol=None, raise_on_fail=False) -> EOSResult`**
 
-Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses, unless the world pins it (see [Other World Members](#other-world-members)). `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` sets `max_iters_hit` in the result and runs one last pass. The solve succeeds only if that pass meets `pressure_tol`, and otherwise fails as described below. `temperature` gives every layer one temperature \[K\] for this solve in place of its own. `solve_temperature`, `surface_temperature`, `time`, `max_thermal_passes`, and `thermal_tol` belong to the [thermal solve](#temperature-and-heat-flow), and `reset_layer_masses` to the [layers that hold their mass](#layer-size).
+Every argument is keyword-only. Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses, unless the world pins it (see [Other World Members](#other-world-members)). `G_to_use` left as `None` is the configured gravitational constant. With `raise_on_fail=True` a failed solve raises `SolutionFailedError` (a `RuntimeError`) with the solve's message instead of returning `success = False`. `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` sets `max_iters_hit` in the result and runs one last pass. The solve succeeds only if that pass meets `pressure_tol`, and otherwise fails as described below. `temperature` gives every layer one temperature \[K\] for this solve in place of its own. `solve_temperature`, `surface_temperature`, `time`, `max_thermal_passes`, and `thermal_tol` belong to the [thermal solve](#temperature-and-heat-flow), and `reset_layer_masses` to the [layers that hold their mass](#layer-size).
 
 ### Solved State
 
@@ -128,13 +147,15 @@ A solve commits its result only when it finishes. Materials and models are immut
 
 The profile getters then return NaN, `eos_solved` is `False`, `zones` is empty, and a Love solve or a `rheology` `calc_tides` raises errors until `solve_eos` runs again, as before the first solve. Every Love solve reads the radial-solver flags (`state`, `is_static`, `is_incompressible`) and the rheologies afresh, so changing those keeps the solved structure. A failed solve also leaves the world unsolved, keeping only its diagnostics (`success`, `message`) and NaN profile arrays.
 
+A successful solve whose mass (`planet_mass_eos`) differs from the world's stated `mass` by more than 1 percent logs a warning, once per world, naming both. The two then describe different planets: the Love numbers, tides, and moment of inertia follow the solved structure, while the orbit in a `System`, `calc_surface_gravity`, and `calc_mean_density` use the stated mass. Adjust the layers' materials or radii, or the stated mass, until they agree.
+
 A world runs one heavy call at a time: threads sharing a world take turns on `solve_eos`, the Love solves, `calc_tides`, the 3D calls, `release_radial_solution`, and `load_binary`. These calls release the GIL, so separate worlds can run in parallel. A read of a property called during another thread's `solve_eos` waits and then reads the new profile. A call on an array of radii takes one turn, so all its values come from one solve. Give each thread its own world when reads must run in parallel. The setters of a world's tide model and settings (`set_tide_model`, `set_tide_config`, `set_spin_model`, `set_solver_defaults`) and of its layers' models and flags take the same turns, so a change waits for a running solve instead of landing in the middle of it. The lock covers each call on its own, not a solve followed by a read of its result, so threads sharing a world can read each other's results. [Parallel Love Solves](../../RadialSolver/parallel.md) shows how to avoid that and how to run solves on thread and process pools.
 
 A solve that reaches `max_iters` with its surface pressure still off the target by more than `pressure_tol` has found no hydrostatic structure. It returns `success = False` with the message "no hydrostatic structure", sets `max_iters_hit`, and leaves the world unsolved. A converged solve fails the same way when its enclosed mass differs from the world's stated mass by more than the factor `[numerical] maximum_eos_mass_ratio` (default 10) either way. Layers with no hydrostatic structure near that mass (a core much too dense for its radius, say) can still meet the surface pressure on a collapsed branch at an absurd central pressure. The message says how far the mass is off.
 
 A converged solve also fails when a layer is in tension past what its material's pressure law represents (Birch-Murnaghan or Vinet). The law sees the pressure less the thermal pressure $\alpha_0 K_0 (T - T_\mathrm{ref})$ of a layer with `use_thermal_expansion`, so a hot layer whose material has a large thermal expansivity or a large $K_0'$ can fall below the law's tension limit. There the density is held at the law's smallest compression and the bulk modulus is near zero. The message names the layer and gives the pressures. A layer past the law's compression end (a Birch-Murnaghan $K_0'$ below 4 turns over) is held at the law's largest compression there, and the solve logs a warning and stands.
 
-The returned dict contains:
+The result is an `EOSResult` (`TidalPy.Structures.worlds.EOSResult`), a `dict` subclass that behaves as a plain `dict` (item access, equality with a `dict` of the same entries, copying, and pickling). Its `repr` is a short summary instead of every profile array: `success`, `iterations`, `message`, the planet mass \[kg\], radius \[m\], and central pressure \[Pa\], and the list of keys, so a notebook cell that ends in a solve prints a few lines. It contains:
 - `success`, `message`, `iterations`, `max_iters_hit`, and `pressure_error` \[Pa\].
 - The profile arrays: `radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`.
 - The scalar results: `surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`.
@@ -453,9 +474,25 @@ print(world.love_number_h, world.love_number_l)
 
 The moduli and the viscosity are properties of the layer's material, not of the rheology model. A rheology class only holds model parameters (the Andrade exponent, the Voigt fractions, etc.) and uses the modulus and viscosity as arguments. A solid layer with no shear modulus has no strength, and the solve fails.
 
-**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None) -> dict`**
+**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None, raise_on_fail=False) -> dict`**
 
-Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use. `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. `solve_eos` must be called first: raises `ValueError` if the EOS has not been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`). The results are also stored on the world and read through the properties below.
+Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use. `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. `solve_eos` must be called first: raises `ValueError` if the EOS has not been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`). The results are also stored on the world and read through the properties below. With `raise_on_fail=True` a failed solve raises `SolutionFailedError` (a `RuntimeError`) with its message.
+
+### Frequency Sweeps
+
+**`calc_love_numbers(frequencies, **solve_love_numbers_kwargs) -> dict`**
+
+Runs `solve_love_numbers` at each frequency \[rad s-1\] with the same other arguments and returns `frequency` and, each shaped like it, `k`, `h`, `l` (complex), `success`, and `message`. A solve that fails gives NaN at its frequency and the sweep goes on, so only bad input (an unsolved EOS, a frequency outside the allowed range) raises.
+
+```python
+import numpy as np
+
+periods = np.logspace(0, 3, 30) * 86400.0             # 1 to 1000 days [s]
+sweep = world.calc_love_numbers(
+    2.0 * np.pi / periods,
+    degree_l=2)                                       # One Love solve per frequency
+neg_imag_k2 = -sweep["k"].imag                        # NaN where a solve failed
+```
 
 The radial solver integrates each [zone](#pieces-and-zones) as a layer, and does not interpolate between EOS slices. At the exact radius the integrator requests:
 - Gravity, pressure, mass, and moment of inertia come from the world's dense EOS solution.
@@ -478,6 +515,7 @@ These describe the world's last `solve_love_numbers` (or `solve_love_numbers_sup
 | `love_message` | str | Human-readable solver message. |
 | `love_num_ytypes` | int | Number of independent solution types (boundary-condition models requested). |
 | `love_number_k`, `love_number_h`, `love_number_l` | complex | Love numbers for the first boundary condition at the solved degree. Equivalent to `get_love_number_k(0)` and friends. |
+| `love_q_k`, `love_lag_k` | float | Quality factor $Q = -s\,\lvert k \rvert / \mathrm{Im}(k)$ and phase lag $\arctan_2(-s\,\mathrm{Im}(k), \lvert\mathrm{Re}(k)\rvert)$ \[rad\] of `love_number_k`, with $s$ the sign of $\mathrm{Re}(k)$: the definitions `RadialSolverSolution.Q_k` and `lag_k` use. $Q$ is infinite and the lag 0 for a purely elastic $k$; both are NaN when $k$ is. |
 | `love_method` | str | Canonical name of the method the last solve used. |
 | `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve, recorded on every shooting solve whether or not `warnings` is on; near 1 is healthy, 0 after an analytic solve. |
 | `love_surface_rcond` | float | Reciprocal condition number of the surface boundary-condition system, the rank measures if the solution constants are undetermined. |
@@ -492,9 +530,9 @@ Return the Love numbers for boundary-condition model index `ytype_idx` (0 = firs
 
 Raw radial function y₁…y₆ at the surface for solution type `ytype_idx`, function index `y_idx` (0–5).
 
-**`get_love_radial_y(radius, ytype_idx=0, y_idx=0) -> complex`**
+**`get_love_radial_y(radius, ytype_idx=0, y_idx=0) -> complex or array`**
 
-The same radial function at any radius \[m\], evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius.
+The same radial function at any radius \[m\] (a float, or an array giving a complex array of its shape), evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius.
 
 ### Love-Number C++ API
 
@@ -524,6 +562,14 @@ A Love solve writes everything it produces (the cached radial solver and its sto
 
 `BaseWorld.calc_tides(...)` calculates the body's total tidal heating and three orbital potential partial derivatives by summing over the active tidal modes (the global or "1D potential" approach). A tide model (see [Global Tidal Dissipation](../../Tides/global_tides.md)) supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}]$. The world runs the global-potential engine for its stored `[tides]` config and the supplied orbital and spin state, collapses, and resolves each layer's share of the heating. It also records each layer's heating as the world's [tidal heat source](#heat-sources).
 
+`calc_tides` returns a dict: `tidal_heating` \[W\], the potential derivatives `dU_dM`, `dU_dw`, and `dU_dO` \[J kg$^{-1}$ rad$^{-1}$\], `num_tidal_modes`, and `layer_tidal_heating` (each layer's heating \[W\] by name). The same results stay on the world for the getters below until the next solve.
+
+### Orbital State
+
+The six orbital-state arguments (`orbital_frequency`, `spin_frequency`, `eccentricity`, `obliquity`, `semi_major_axis`, `host_mass`) keep their order, and each one left as `None` comes from `get_tide_state()`, the state the system the world belongs to gives it: its orbit about its tidal host, the host's mass, and its own spin and obliquity. A world of a `System` is solved in its current state by `world.calc_tides()`, and `world.calc_tides(eccentricity=0.05)` changes one value. A world outside a system, or without a tidal host, has no state to take, so an argument left out raises `ValueError` naming it. The 3D methods (`get_3d_tidal_heating`, `get_3d_tidal_heating_array`, `calc_3d_displacements`, `calc_3d_stress_strain`, `calc_3d_tides`) take the state the same way; their point and grid arguments are then given by keyword.
+
+A tide solve warns, once per world, when the spin is within $10^{-3}$ of the orbital mean motion but not equal to it. A slightly non-synchronous spin adds a slow forcing term at the difference frequency, which can change the heating by orders of magnitude (a bundled Io whose spin is 0.016 percent off the mean motion of its rounded semi-major axis heats about four times more than a synchronous one). A synchronous world should spin at exactly its orbital frequency (`world.set_spin_frequency(system.calc_orbital_frequency(world))`). The check sits on the C++ path every tide solve takes, so a `System` evolution warns too.
+
 ### Tidal Heating of Each Layer
 
 A layer's heating depends on the source of the Love numbers:
@@ -537,13 +583,16 @@ A layer's heating depends on the source of the Love numbers:
 The world builder normally sets the tide model and configuration from the `[tides]` TOML table, with per-family defaults (star: `fixed_q`, gasgiant: `fixed_dt`, terrestrial: `rheology`). The table may hold the per-degree lists of every analytic model, and the builder passes the tide model only the ones it reads (`tide_config_keys`): a `fixed_dt` world ignores `fixed_q`. They can also be set directly:
 
 ```python
-world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))   # An analytic tide model
+world.set_tide_model(make_tide(
+    "cpl",
+    fixed_k=[0.3],
+    fixed_q=[50.0]))                     # An analytic tide model
 world.set_tide_config(
     max_degree_l=2,
     eccentricity_truncation=2,
     obliquity_truncation=0)
 
-world.calc_tides(
+result = world.calc_tides(
     orbital_frequency=2.05e-5,
     spin_frequency=2.05e-5,
     eccentricity=0.0041,
@@ -551,10 +600,27 @@ world.calc_tides(
     semi_major_axis=4.2e8,
     host_mass=1.898e27)                  # Tides of an Io-like orbit about Jupiter
 
-world.get_tidal_heating()                # Total heating [W]
-world.get_tidal_potential_derivatives()  # (dUdM, dUdw, dUdO) [J kg-1 rad-1]
-world.get_layer_tidal_heating(0)         # = world heating × layer 0's tidal scale (an analytic tide model)
+result["tidal_heating"]                  # Total heating [W], also world.get_tidal_heating()
+world.get_tidal_potential_derivatives()  # {"dU_dM": ..., "dU_dw": ..., "dU_dO": ...} [J kg-1 rad-1]
+world.get_layer_tidal_heating("mantle")  # = world heating × the mantle's tidal scale (an analytic tide model)
 ```
+
+`set_tide_model` also takes a model name (`world.set_tide_model("fixed_q")`, the model at its `[tides]` defaults) or a table like a world file's `[tides]` table, with the model under `model` or `global_tidal_model`, its per-degree lists, and any tide settings, which it applies too. `world.tide_model` returns the attached model (or `None`), and setting it calls `set_tide_model`.
+
+`set_tide_config` takes every key `get_tide_config` returns (`eccentricity_trunc_lvl`, `obliquity_trunc_lvl`, `love_fixed_dt_s`, and the rest) as well as its own argument names, so `world.set_tide_config(**world.get_tide_config())` restores a configuration; a call gives each setting under one name only. `temporary_tide_config(**settings)` applies settings for a `with` block and restores the previous configuration on exit, also when the block raises:
+
+```python
+with world.temporary_tide_config(eccentricity_truncation=10):
+    high_order = world.calc_tides(
+        orbital_frequency=2.05e-5,
+        spin_frequency=2.05e-5,
+        eccentricity=0.0041,
+        obliquity=0.0,
+        semi_major_axis=4.2e8,
+        host_mass=1.898e27)              # Level 10 inside the block, level 2 again after it
+```
+
+A new tide configuration clears the last tidal result, so read the result inside the block.
 
 For a synchronous, low-eccentricity body the `cpl` result reproduces the standard CPL rate $\frac{21}{2}\,\frac{k_{2}}{Q}\,\frac{G M_{h}^{2} R^{5} n e^{2}}{a^{6}}$ (host mass $M_{h}$).
 
@@ -585,18 +651,21 @@ world.get_tidal_love_k(2, 2, 0, 0)               # Complex k for the (l,m,p,q) =
 
 | Member | Returns | Description |
 |--------|---------|-------------|
-| `set_tide_model(tide)` | - | Attach a tide model. The world shares it rather than copying it (models are not changed in place), so one model can serve several worlds. |
+| `set_tide_model(tide)` | - | Attach a tide model: a `TideBase`, a model name, or a `[tides]`-style table (see above); `None` detaches it. The world shares a model rather than copying it (models are not changed in place), so one model can serve several worlds. |
+| `tide_model` | `TideBase` or None | The attached model; settable, through `set_tide_model`. |
 | `tide_model_set` | bool | Whether a model is attached. |
-| `set_tide_config(min_degree_l=None, max_degree_l=None, eccentricity_truncation=None, obliquity_truncation=None, layer_tidal_heating=None, eccentricity_exact_tolerance=None, love_method=None, love_fixed_q=None, love_fixed_dt=None)` | - | Change the stored `[tides]` truncation/degree settings (`eccentricity_truncation` a level or `"exact"`, with `eccentricity_exact_tolerance` its mode range; see [Eccentricity Functions](../../Tides/Eccentricity.md); `obliquity_truncation` 0 or `"off"`, 2, 4, or `"gen"`; see [Obliquity Functions](../../Tides/Obliquity.md)), whether `calc_tides` resolves each layer's heating on the radial-solver path, and the world's default Love-number method (see [Calculating Love Numbers](#calculating-love-numbers)). Only the arguments given change; the rest keep their current values (`get_tide_config()`). A NaN `love_fixed_q` or `love_fixed_dt` clears it. |
+| `set_tide_config(min_degree_l=None, max_degree_l=None, eccentricity_truncation=None, obliquity_truncation=None, layer_tidal_heating=None, eccentricity_exact_tolerance=None, love_method=None, love_fixed_q=None, love_fixed_dt=None, *, eccentricity_trunc_lvl=None, obliquity_trunc_lvl=None, love_fixed_dt_s=None)` | - | Change the stored `[tides]` truncation/degree settings (`eccentricity_truncation` a level or `"exact"`, with `eccentricity_exact_tolerance` its mode range; see [Eccentricity Functions](../../Tides/Eccentricity.md); `obliquity_truncation` 0 or `"off"`, 2, 4, or `"gen"`; see [Obliquity Functions](../../Tides/Obliquity.md)), whether `calc_tides` resolves each layer's heating on the radial-solver path, and the world's default Love-number method (see [Calculating Love Numbers](#calculating-love-numbers)). Only the arguments given change; the rest keep their current values (`get_tide_config()`). The three keyword-only names are the `get_tide_config` keys of the same settings; giving both names of one setting raises `ValueError`. A NaN `love_fixed_q` or `love_fixed_dt` clears it. |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
-| `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | - | Run the global tidal solve. |
+| `temporary_tide_config(**settings)` | context manager | Applies `set_tide_config(**settings)` for a `with` block and restores the previous configuration on exit. |
+| `calc_tides(orbital_frequency=None, spin_frequency=None, eccentricity=None, obliquity=None, semi_major_axis=None, host_mass=None)` | dict | Run the global tidal solve; each argument left as `None` comes from `get_tide_state()` (see [Orbital State](#orbital-state)). |
 | `tides_solved` | bool | Whether a successful solve is held. A new tide model or tide configuration clears it, and so does `solve_eos`, after which the heating and potential-derivative getters return NaN and each layer's `get_tidal_heating()` does too, until the next `calc_tides`. The tidal heat source is kept (see [Heat Sources](#heat-sources)). |
 | `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |
-| `get_tidal_potential_derivatives()` | tuple | `(dUdM, dUdw, dUdO)` [J kg⁻¹ rad⁻¹]. |
+| `get_tidal_heat_flux()` | float [W m⁻²] | The heating over the surface area, $\dot{E} / (4 \pi R^2)$ (NaN if unsolved). |
+| `get_tidal_potential_derivatives()` | dict | `dU_dM`, `dU_dw`, `dU_dO` [J kg⁻¹ rad⁻¹], by the mean anomaly, the argument of pericenter, and the longitude of the node. |
 | `get_tidal_dU_dM_minus_dw()` | float | The per-mode sum of `dUdM - dUdw` [J kg⁻¹ rad⁻¹], to pass as `dU_dM_minus_dw` to `OrbitSolver.calc_de_dt`: at small eccentricity the two separate sums nearly cancel in $\dot{e}$. NaN if unsolved. |
 | `get_num_tidal_modes()` | int | Active modes summed. |
-| `get_layer_tidal_heating(index)` | float [W] | The heating the last `calc_tides` put in the layer (see Tidal Heating of Each Layer); NaN before one. |
-| `get_layer_tidal_scale(index)` | float | The layer's tidal scale: its `tidal_scale`, or its volume over the planet's when none is set; 0 with `use_tides` off. |
+| `get_layer_tidal_heating(layer=None)` | float [W] or dict | The heating the last `calc_tides` put in a layer, given by index or name (see Tidal Heating of Each Layer); NaN before one. With no layer, every layer's heating by name. |
+| `get_layer_tidal_scale(layer)` | float | The tidal scale of a layer given by index or name: its `tidal_scale`, or its volume over the planet's when none is set; 0 with `use_tides` off. |
 | `get_tidal_love_k(l, m, p, q)` | complex | Per-mode radial-solver `k_l` (rheology only; NaN for analytic models). |
 
 Each layer also stores its own tidal heating: `layer.get_tidal_heating()` (C++ `c_Layer::get_tidal_heating()`) returns the same value as `get_layer_tidal_heating`.
@@ -619,7 +688,7 @@ Each layer also stores its own tidal heating: `layer.get_tidal_heating()` (C++ `
 
 **State.** `get_state(radius)` returns every EOS profile at a radius as a dict (see [Profile Queries](#profile-queries)), and `calc_state(radius, force_recalc=False)` solves the EOS first when needed.
 
-**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating`, for building a heating map. `calc_3d_displacements(...)` returns the instantaneous displacement grid, and `calc_3d_stress_strain(...)` returns the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 0, the logical processors minus 4) to spread their radial solves and per-point work over threads. See the [3D heating page](../../Tides/multilayer_3d_heating.md).
+**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating`, for building a heating map; one of its `radii` and `colatitudes` may be a scalar, which pairs with every value of the other. `calc_3d_displacements(...)` returns the instantaneous displacement grid, and `calc_3d_stress_strain(...)` returns the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 0, the logical processors minus 4) to spread their radial solves and per-point work over threads. See the [3D heating page](../../Tides/multilayer_3d_heating.md).
 
 **Configuration and identity.** `source_config` is the normalized configuration the world was built from, if any. `portable_config` is the configuration as given for a world built from a `data_file` (what `save_to_toml` writes while the world is unchanged since its build), and `built_config` the world's `get_config_dict()` at the end of its build. `get_save_config(destination_dir=None)` returns what `save_to_toml` writes. `family_world_type()` returns the builder's world type for this class. `get_schema_version_str()` returns the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
 
@@ -656,7 +725,7 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 sun.effective_temperature
 ```
 
-**Properties:** `effective_temperature` \[K\], `luminosity` \[W\]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see [Luminosity](../../Stellar/luminosity.md)).
+**Properties:** `effective_temperature` \[K\], `luminosity` \[W\]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`, and `calc_insolation_flux(distance, eccentricity=0.0)`, the orbit-averaged flux \[W m$^{-2}$\] $L / (4 \pi a^2 \sqrt{1 - e^2})$ at a body with semi-major axis `distance` \[m\] (floats or arrays), the flux a `System` gives its worlds. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see [Luminosity](../../Stellar/luminosity.md)).
 
 **Tides.** A star without layers uses the analytic tide models (`cpl`, `ctl`, `ctl_q`); the `rheology` model needs layers and a solved EOS, so `calc_tides` raises if it is selected on a star that has neither. See [Global (1D) Tidal Dissipation](#global-1d-tidal-dissipation).
 
@@ -671,7 +740,22 @@ A world's binary file ([Binary Serialization](../../Utilities/binary.md)) holds 
 
 Solved state is not saved. The EOS profile (`c_LayerEOSData`), the zones, Love numbers, and tide results must be recomputed with `solve_eos` and `calc_tides` after a load. The tidal heat source is a runtime input, like the orbit, and is not saved either: a load clears it. The prescribed heating is saved: the binary record holds each layer's, and `get_config_dict` writes it in a `[prescribed_heating]` table. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.
 
-The layers' materials and models are restored, so the EOS solve needs nothing re-attached. Layer views taken before the load (`world.<name>`, `get_layer`) refer to replaced layers, so take new ones. A layer that belongs to a world cannot be loaded in place. Load the world, or a standalone layer.
+The layers' materials and models are restored, so the EOS solve needs nothing re-attached. Layer views taken before the load (`world.<name>`, `get_layer`) refer to replaced layers, so take new ones. A layer that belongs to a world cannot be loaded in place. Load the world, or a standalone layer. A file of another class is refused with both classes named ("it is a GasGiantWorld file, not a TerrestrialWorld one"). Paths may be a `str` or an `os.PathLike` such as a `pathlib.Path`.
+
+`TidalPy.Structures.load_world(path, force=False)` reads a file into a new world of the class that saved it, with no placeholder object, and `build_world(path)` does the same for a binary file. `load_world` raises `IOError` naming what a file holds when it is not a world's.
+
+`copy()` (and `copy.copy`, `copy.deepcopy`, and `pickle`) goes through the same record held in memory, so a copy holds exactly what a saved and loaded world holds, and it is unsolved and belongs to no system. The configurations the world was built from (`source_config`, `portable_config`, `built_config`) are copied with it. `TidalPy.Structures.worlds.world_from_bytes(world_class, record, configs=None, force=False)` rebuilds a world from such a record.
+
+```python
+import pickle
+from TidalPy.Structures import load_world
+
+world.save_binary("world.tpyb")                       # A str or an os.PathLike path
+loaded = load_world("world.tpyb")                     # A new world of the saved class
+twin = world.copy()                                   # Independent: same class, layers, models, and settings
+twin.solve_eos()                                      # Copies are unsolved
+restored = pickle.loads(pickle.dumps(world))          # A pickle round trip, as a process pool makes
+```
 
 ## References
 

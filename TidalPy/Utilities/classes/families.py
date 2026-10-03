@@ -74,7 +74,7 @@ class ModelFamily:
         """Whether two names (aliases included) resolve to the same model."""
         return self.canonical_name(table_name) == self.canonical_name(model_name)
 
-    def make(self, model_name: str, config=None):
-        """Build a model by name from a config dict keyed by config key; absent keys (all of them for ``None``) take
-        the model's defaults."""
-        return self.classes[self.canonical_name(model_name)](config=config)
+    def make(self, model_name: str, config=None, **parameters):
+        """Build a model by name from a config dict keyed by config key and keyword parameters (argument names or
+        config keys) merged over it; absent keys (all of them for ``None``) take the model's defaults."""
+        return self.classes[self.canonical_name(model_name)](config=config, **parameters)

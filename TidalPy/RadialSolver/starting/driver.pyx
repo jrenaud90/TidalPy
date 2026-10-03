@@ -11,6 +11,11 @@ from libcpp.complex cimport complex as cpp_complex
 from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
 from libcpp.string cimport string as cpp_string, npos as cpp_npos
 
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
 
 def find_starting_conditions(
         int layer_type,
@@ -23,7 +28,7 @@ def find_starting_conditions(
         double complex bulk_modulus,
         double complex shear_modulus,
         int degree_l,
-        double G_to_use,
+        object G_to_use,
         double complex[:, ::1] starting_conditions_view,
         cpp_bool run_y_checks = True):
     """
@@ -51,8 +56,8 @@ def find_starting_conditions(
         Shear modulus [Pa].
     degree_l : int
         Tidal harmonic order.
-    G_to_use : float
-        Gravitational constant.
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
     starting_conditions_view : complex[:, ::1]
         Output array of shape [num_solutions, num_ys].
     run_y_checks : bool, optional
@@ -83,7 +88,7 @@ def find_starting_conditions(
         K,
         mu,
         degree_l,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         num_ys,
         ptr,
         run_y_checks

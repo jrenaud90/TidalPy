@@ -170,6 +170,8 @@ public:
     // =================================================================================================================
     const std::string& get_name()               const noexcept { return this->p_name; }
     int                get_layer_index()        const noexcept { return this->p_layer_index; }
+    // The world fills in the index of a layer constructed without one as it adds the layer (its place in the stack).
+    void               set_layer_index(int layer_index) noexcept { this->p_layer_index = layer_index; }
     double             get_radius_inner()       const noexcept { return this->p_radius_inner; }
     double             get_radius_outer()       const noexcept { return this->p_radius_outer; }
     double             get_thickness()          const noexcept { return this->p_thickness; }

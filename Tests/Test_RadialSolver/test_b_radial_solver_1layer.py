@@ -183,7 +183,12 @@ def test_radial_solver_1layer_solve_for_both(
         assert array.shape == (num_solve_for,)
     assert type(out.steps_taken) is np.ndarray
 
-    out.print_diagnostics(print_diagnostics=False, log_diagnostics=False)
+    diagnostics = out.print_diagnostics(print_diagnostics=False, log_diagnostics=False)
+    # Every dimensional value of the structure carries its unit.
+    for label, unit in (("Pressure Error", " Pa"), ("Central Pressure", " Pa"), ("Mass", " kg"), ("MOI", " kg m2"),
+                        ("Surface gravity", " m s-2")):
+        line = next(line for line in diagnostics.splitlines() if line.strip().startswith(label + ":"))
+        assert unit in line, line
 
     eos_result = out.eos_call(radius=1.5e6)
     assert type(eos_result) is dict

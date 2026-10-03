@@ -2,12 +2,17 @@
 /*
  * obliquity_accuracy_.hpp - how far each obliquity truncation level can be trusted, and which to choose.
  *
- * The limits are measured (2026-09-24 for degrees 2 and 3, 2026-09-29 for degrees 4 to 10) with TidalPy's tables
- * against the general (exact) obliquity functions: for each level, degree, and tolerance, the largest obliquity [rad]
- * (on a 0.005 rad grid) at which that degree's heating stays within the tolerance, worst case over constant-phase-lag,
- * constant-time-lag, and Maxwell tides (relaxation times of 1/3 and 1/10 of the inverse mean motion) at spin rates of
- * 0.5, 1, and 2.3 times the mean motion and eccentricities of 0 and 0.2 (the limits are the same at both). Each higher
- * degree loses accuracy at a lower obliquity, so a solve through max_degree_l takes the tightest limit of degrees 2 to
+ * The limits were measured on 2026-10-02 (with a script kept outside the repo) from TidalPy's tables against the
+ * general (exact) obliquity functions: for each level, degree, and tolerance, the largest obliquity [rad] of the grid
+ * up to which that degree's heating stays within the tolerance. The grid is log-spaced below 0.005 rad (1, 1.25, 1.6,
+ * 2, 2.5, 3.2, 4, 5, 6.3, and 8 times each power of ten from 1e-5) and steps by 0.005 rad above it. Each limit is the
+ * worst case over constant-phase-lag and constant-time-lag tides, Maxwell tides with relaxation times of 1e-3 to 1e3
+ * inverse mean motions (ten per decade; one relaxation peak at every time bounds any sum of them), and Andrade tides,
+ * at spin rates of 0 to 20 times the mean motion in steps of 0.25 and at 25, 30, -0.5, -1, -2, -5, and -10 times it,
+ * and eccentricities of 0, 0.001, 0.01, 0.05, and 0.2 (eccentricity level 20). Every limit is set by synchronous
+ * rotation at low eccentricity with a long relaxation time (-Im k falling as 1 / frequency, as for a stiff Maxwell
+ * body), where the obliquity tide carries the heating; level 2 errs high there and level 4 low. Each higher degree
+ * loses accuracy at a lower obliquity, so a solve through max_degree_l takes the tightest limit of degrees 2 to
  * max_degree_l. Level 0 (off) holds only at zero obliquity. See Documentation/Tides/Obliquity.md.
  *
  * Standard-library only, so any extension can include it.
@@ -27,24 +32,24 @@ inline constexpr int C_OBLIQUITY_GENERAL = -1;
 inline constexpr c_TruncationAccuracyRow C_OBLIQUITY_ACCURACY[3] = {
     // One row per degree (l = 2 to 10), one column per tolerance (1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1).
     {0, {}},                                           // every degree: zero obliquity only
-    {2, {{0.0,   0.0,   0.01,  0.045, 0.145, 0.465},   // l = 2
-         {0.0,   0.0,   0.005, 0.03,  0.095, 0.31 },   // l = 3
-         {0.0,   0.0,   0.005, 0.02,  0.075, 0.235},   // l = 4
-         {0.0,   0.0,   0.005, 0.015, 0.06,  0.19 },   // l = 5
-         {0.0,   0.0,   0.005, 0.015, 0.05,  0.155},   // l = 6
-         {0.0,   0.0,   0.0,   0.01,  0.04,  0.135},   // l = 7
-         {0.0,   0.0,   0.0,   0.01,  0.035, 0.12 },   // l = 8
-         {0.0,   0.0,   0.0,   0.01,  0.03,  0.105},   // l = 9
-         {0.0,   0.0,   0.0,   0.005, 0.03,  0.095}}}, // l = 10
-    {4, {{0.015, 0.045, 0.15,  0.265, 0.47,  0.83 },   // l = 2
-         {0.01,  0.03,  0.1,   0.18,  0.32,  0.565},   // l = 3
-         {0.005, 0.025, 0.075, 0.14,  0.245, 0.43 },   // l = 4
-         {0.005, 0.02,  0.06,  0.11,  0.2,   0.35 },   // l = 5
-         {0.005, 0.015, 0.05,  0.095, 0.17,  0.295},   // l = 6
-         {0.0,   0.01,  0.045, 0.08,  0.145, 0.255},   // l = 7
-         {0.0,   0.01,  0.04,  0.07,  0.125, 0.225},   // l = 8
-         {0.0,   0.01,  0.035, 0.065, 0.115, 0.2  },   // l = 9
-         {0.0,   0.01,  0.03,  0.055, 0.1,   0.18 }}}, // l = 10
+    {2, {{1e-4,   0.001,  0.01,   0.035,  0.11,   0.35  },   // l = 2
+         {6.3e-5, 6.3e-4, 0.005,  0.02,   0.075,  0.24  },   // l = 3
+         {5e-5,   5e-4,   0.005,  0.015,  0.06,   0.185 },   // l = 4
+         {4e-5,   4e-4,   0.004,  0.015,  0.045,  0.15  },   // l = 5
+         {4e-5,   4e-4,   0.004,  0.01,   0.04,   0.125 },   // l = 6
+         {3.2e-5, 3.2e-4, 0.0032, 0.01,   0.035,  0.11  },   // l = 7
+         {2.5e-5, 2.5e-4, 0.0025, 0.005,  0.03,   0.095 },   // l = 8
+         {2.5e-5, 2.5e-4, 0.0025, 0.005,  0.025,  0.085 },   // l = 9
+         {2.5e-5, 2.5e-4, 0.0025, 0.005,  0.025,  0.075 }}}, // l = 10
+    {4, {{0.01,   0.04,   0.13,   0.23,   0.405,  0.695 },   // l = 2
+         {0.005,  0.025,  0.09,   0.16,   0.28,   0.48  },   // l = 3
+         {0.005,  0.02,   0.065,  0.12,   0.215,  0.37  },   // l = 4
+         {0.005,  0.015,  0.055,  0.1,    0.175,  0.3   },   // l = 5
+         {0.004,  0.015,  0.045,  0.08,   0.145,  0.25  },   // l = 6
+         {0.004,  0.01,   0.04,   0.07,   0.125,  0.215 },   // l = 7
+         {0.0032, 0.01,   0.035,  0.06,   0.11,   0.19  },   // l = 8
+         {0.0032, 0.01,   0.03,   0.055,  0.1,    0.17  },   // l = 9
+         {0.0025, 0.005,  0.025,  0.05,   0.09,   0.155 }}}, // l = 10
 };
 
 // The largest obliquity [rad] at which the level's heating stays within `tolerance` of the general value at every

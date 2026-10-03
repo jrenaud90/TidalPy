@@ -42,7 +42,8 @@ class TidalPyIntegrationException(TidalPyException):
     default_message = 'An issue arose during time integration.'
 
 
-class SolutionFailedError(TidalPyIntegrationException):
+class SolutionFailedError(TidalPyIntegrationException, RuntimeError):
+    """A solve (EOS, Love numbers, radial solver) that was asked to raise on failure failed; also a RuntimeError."""
     default_message = 'A solution was not able to be found.'
 
 

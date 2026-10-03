@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 `TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `BaseWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
@@ -30,6 +30,7 @@ build_data = build_rs_input_homogeneous_layers(
 
 solution = radial_solver(*build_data, degree_l=2, solve_for=("tidal",))
 print(solution.k, solution.h, solution.l)
+print(solution)                     # One line: success, degree, and k (the message when the solve failed)
 ```
 
 The [input builders](build_inputs.md) exist because the solver's array requirements are strict. Build the arrays yourself only if you know they already satisfy the rules in the next section.
@@ -111,6 +112,25 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 | `raise_on_fail` | `False` | Raise instead of failing quietly. By default a failed solve returns with `success = False` and an explanatory `message`. |
 | `perform_checks` | `True` | Accepted and ignored: the solver always validates its inputs. |
 | `log_info` | `False` | Log the solution's key diagnostics. There is a cost, more so with file logging enabled. |
+
+### Keyword Names on a World
+
+`radial_solver` keeps the keyword names of the 0.7.X solver, while a world's `solve_love_numbers` and `solve_eos` take the shorter names of the `[radial_solver]` and `[eos_solver]` configuration keys. The settings are the same; only the names differ.
+
+| `radial_solver` argument | World method argument | Configuration key |
+|---|---|---|
+| `start_radius_tolerance` | `solve_love_numbers(start_radius_tol=...)` | `[radial_solver] start_radius_tolerance` |
+| `integration_method` | `solve_love_numbers(integration_method=...)` | `[radial_solver] integration_method` |
+| `integration_rtol`, `integration_atol` | `solve_love_numbers(rtol=..., atol=...)` | `[radial_solver] rtol`, `atol` |
+| `scale_rtols_bylayer_type` | `solve_love_numbers(scale_rtols=...)` | `[radial_solver] scale_rtols` |
+| `use_kamata`, `max_num_steps`, `expected_size`, `nondimensionalize` | the same names | the same names |
+| `max_ram_MB` | `solve_love_numbers(max_ram_MB=...)` | `[radial_solver] max_ram_mb` |
+| `eos_integration_method` | `solve_eos(integration_method=...)` | `[eos_solver] integration_method` |
+| `eos_rtol`, `eos_atol` | `solve_eos(rtol=..., atol=...)` | `[eos_solver] rtol`, `atol` |
+| `eos_pressure_tol` | `solve_eos(pressure_tol=...)` | `[eos_solver] pressure_tol` |
+| `eos_max_iters` | `solve_eos(max_iters=...)` | `[eos_solver] max_iters` |
+
+The lower-level radial-solver functions that take Newton's constant (`find_starting_conditions` and the Kamata and Takeuchi starting conditions, `apply_surface_bc`, `solve_upper_y_at_interface`, `fundamental_matrix`), like the tidal-potential functions (`global_potential`, `tidal_potential_3d_modes`, `collapse_global_tides`) and the Kepler conversions, read a `G_to_use` of `None` as the TidalPy configuration's value (SciPy's G).
 
 ## Troubleshooting
 

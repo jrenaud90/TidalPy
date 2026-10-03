@@ -19,6 +19,7 @@
  * little-endian, so files are portable across them.
  */
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <filesystem>
@@ -138,6 +139,78 @@ enum class BinaryClassID : uint32_t {
     PowerLawLuminosity = 1003
 };
 
+// The Python class a record of `class_id` loads into (the name a user sees), for messages; "class id N" for an id
+// no class uses.
+inline std::string c_binary_class_name(uint32_t class_id) {
+    switch (static_cast<BinaryClassID>(class_id)) {
+        case BinaryClassID::TidalPyBase: return "TidalPyBaseClass";
+        case BinaryClassID::StructureBase: return "StructureBase";
+        case BinaryClassID::PhysicsBase: return "PhysicsBase";
+        case BinaryClassID::Layer: return "Layer";
+        case BinaryClassID::BaseWorld: return "BaseWorld";
+        case BinaryClassID::TerrestrialWorld: return "TerrestrialWorld";
+        case BinaryClassID::GasGiantWorld: return "GasGiantWorld";
+        case BinaryClassID::StarWorld: return "StarWorld";
+        case BinaryClassID::System: return "System";
+        case BinaryClassID::RheologyBase: return "RheologyBase";
+        case BinaryClassID::Elastic: return "Elastic";
+        case BinaryClassID::Viscous: return "Viscous";
+        case BinaryClassID::Voigt: return "Voigt";
+        case BinaryClassID::Maxwell: return "Maxwell";
+        case BinaryClassID::Burgers: return "Burgers";
+        case BinaryClassID::Andrade: return "Andrade";
+        case BinaryClassID::Sundberg: return "Sundberg";
+        case BinaryClassID::Zener: return "Zener";
+        case BinaryClassID::SeismicQ: return "SeismicQ";
+        case BinaryClassID::CoolingBase: return "CoolingBase";
+        case BinaryClassID::OffCooling: return "OffCooling";
+        case BinaryClassID::ConvectiveCooling: return "ConvectiveCooling";
+        case BinaryClassID::ConductiveCooling: return "ConductiveCooling";
+        case BinaryClassID::RadiogenicsBase: return "RadiogenicsBase";
+        case BinaryClassID::OffRadiogenics: return "OffRadiogenics";
+        case BinaryClassID::IsotopeRadiogenics: return "IsotopeRadiogenics";
+        case BinaryClassID::FixedRadiogenics: return "FixedRadiogenics";
+        case BinaryClassID::ConstantEOSLaw: return "ConstantEOS";
+        case BinaryClassID::BirchMurnaghanEOSLaw: return "BirchMurnaghanEOS";
+        case BinaryClassID::VinetEOSLaw: return "VinetEOS";
+        case BinaryClassID::MurnaghanEOSLaw: return "MurnaghanEOS";
+        case BinaryClassID::PolytropeEOSLaw: return "PolytropeEOS";
+        case BinaryClassID::ModifiedPolytropeEOSLaw: return "ModifiedPolytropeEOS";
+        case BinaryClassID::InterpolatedEOSLaw: return "InterpolatedEOS";
+        case BinaryClassID::ConstantShearModulus: return "ConstantShearModulus";
+        case BinaryClassID::LinearShearModulus: return "LinearShearModulus";
+        case BinaryClassID::InterpolatedShearModulus: return "InterpolatedShearModulus";
+        case BinaryClassID::Phase: return "Phase";
+        case BinaryClassID::Material: return "Material";
+        case BinaryClassID::ConstantMeltingCurve: return "ConstantMeltingCurve";
+        case BinaryClassID::SimonGlatzelCurve: return "SimonGlatzelCurve";
+        case BinaryClassID::SimonGlatzel2Curve: return "SimonGlatzel2Curve";
+        case BinaryClassID::InterpolatedMeltingCurve: return "InterpolatedMeltingCurve";
+        case BinaryClassID::NoMeltWeakening: return "NoMeltWeakening";
+        case BinaryClassID::SpohnMeltWeakening: return "SpohnMeltWeakening";
+        case BinaryClassID::HenningMeltWeakening: return "HenningMeltWeakening";
+        case BinaryClassID::HashinShtrikmanMixing: return "HashinShtrikmanMixing";
+        case BinaryClassID::CompactionViscosity: return "CompactionViscosity";
+        case BinaryClassID::ViscosityBase: return "ViscosityBase";
+        case BinaryClassID::ArrheniusViscosity: return "ArrheniusViscosity";
+        case BinaryClassID::ReferenceViscosity: return "ReferenceViscosity";
+        case BinaryClassID::ConstantViscosity: return "ConstantViscosity";
+        case BinaryClassID::InterpolatedViscosity: return "InterpolatedViscosity";
+        case BinaryClassID::CompositeViscosity: return "CompositeViscosity";
+        case BinaryClassID::TideBase: return "TideBase";
+        case BinaryClassID::RheologyTide: return "RheologyTide";
+        case BinaryClassID::FixedQTide: return "FixedQTide";
+        case BinaryClassID::FixedLagTide: return "FixedLagTide";
+        case BinaryClassID::CTLQTide: return "CTLQTide";
+        case BinaryClassID::LuminosityBase: return "LuminosityBase";
+        case BinaryClassID::FixedLuminosity: return "FixedLuminosity";
+        case BinaryClassID::MassToLuminosity: return "MassToLuminosity";
+        case BinaryClassID::PowerLawLuminosity: return "PowerLawLuminosity";
+        default: break;
+    }
+    return "class id " + std::to_string(class_id);
+}
+
 struct c_BinaryHeader {
     char     magic[4];      // "TPYB"
     uint8_t  schema_major;
@@ -239,6 +312,23 @@ inline c_BinaryHeader read_binary_header_from_file(const std::string& path) {
         throw std::runtime_error("TidalPy: cannot open binary file: " + path);
     }
     return read_binary_header(in);
+}
+
+// The class id of the record a file holds, or BinaryClassID::Unknown when the file does not start with the TidalPy
+// magic bytes (a TOML file, say), so a loader can tell a binary file from a text one before reading either. Throws
+// std::runtime_error when the file cannot be opened, or starts like a TidalPy binary file but has no readable header.
+inline uint32_t c_binary_file_class_id(const std::string& path) {
+    std::ifstream in(c_utf8_path(path), std::ios::binary);
+    if (!in.is_open()) {
+        throw std::runtime_error("TidalPy: cannot open file: " + path);
+    }
+    char magic[4] = {};
+    in.read(magic, 4);
+    if (!in || !std::equal(magic, magic + 4, TIDALPY_BINARY_MAGIC)) {
+        return static_cast<uint32_t>(BinaryClassID::Unknown);
+    }
+    in.seekg(0);
+    return read_binary_header(in).class_id;
 }
 
 // True when the header's schema major.minor matches the current version. A differing patch only logs.

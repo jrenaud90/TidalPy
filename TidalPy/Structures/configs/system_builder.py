@@ -14,12 +14,13 @@ world's tidal host; for an exoplanet the two orbits coincide.
 """
 
 import os
-from typing import Union
+from typing import Optional, Union
 
 from TidalPy.Structures.system.system import System
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.configs import worldpack
 from TidalPy.Structures.configs.toml_loader import validate_system_config
+from TidalPy.Utilities.binary import binary_file_class
 
 
 # =====================================================================================================================
@@ -105,16 +106,20 @@ def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
     return worldpack.resolve_source(source, worldpack.SYSTEM_CONFIG)
 
 
-def build_system(source: Union[str, dict], force: bool = False):
-    """Build a ``System`` from a bundled name, file path, or config dict.
+def build_system(source: Union[str, dict], overrides: Optional[dict] = None, force: bool = False):
+    """Build a ``System`` from a bundled name, a file path, or a config dict.
 
-    Thin wrapper over :meth:`System.build <TidalPy.Structures.system.system.System.build>`, which
-    retains the normalized configuration on ``source_config``.
+    Thin wrapper over :meth:`System.build <TidalPy.Structures.system.system.System.build>`, which retains the
+    normalized configuration on ``source_config``. ``build_system(system.get_config_dict())`` rebuilds a system with
+    the same worlds, tidal hosts, star, and orbits. A path to a binary file is loaded with :func:`load_system`.
 
     Parameters
     ----------
-    source : str or dict
-        A bundled system name, a path to a ``.toml`` file, or a system configuration dict.
+    source : str, os.PathLike, or dict
+        A bundled system name, a path to a ``.toml`` or binary file, or a system configuration dict (not modified).
+    overrides : dict, optional
+        Values merged over the configuration before the build, table by table, so a nested table only needs the keys
+        it changes: ``build_system("sol_system", {"worlds": {"earth": {"world": "earth_prem"}}})``. Default None.
     force : bool, optional
         If True, bypass the schema-version compatibility warning. Default False.
 
@@ -123,41 +128,44 @@ def build_system(source: Union[str, dict], force: bool = False):
     System
         The constructed system.
     """
-    return System.build(source, force=force)
+    return System.build(source, overrides=overrides, force=force)
 
 
-def build_system_from_dict(config: dict, force: bool = False):
-    """Rebuild a ``System`` from the dictionary its ``get_config_dict`` returns.
+def load_system(path, force: bool = False):
+    """Load a system from a TidalPy binary file (``save_binary``) as a new ``System``.
 
-    The rebuilt system holds the same worlds (each rebuilt from its own inlined configuration), with the same
-    tidal hosts, star, and orbital elements.
+    Each world comes back as its own class with its tide model and settings, spin model, pinned solver settings, and
+    (for a star) luminosity model, together with the tidal hosts, star, and orbits; nothing is solved, so run
+    ``solve_eos`` on each world with layers before evolving.
 
     Parameters
     ----------
-    config : dict
-        A system configuration, as returned by ``system.get_config_dict()`` or written by hand to the same
-        schema. It is not modified, and the new system does not share it.
+    path : str or os.PathLike
+        The binary file.
     force : bool, optional
-        If True, bypass the schema-version compatibility warning. Default False.
+        Load even on a schema version mismatch. Default False.
 
     Returns
     -------
     System
-        The rebuilt system.
 
     Raises
     ------
-    TypeError
-        If ``config`` is not a dict (use :func:`build_system` for a bundled name or a file path).
-    ValueError
-        If the configuration fails validation.
+    FileNotFoundError
+        ``path`` does not exist.
+    IOError
+        The file is not a system's binary file (the message names what it holds), or it is corrupt or of an
+        incompatible schema version.
     """
-    if not isinstance(config, dict):
-        raise TypeError(
-            f"build_system_from_dict needs a configuration dict, not {type(config)}. "
-            "Use build_system for a bundled system name or a file path.")
-    # System.build copies a dict source before using it, so the caller's dict is neither kept nor edited.
-    return System.build(config, force=force)
+    file_path = os.fspath(path)
+    class_name = binary_file_class(file_path)
+    if class_name != "System":
+        what = "not a TidalPy binary file" if class_name is None else f"a {class_name} file"
+        hint = "" if class_name is None else "; load it with load_world"
+        raise IOError(f"TidalPy: cannot load '{file_path}' as a system: it is {what}{hint}.")
+    system = System()
+    system.load_binary(file_path, force=force)
+    return system
 
 
 def available_systems() -> list:

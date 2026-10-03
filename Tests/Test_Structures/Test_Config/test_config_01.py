@@ -38,7 +38,7 @@ def isolated_config_dir(tmp_path, monkeypatch):
 @pytest.mark.parametrize("section, keys", [
     ("pathing", {"save_directory", "append_datetime"}),
     ("logging", {"use_cwd", "write_log_to_disk", "file_level", "console_level", "print_log_notebook",
-                 "write_log_notebook"}),
+                 "notebook_console_level", "write_log_notebook"}),
     ("configs", {"save_configs_locally", "use_cwd_for_config"}),
 ])
 def test_config_package_section_has_exactly_its_keys(section, keys):

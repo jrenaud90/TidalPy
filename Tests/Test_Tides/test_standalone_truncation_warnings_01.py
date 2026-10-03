@@ -1,6 +1,7 @@
 """The standalone tide functions warn, as a world's tidal solve does, when their truncations misstate the tides.
 
-Each case is warned about once per process, so each check runs in a fresh interpreter.
+Each case is warned about once per process (each range case once per truncation level), so each check runs in a fresh
+interpreter.
 """
 import os
 import subprocess
@@ -19,8 +20,10 @@ G = 6.674e-11
 orbit = dict(planet_radius=1.82e6, orbital_frequency=4.11e-5, spin_frequency=4.11e-5, semi_major_axis=4.22e8,
              host_mass=1.898e27, G_to_use=G)
 name = sys.argv[2]
-eccentricity, obliquity, truncation = float(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
-for _ in range(2):
+# One or more comma-separated eccentricity truncations, each used twice.
+eccentricity, obliquity = float(sys.argv[3]), float(sys.argv[4])
+truncations = [int(level) for level in sys.argv[5].split(",") for _ in range(2)]
+for truncation in truncations:
     if name == "collapse_global_tides":
         collapse_global_tides(eccentricity=eccentricity, obliquity=obliquity, tide_model="cpl",
                               eccentricity_truncation=truncation, obliquity_truncation="off", **orbit)
@@ -33,7 +36,7 @@ for _ in range(2):
 flush_logger()
 """
 OBLIQUITY_OFF_TEXT = "obliquity truncation is off"
-ECCENTRICITY_RANGE_TEXT = "can underestimate the tides by 10% or more"
+ECCENTRICITY_RANGE_TEXT = "can misstate the tides by 10% or more"
 FUNCTIONS = ("collapse_global_tides", "global_potential", "tidal_potential_3d_modes")
 
 
@@ -57,6 +60,14 @@ def test_an_ignored_obliquity_is_warned_about_once(tmp_path, name):
 def test_an_eccentricity_past_the_truncation_is_warned_about_once(tmp_path, name):
     text = _log_of(tmp_path, name, 0.9, 0.0, 2)
     assert text.count(ECCENTRICITY_RANGE_TEXT) == 1
+
+
+@pytest.mark.parametrize("name", FUNCTIONS)
+def test_each_truncation_level_warns_once(tmp_path, name):
+    """A function that warned at level 20 warns again at level 2, once each."""
+    text = _log_of(tmp_path, name, 0.9, 0.0, "20,2")
+    assert text.count(ECCENTRICITY_RANGE_TEXT) == 2
+    assert "(level 20)" in text and "(level 2)" in text
 
 
 def test_a_state_inside_the_truncations_is_quiet(tmp_path):

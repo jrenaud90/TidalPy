@@ -24,6 +24,23 @@
 
 namespace tidalpy {
 
+// Orbit-averaged incident stellar flux [W m-2], F = L / (4 pi a^2 sqrt(1 - e^2)), from a luminosity [W] and the
+// orbit's semi-major axis [m] and eccentricity. The sqrt(1 - e^2) is the time average of 1/r^2 over an eccentric orbit
+// (Mendez and Rivera-Valentin 2017). The incident flux, before a world's albedo and emissivity act; NaN for a
+// non-finite luminosity or a semi-major axis that is not finite and positive.
+inline double c_orbit_averaged_flux(double luminosity, double semi_major_axis, double eccentricity) noexcept {
+    if (!std::isfinite(luminosity) || !std::isfinite(semi_major_axis)
+            || semi_major_axis <= TidalPyConstants::d_EPS) {
+        return TidalPyConstants::d_NAN;
+    }
+    const double ecc_factor = std::sqrt(1.0 - eccentricity * eccentricity);
+    const double denom = 4.0 * TidalPyConstants::d_PI * semi_major_axis * semi_major_axis * ecc_factor;
+    if (std::abs(denom) <= TidalPyConstants::d_EPS) {
+        return TidalPyConstants::d_NAN;
+    }
+    return luminosity / denom;
+}
+
 // Construction parameters for c_StarWorld: c_WorldConfig plus the stellar scalars.
 struct c_StarConfig : public c_WorldConfig {
     double effective_temperature = 5772.0;   // [K] (solar default)
@@ -65,6 +82,23 @@ public:
         if (luminosity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         if (this->calc_surface_area(this->p_radius) <= 0.0 || tidalpy_config_ptr->d_SBC <= 0.0) { return 0.0; }
         return c_stefan_boltzmann_temperature(luminosity, this->p_radius);
+    }
+
+    // Orbit-averaged flux [W m-2] this star gives a body on an orbit of semi-major axis `distance` [m] and
+    // `eccentricity` about it (c_orbit_averaged_flux, the flux a c_System gives its worlds). Throws
+    // std::invalid_argument for a distance that is not finite and positive or an eccentricity outside [0, 1).
+    double calc_insolation_flux(double distance, double eccentricity) const {
+        if (!(std::isfinite(distance) && (distance > 0.0))) {
+            throw std::invalid_argument(
+                "TidalPy: star '" + this->get_name() + "' needs a finite, positive distance for its insolation flux; "
+                "got " + std::to_string(distance) + " m.");
+        }
+        if (!((eccentricity >= 0.0) && (eccentricity < 1.0))) {
+            throw std::invalid_argument(
+                "TidalPy: star '" + this->get_name() + "' needs an eccentricity in [0, 1) for its insolation flux; "
+                "got " + std::to_string(eccentricity) + ".");
+        }
+        return c_orbit_averaged_flux(this->p_luminosity, distance, eccentricity);
     }
 
     // Mutators (keep T and L consistent via Stefan-Boltzmann)

@@ -11,13 +11,18 @@ from libcpp.complex cimport complex as cpp_complex
 from TidalPy.RadialSolver.buffer_checks cimport (
     cy_check_at_least, cy_check_solution_rows, cy_resolve_num_ys)
 
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
 
 def apply_surface_bc(
         double complex[::1] constant_vector_view,
         double[::1] bc_view,
         double complex[:, ::1] uppermost_y_per_solution_view,
         double surface_gravity,
-        double G_to_use,
+        object G_to_use,
         size_t ytype_i,
         int layer_type,
         cpp_bool layer_is_static,
@@ -37,8 +42,8 @@ def apply_surface_bc(
         Y values at surface for each solution, a row for each of the layer's solutions.
     surface_gravity : float
         Gravitational acceleration at surface [m s-2].
-    G_to_use : float
-        Gravitational constant.
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
     ytype_i : int
         Y-type index (tidal=0, loading=1, etc.).
     layer_type : int
@@ -74,7 +79,7 @@ def apply_surface_bc(
         &bc_view[0],
         <cpp_complex[double]*>&uppermost_y_per_solution_view[0, 0],
         surface_gravity,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         num_sols,
         num_ys,
         ytype_i,

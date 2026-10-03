@@ -24,3 +24,9 @@ cdef extern from "binary_.hpp" namespace "tidalpy" nogil:
 
     # Raises on an I/O error, invalid magic bytes, or a byte order other than this machine's.
     c_BinaryHeader read_binary_header_from_file(const string& path) except +
+
+    # The class id of the record a file holds; 0 (Unknown) for a file that is not a TidalPy binary file.
+    uint32_t c_binary_file_class_id(const string& path) except +
+
+    # The Python class a record of a binary class id loads into, for messages.
+    string c_binary_class_name(uint32_t class_id) except +

@@ -10,7 +10,7 @@ import toml
 
 import TidalPy
 from TidalPy.constants import G
-from TidalPy.Structures import build_world, construct_world, available_worlds, save_world_to_toml
+from TidalPy.Structures import build_world, available_worlds, save_world_to_toml
 from TidalPy.Structures.configs import world_builder, config_kind, worldpack
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
@@ -102,14 +102,14 @@ _GASGIANT = {
     pytest.param(_GASGIANT, GasGiantWorld, 1, id="gasgiant"),
 ])
 def test_construct_layered_family_class(config, expected_class, num_layers):
-    world = construct_world(config)
+    world = build_world(config)
     assert type(world) is expected_class
     assert world.num_layers == num_layers
 
 
 def test_construct_star_class():
     config = {"name": "S", "type": "star", "radius_m": 7.0e8, "mass_kg": 2.0e30, "effective_temperature_k": 5772.0}
-    world = construct_world(config)
+    world = build_world(config)
     assert isinstance(world, StarWorld)
     assert math.isclose(world.effective_temperature, 5772.0)
     assert world.luminosity > 0.0
@@ -138,7 +138,7 @@ def test_layers_sorted_by_index_regardless_of_declaration_order():
         "mantle": config["layers"]["mantle"],
         "core": config["layers"]["core"],
     }
-    world = construct_world(config)
+    world = build_world(config)
     # A wrong order would leave the geometry discontinuous and the build or solve would fail.
     assert world.num_layers == 2
     assert world.solve_eos(G_to_use=G, verbose=False)["success"]
@@ -148,7 +148,7 @@ def test_layers_sorted_by_index_regardless_of_declaration_order():
 # Model wiring
 # =====================================================================================================================
 def test_eos_wired_and_solves():
-    world = construct_world(_terrestrial_dict())
+    world = build_world(_terrestrial_dict())
     assert world.all_materials_set is True
     result = world.solve_eos(G_to_use=G, verbose=False)
     assert result["success"] is True
@@ -157,12 +157,12 @@ def test_eos_wired_and_solves():
 
 
 def test_radiogenics_wired_produces_heating():
-    assert construct_world(_terrestrial_dict()).calc_internal_heating(0.0) > 0.0
+    assert build_world(_terrestrial_dict()).calc_internal_heating(0.0) > 0.0
 
 
 def test_rheology_and_viscosity_wired_give_complex_modulus():
     """Maxwell rheology with a finite viscosity gives a dissipative complex shear modulus in the mantle."""
-    world = construct_world(_terrestrial_dict())
+    world = build_world(_terrestrial_dict())
     world.solve_eos(G_to_use=G, verbose=False)
     mu = world.calc_complex_shear_modulus(4.5e6, 1.0e-5)
     assert np.isfinite(mu.real) and np.isfinite(mu.imag)
@@ -183,14 +183,14 @@ def test_a_layer_without_a_material_needs_the_configured_default(private_config)
     del config["layers"]["core"]["material"]
     del private_config["layers"]["material"]
     with pytest.raises(ValueError, match="Layer 'core' names no material"):
-        construct_world(config)
+        build_world(config)
 
 
 def test_a_layer_without_a_material_takes_the_configured_default():
     """A layer that names no material takes ``[layers] material`` of the configuration, simple_rock."""
     config = _terrestrial_dict()
     del config["layers"]["core"]["material"]
-    world = construct_world(config)
+    world = build_world(config)
     assert world.all_materials_set is True
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isclose(world.get_density(1.0e6), 3300.0, rel_tol=1e-6)
@@ -222,9 +222,9 @@ def test_a_layer_without_a_material_takes_the_configured_default():
     pytest.param(
         {"name": "X", "type": "terrestrial", "radius_m": 1.0, "mass_kg": 1.0}, None, id="no-layers"),
 ])
-def test_construct_world_rejects_a_bad_config(config, match):
+def test_build_world_rejects_a_bad_config(config, match):
     with pytest.raises(ValueError, match=match):
-        construct_world(config)
+        build_world(config)
 
 
 # =====================================================================================================================
@@ -240,7 +240,7 @@ def test_construct_world_rejects_a_bad_config(config, match):
     pytest.param({"material": _constant_material(1000.0)}, 1000.0, id="full-table"),
 ])
 def test_single_layer_eos_follows_the_layer_material(layer_overrides, density):
-    world = construct_world(_single_layer_world(layer_overrides))
+    world = build_world(_single_layer_world(layer_overrides))
     assert world.all_materials_set is True
     assert world.solve_eos(G_to_use=G, verbose=False)["success"]
     assert math.isclose(world.get_density(3.0e6), density, rel_tol=0.05)
@@ -248,12 +248,12 @@ def test_single_layer_eos_follows_the_layer_material(layer_overrides, density):
 
 def test_the_configured_default_material_is_editable(private_config):
     private_config["layers"]["material"] = "simple_ice"
-    world = construct_world(_single_layer_world({}))
+    world = build_world(_single_layer_world({}))
     assert world.only.get_config_dict()["material"]["solid"]["eos"]["reference_density_kg_m3"] == 920.0
     # A table works as the default too.
     private_config["layers"]["material"] = {
         "preset": "simple_ice", "solid": {"eos": {"reference_density_kg_m3": 930.0}}}
-    world = construct_world(_single_layer_world({}))
+    world = build_world(_single_layer_world({}))
     assert world.only.get_config_dict()["material"]["solid"]["eos"]["reference_density_kg_m3"] == 930.0
 
 
@@ -261,12 +261,12 @@ def test_an_error_in_the_configured_default_material_names_the_configuration(pri
     """A misspelled default is reported against TidalPy_Configs.toml, not against the layer, which names none."""
     private_config["layers"]["material"] = "simple_rok"
     with pytest.raises(ValueError, match=r"TidalPy_Configs\.toml \[layers\] material .*layer 'only'.*simple_rok"):
-        construct_world(_single_layer_world({}))
+        build_world(_single_layer_world({}))
 
 
 def test_an_isotope_table_naming_no_dataset_takes_the_configured_one():
     """A radiogenics table that names no dataset or arrays takes [radiogenics] isotopes, keeping its other keys."""
-    world = construct_world(_single_layer_world({"radiogenics": {"model": "isotope", "ref_time_s": 1.0e17}}))
+    world = build_world(_single_layer_world({"radiogenics": {"model": "isotope", "ref_time_s": 1.0e17}}))
     held = world.only.get_config_dict()["radiogenics"]
     assert held["isotope_names"] == ["U238", "U235", "Th232", "K40"]
     assert held["ref_time_s"] == 1.0e17
@@ -298,7 +298,7 @@ def _two_layer_world(name, inner_spec):
     ("V", {"volume_fraction": 0.125}, 3.0e6, 1e-9),
 ])
 def test_outer_radius_spec(name, inner_spec, expected, rel_tol):
-    outers = _layer_outer_radii(construct_world(_two_layer_world(name, inner_spec)))
+    outers = _layer_outer_radii(build_world(_two_layer_world(name, inner_spec)))
     assert math.isclose(outers[0], expected, rel_tol=rel_tol)
     assert math.isclose(outers[1], 6.0e6, rel_tol=1e-12)
 
@@ -312,7 +312,7 @@ def test_inner_radius_derived_from_previous_layer():
             "shell": {"layer_index": 2, "volume_fraction": 0.125, "material": _constant_material(3000.0)},
             "crust": {"layer_index": 3, "radius_fraction": 1.0, "material": _constant_material(2800.0)},
         }}
-    world = construct_world(config)
+    world = build_world(config)
     outers = _layer_outer_radii(world)
     expected_shell = (4.5e6 ** 3 + 0.125 * 6.0e6 ** 3) ** (1.0 / 3.0)
     assert math.isclose(outers[0], 2.0e6, rel_tol=1e-12)

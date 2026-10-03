@@ -1,6 +1,7 @@
 """Tests that the C++ logger is configured at startup from the ``[logging]`` configuration section."""
 import TidalPy
 from TidalPy.initialize import build_logging_config
+from TidalPy.Utilities.logging import resolve_log_level
 
 
 def test_logging_config_mirrors_the_logging_section():
@@ -12,7 +13,9 @@ def test_logging_config_mirrors_the_logging_section():
     assert config["log_to_file"] is False
     assert config["log_file_path"] == ""
     if TidalPy._in_jupyter and not logging_config["print_log_notebook"]:
-        assert config["console_level"] == "off"
+        assert config["console_level"] == max(
+            resolve_log_level(logging_config["console_level"]),
+            resolve_log_level(logging_config["notebook_console_level"]))
     else:
         assert config["console_level"] == logging_config["console_level"]
 

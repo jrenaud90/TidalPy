@@ -24,6 +24,23 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
+cdef str cy_binary_path(object path):
+    """A binary file path given as a string or an ``os.PathLike`` as a string; TypeError for anything else."""
+    cdef object file_path = _os.fspath(path) if isinstance(path, (str, _os.PathLike)) else None
+    if not isinstance(file_path, str):
+        raise TypeError(
+            f"TidalPy: a binary file path is a str or an os.PathLike naming a str path, not {type(path).__name__}.")
+    return file_path
+
+
+cdef str cy_existing_binary_path(object path):
+    """``cy_binary_path`` for a file a load reads; FileNotFoundError when there is no such file."""
+    cdef str file_path = cy_binary_path(path)
+    if not _os.path.isfile(file_path):
+        raise FileNotFoundError(f"No such file: '{file_path}'")
+    return file_path
+
+
 cdef class TidalPyBaseClass:
     """Abstract base for all TidalPy C++ class wrappers: binary save/load and schema version access."""
 
@@ -41,7 +58,7 @@ cdef class TidalPyBaseClass:
         self._check_ptr()
         return self._ptr.get_schema_version_str().decode("utf-8")
 
-    def save_binary(self, str path):
+    def save_binary(self, path):
         """Serialize this object to a TidalPy binary file.
 
         The record is written to a temporary file beside ``path`` and renamed over ``path`` only once it is complete,
@@ -49,47 +66,51 @@ cdef class TidalPyBaseClass:
 
         Parameters
         ----------
-        path : str
+        path : str or os.PathLike
             Destination file path.
 
         Raises
         ------
+        TypeError
+            ``path`` is not a string or path-like object.
         IOError
             The file cannot be written, or the finished file cannot replace an existing one at ``path`` (for example
             while another program holds it open on Windows).
         """
         self._check_ptr()
+        cdef str file_path = cy_binary_path(path)
         try:
-            self._ptr.save_binary(path.encode("utf-8"))
+            self._ptr.save_binary(file_path.encode("utf-8"))
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
 
-    def load_binary(self, str path, cpp_bool force=False):
+    def load_binary(self, path, cpp_bool force=False):
         """Load this object's state from a TidalPy binary file.
 
         A load that raises leaves every setting the object saves as it was before the call.
 
         Parameters
         ----------
-        path : str
+        path : str or os.PathLike
             Source file path.
         force : bool, optional
             Attempt the load even on a schema version mismatch.
 
         Raises
         ------
+        TypeError
+            ``path`` is not a string or path-like object.
         FileNotFoundError
             ``path`` does not exist.
         IOError
-            The file holds a record of another class, has an incompatible schema version, was written in another byte
-            order, or is corrupt: it ends inside a record, a record size disagrees with what this build reads, or
-            bytes are left over after the record.
+            The file holds a record of another class (the message names both classes), has an incompatible schema
+            version, was written in another byte order, or is corrupt: it ends inside a record, a record size
+            disagrees with what this build reads, or bytes are left over after the record.
         """
         self._check_ptr()
-        if not _os.path.isfile(path):
-            raise FileNotFoundError(f"No such file: '{path}'")
+        cdef str file_path = cy_existing_binary_path(path)
         try:
-            self._ptr.load_binary(path.encode("utf-8"), force)
+            self._ptr.load_binary(file_path.encode("utf-8"), force)
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
 
@@ -383,6 +404,19 @@ cdef str cy_param_bounds_name(c_ParamBounds bounds):
     return "any"
 
 
+# The number of parameters a model's one-line repr shows; the rest are elided.
+REPR_NUM_PARAMETERS = 3
+
+
+cdef str cy_repr_value(object value):
+    """A parameter value as a model's repr shows it: four significant figures, and lists element by element."""
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join([cy_repr_value(item) for item in value]) + "]"
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    return repr(value)
+
+
 cdef class PhysicsBase(TidalPyBaseClass):
     """Physics model base class.
 
@@ -509,8 +543,8 @@ cdef class PhysicsBase(TidalPyBaseClass):
         wrapper._set_model(c_share_physics[c_PhysicsBase](move(copied)))
         return wrapper
 
-    def load_binary(self, str path, cpp_bool force=False):
-        """Load this object's state from a TidalPy binary file.
+    def load_binary(self, path, cpp_bool force=False):
+        """Load this object's state from a TidalPy binary file (a ``str`` or ``os.PathLike`` path).
 
         A spec model is read into a fresh copy that then replaces this wrapper's model, so a layer that shares the
         previous model keeps it. A load that raises leaves this object as it was.
@@ -520,7 +554,8 @@ cdef class PhysicsBase(TidalPyBaseClass):
         FileNotFoundError
             ``path`` does not exist.
         IOError
-            The file holds a record of another class, has an incompatible schema version, or is corrupt.
+            The file holds a record of another class (the message names both classes), has an incompatible schema
+            version, or is corrupt.
         """
         self._check_ptr()
         cdef unique_ptr[c_PhysicsBase] fresh
@@ -532,13 +567,22 @@ cdef class PhysicsBase(TidalPyBaseClass):
                 pass
         if fresh.get() == NULL:
             return TidalPyBaseClass.load_binary(self, path, force)
-        if not _os.path.isfile(path):
-            raise FileNotFoundError(f"No such file: '{path}'")
+        cdef str file_path = cy_existing_binary_path(path)
         try:
-            fresh.get().load_binary(path.encode("utf-8"), force)
+            fresh.get().load_binary(file_path.encode("utf-8"), force)
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
         self._set_model(c_share_physics[c_PhysicsBase](move(fresh)))
+
+    def __repr__(self):
+        """One line: the class, the model name, and the first parameters in table order."""
+        if self._ptr is NULL:
+            return f"{type(self).__name__}(no model)"
+        cdef list items = list(self.parameters.items())
+        cdef list shown = [f"{name}={cy_repr_value(value)}" for name, value in items[:REPR_NUM_PARAMETERS]]
+        if len(items) > REPR_NUM_PARAMETERS:
+            shown.append("...")
+        return f"{type(self).__name__}({', '.join([repr(self.model_name)] + shown)})"
 
     def __getattr__(self, str name):
         # Parameters read as attributes, by argument name or config key. Python calls this only after normal lookup

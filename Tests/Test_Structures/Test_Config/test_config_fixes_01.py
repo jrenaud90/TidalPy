@@ -14,7 +14,7 @@ from TidalPy import paths
 from TidalPy import configurations
 from TidalPy.configurations import get_packaged_config, merge_configs
 from TidalPy.Material import merge_material_tables
-from TidalPy.Structures import build_world, build_world_from_dict, available_worlds
+from TidalPy.Structures import build_world, available_worlds
 from TidalPy.Structures.configs import data_file, worldpack
 
 
@@ -55,7 +55,7 @@ def _preset_layer(preset, **overrides):
 
 def test_an_override_naming_the_presets_model_keeps_its_other_values():
     # "bm" is an alias of the preset's birch_murnaghan law, so the override merges into it.
-    world = build_world_from_dict(_preset_layer(
+    world = build_world(_preset_layer(
         "peridotite", solid={"eos": {"model": "bm", "reference_density_kg_m3": 3400.0}}))
     eos = world.shell.get_config_dict()["material"]["solid"]["eos"]
     assert eos["model"] == "birch_murnaghan"
@@ -65,7 +65,7 @@ def test_an_override_naming_the_presets_model_keeps_its_other_values():
 
 
 def test_a_users_key_wins_over_the_presets_value():
-    world = build_world_from_dict(_preset_layer("ice_ih", melting={"solidus": {"temperature_k": 260.0}}))
+    world = build_world(_preset_layer("ice_ih", melting={"solidus": {"temperature_k": 260.0}}))
     melting = world.shell.get_config_dict()["material"]["melting"]
     assert melting["solidus"]["temperature_k"] == 260.0
     # The rest of the preset's curve and the other curve are kept.
@@ -75,7 +75,7 @@ def test_a_users_key_wins_over_the_presets_value():
 
 def test_switching_the_viscosity_model_replaces_the_presets_table():
     table = {"model": "reference", "reference_viscosity_pas": 1.0e14, "reference_temperature_k": 260.0}
-    world = build_world_from_dict(_preset_layer("ice_ih", solid={"shear_viscosity": table}))
+    world = build_world(_preset_layer("ice_ih", solid={"shear_viscosity": table}))
     viscosity = world.shell.get_config_dict()["material"]["solid"]["shear_viscosity"]
     assert viscosity["reference_viscosity_pas"] == 1.0e14
     # The reference law's own activation energy, not the ice preset's Arrhenius value (5.94e4): another model reads
@@ -85,7 +85,7 @@ def test_switching_the_viscosity_model_replaces_the_presets_table():
 
 
 def test_a_full_material_table_takes_only_its_own_keys():
-    world = build_world_from_dict(_one_layer_world({
+    world = build_world(_one_layer_world({
         "material": {"solid": {"eos": {"model": "constant", "reference_density_kg_m3": 1000.0}}}}))
     material = world.shell.get_config_dict()["material"]
     # No preset: no liquid phase, melting curves, or laws the table does not name.
@@ -205,11 +205,11 @@ def _interpolated_layer(radius):
 def test_an_interpolated_table_that_misses_its_layer_is_refused():
     # A radius given in km under radius_m would otherwise build a uniform layer.
     with pytest.raises(ValueError, match="must cover its layer"):
-        build_world_from_dict(_one_layer_world(_interpolated_layer([0.0, 500.0, 1000.0])))
+        build_world(_one_layer_world(_interpolated_layer([0.0, 500.0, 1000.0])))
 
 
 def test_an_interpolated_table_that_covers_its_layer_builds():
-    world = build_world_from_dict(_one_layer_world(_interpolated_layer([0.0, 5.0e5, 1.0e6])))
+    world = build_world(_one_layer_world(_interpolated_layer([0.0, 5.0e5, 1.0e6])))
     assert world.shell.get_config_dict()["material"]["solid"]["eos"]["radius_m"][-1] == 1.0e6
 
 
@@ -220,7 +220,7 @@ def test_a_profile_without_a_repeated_boundary_row_spans_each_layer():
     assert upper["radius_m"][:2] == [1.0e6, 1.1e6]
     assert upper["density_kg_m3"][:2] == [1100.0, 1100.0]
     # The saved configuration rebuilds.
-    rebuilt = build_world_from_dict(world.get_config_dict())
+    rebuilt = build_world(world.get_config_dict())
     assert rebuilt.get_config_dict()["layers"]["layer_1"]["material"]["liquid"]["eos"]["radius_m"] == \
         upper["radius_m"]
 

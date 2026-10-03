@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 `TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world: the complex strain and stress tensors and the volumetric heating. The response is evaluated point by point.
 
@@ -168,11 +168,11 @@ h_bar = world.get_3d_tidal_heating(
 )   # [W m-3], secular
 ```
 
-This requires the rheology tide model and a solved EOS. Analytic tide models such as fixed-Q have no depth-resolved solution and are rejected. Every 3D method checks the orbital state as `calc_tides` does. An eccentricity outside $[0, 1)$ or a semi-major axis that is not positive raises `ValueError`, and the truncation-range warnings apply. The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there. A radius is NaN only where no degree has a solution. This holds for every output with a radius axis, including a radial profile summed over colatitude and longitude.
+This requires the rheology tide model and a solved EOS. Analytic tide models such as fixed-Q have no depth-resolved solution and are rejected. Every 3D method takes the six orbital-state arguments of `calc_tides` first, and, as there, each one left as `None` comes from the world's `get_tide_state()` when the world belongs to a `System` with a tidal host; the point or grid arguments are then given by keyword (`world.get_3d_tidal_heating(radius=0.9 * world.radius, colatitude=0.8)`). Every 3D method checks the orbital state as `calc_tides` does. An eccentricity outside $[0, 1)$ or a semi-major axis that is not positive raises `ValueError`, and the truncation-range warnings apply. The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there. A radius is NaN only where no degree has a solution. This holds for every output with a radius axis, including a radial profile summed over colatitude and longitude.
 
 #### Building the Map
 
-`get_3d_tidal_heating` re-solves the world radial (Love-number) response at every point. `get_3d_tidal_heating_array` takes paired, equal-length `(radius, colatitude)` arrays. It builds the position-independent mode list once, solves the radial response once per unique `(l, frequency)`, and reuses it across all points. It returns an array of the same shape, NaN where a radius has no depth-resolved solution:
+`get_3d_tidal_heating` re-solves the world radial (Love-number) response at every point. `get_3d_tidal_heating_array` takes paired, equal-length `(radius, colatitude)` arrays, or a scalar for one of the two, which pairs with every value of the other (a colatitude profile at one radius). It builds the position-independent mode list once, solves the radial response once per unique `(l, frequency)`, and reuses it across all points. It returns an array of the same shape, NaN where a radius has no depth-resolved solution:
 
 ```python
 radii = np.linspace(0.01 * world.radius, 0.999 * world.radius, 40)

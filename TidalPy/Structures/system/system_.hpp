@@ -503,10 +503,8 @@ public:
             this->calc_stellar_gravitational_parameter(index), this->get_stellar_orbit(index).semi_major_axis);
     }
 
-    // Orbit-averaged incident stellar flux [W m-2], F = L_star / (4 pi a^2 sqrt(1-e^2)), with a and e the
-    // world's orbital elements about the star. The sqrt(1-e^2) is the time-average of 1/r^2 over an
-    // eccentric orbit (Mendez and Rivera-Valentin 2017). This is the incident flux, before the world's own
-    // albedo and emissivity are applied.
+    // Orbit-averaged incident stellar flux [W m-2] (c_orbit_averaged_flux), with a and e the world's orbital elements
+    // about the star; the incident flux, before the world's own albedo and emissivity are applied.
     double calc_insolation_flux(std::size_t index) const {
         this->check_index(index);
         if (!this->has_star()) {
@@ -515,20 +513,9 @@ public:
         if (static_cast<int>(index) == this->p_star_index) {
             return TidalPyConstants::d_NAN;
         }
-        const double luminosity = this->get_star_luminosity();
         const c_OrbitElements stellar_orbit = this->get_stellar_orbit(index);
-        const double semi_major_axis = stellar_orbit.semi_major_axis;
-        const double eccentricity = stellar_orbit.eccentricity;
-        if (!std::isfinite(luminosity) || !std::isfinite(semi_major_axis)
-                || semi_major_axis <= TidalPyConstants::d_EPS) {
-            return TidalPyConstants::d_NAN;
-        }
-        const double ecc_factor = std::sqrt(1.0 - eccentricity * eccentricity);
-        const double denom = 4.0 * TidalPyConstants::d_PI * semi_major_axis * semi_major_axis * ecc_factor;
-        if (std::abs(denom) <= TidalPyConstants::d_EPS) {
-            return TidalPyConstants::d_NAN;
-        }
-        return luminosity / denom;
+        return c_orbit_averaged_flux(
+            this->get_star_luminosity(), stellar_orbit.semi_major_axis, stellar_orbit.eccentricity);
     }
 
     // From stellar insolation alone, by gray-body radiative balance on the world's albedo and emissivity:

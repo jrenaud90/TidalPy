@@ -9,6 +9,7 @@ world objects stay usable and are handed straight back by iteration (``for world
 indexing (``system[i]``), and attribute access (``system.<world_name>``).
 """
 
+import copy
 import operator
 import os
 from numbers import Integral
@@ -23,7 +24,8 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Structures.worlds.base cimport BaseWorld
+from TidalPy.Utilities.classes.classes cimport cy_existing_binary_path
+from TidalPy.Structures.worlds.base cimport BaseWorld, cy_set_world_configs, cy_world_configs
 from TidalPy.Structures.worlds.terrestrial cimport TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant cimport GasGiantWorld
 from TidalPy.Structures.worlds.stellar cimport StarWorld
@@ -54,10 +56,16 @@ cdef BaseWorld cy_wrap_world(shared_ptr[c_BaseWorld] ptr):
     return BaseWorld._wrap(ptr)
 
 
-cdef dict cy_evolution_to_dict(c_WorldEvolution evolution):
+# The name of a member world, by index.
+cdef str cy_world_name(c_System* system_ptr, size_t index):
+    return system_ptr.get_world(index).get().get_name().decode("utf-8")
+
+
+cdef dict cy_evolution_to_dict(c_WorldEvolution evolution, c_System* system_ptr):
     """Convert a c_WorldEvolution result into a plain Python dict (all values MKS)."""
     return {
         'world_index':       <int>evolution.world_index,
+        'world_name':        cy_world_name(system_ptr, evolution.world_index),
         'evolved':           True if evolution.evolved else False,
         'has_tide_model':    True if evolution.has_tide_model else False,
         'orbital_frequency': evolution.orbital_frequency,
@@ -82,11 +90,16 @@ cdef dict cy_evolution_to_dict(c_WorldEvolution evolution):
     }
 
 
-cdef dict cy_pair_to_dict(c_PairEvolution pair):
+cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
     """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS)."""
+    # A world with no tidal host has no host to name (its pair keeps the default host index).
+    cdef int host_index = system_ptr.get_tidal_host_index(pair.world_index)
+    cdef object host_name = None if host_index < 0 else cy_world_name(system_ptr, <size_t>host_index)
     return {
         'world_index':         <int>pair.world_index,
+        'world_name':          cy_world_name(system_ptr, pair.world_index),
         'host_index':          <int>pair.host_index,
+        'host_name':           host_name,
         'evolved':             True if pair.evolved else False,
         'has_tide_model':      True if pair.has_tide_model else False,
         'orbital_frequency':   pair.orbital_frequency,
@@ -99,9 +112,53 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair):
         'dE_orbit_dt':         pair.dE_orbit_dt,
         'dE_spin_dt_total':    pair.dE_spin_dt_total,
         'energy_residual':     pair.energy_residual,
-        'world':               cy_evolution_to_dict(pair.world),
-        'host':                cy_evolution_to_dict(pair.host),
+        'world':               cy_evolution_to_dict(pair.world, system_ptr),
+        'host':                cy_evolution_to_dict(pair.host, system_ptr),
     }
+
+
+# The configurations a copy or a pickle of a system carries over: its own and each member world's.
+cdef dict cy_system_configs(System system):
+    return {
+        "source_config": system.source_config,
+        "source_dir": system.source_dir,
+        "world_configs": [cy_world_configs(world) for world in system._world_wrappers],
+    }
+
+
+def system_from_bytes(bytes record, dict configs=None):
+    """A system rebuilt from one binary system record held in memory, as :meth:`System.copy` and unpickling make one.
+
+    Parameters
+    ----------
+    record : bytes
+        The system's binary record, the bytes ``save_binary`` writes to a file.
+    configs : dict, optional
+        ``source_config``, ``source_dir``, and ``world_configs`` (one dict of each member world's configurations, in
+        system order) for the new system, each copied; a key left out leaves that configuration ``None``.
+
+    Returns
+    -------
+    System
+        A system with the record's worlds, roles, and orbits, its worlds unsolved.
+
+    Raises
+    ------
+    IOError
+        The record is not a system's, or it is corrupt.
+    """
+    cdef System system = System()
+    try:
+        system._system.get().load_binary_bytes(record, b"a System record", False)
+    except RuntimeError as exc:
+        raise IOError(str(exc)) from exc
+    system._rebuild_world_wrappers()
+    configs = configs or {}
+    system.source_config = copy.deepcopy(configs.get("source_config"))
+    system.source_dir = configs.get("source_dir")
+    for world, world_configs in zip(system._world_wrappers, configs.get("world_configs") or []):
+        cy_set_world_configs(world, world_configs)
+    return system
 
 
 cdef class System:
@@ -138,16 +195,21 @@ cdef class System:
         self._ptr = NULL
 
     @staticmethod
-    def build(source, force=False):
+    def build(source, overrides=None, force=False):
         """Build a system from a configuration source (the public builder entry point).
 
         Resolves ``source``, validates it, builds each member world, and returns the assembled
-        ``System`` with the normalized configuration retained on :attr:`source_config`.
+        ``System`` with the normalized configuration retained on :attr:`source_config`. A path to a binary file
+        (``save_binary``) is loaded instead (:func:`~TidalPy.Structures.load_system`).
 
         Parameters
         ----------
-        source : str or dict
-            A bundled system name, a path to a ``.toml`` file, or a system configuration dict.
+        source : str, os.PathLike, or dict
+            A bundled system name, a path to a ``.toml`` or binary file, or a system configuration dict.
+        overrides : dict, optional
+            Values merged over the configuration before it is built, table by table, so a nested table only needs the
+            keys it changes (``{"worlds": {"earth": {"world": "earth_prem"}}}``). Not accepted with a binary file.
+            Default None.
         force : bool, optional
             If True, bypass the schema-version compatibility warning. Default False.
 
@@ -155,21 +217,27 @@ cdef class System:
         -------
         System
             The constructed system, with ``source_config`` populated.
+
+        Raises
+        ------
+        ValueError
+            The configuration fails validation, or ``overrides`` is given with a binary file.
         """
         # Deferred imports: the builder helpers import the System class, so importing them at module
         # load would be circular.
-        from TidalPy.Structures.configs.system_builder import _resolve_source, construct_system
-        from TidalPy.Structures.configs.toml_loader import (
-            load_toml,
-            merge_with_defaults,
-            validate_schema_version)
+        from TidalPy.Structures.configs.system_builder import _resolve_source, construct_system, load_system
+        from TidalPy.Structures.configs.toml_loader import load_build_config
+        from TidalPy.Structures.configs.worldpack import binary_source_class
 
         # `_resolve_source` accepts a path string, a Path, or an already-parsed mapping, so `object` it is.
         cdef object resolved = _resolve_source(source)
-        cdef dict config = load_toml(resolved)
-        # Checked before the defaults fill a missing version in, so a file without one says so.
-        validate_schema_version(config, force=force)
-        config = merge_with_defaults(config)
+        if binary_source_class(resolved) is not None:
+            if overrides is not None:
+                raise ValueError(
+                    f"TidalPy: '{resolved}' is a binary file, which overrides cannot change; load it and then change "
+                    "the system.")
+            return load_system(resolved, force=force)
+        cdef dict config = load_build_config(resolved, overrides, force)
         # A member's relative world path is relative to the system file.
         base_dir = os.path.dirname(os.path.abspath(resolved)) if isinstance(resolved, str) else None
         return construct_system(config, force=force, base_dir=base_dir)
@@ -180,7 +248,10 @@ cdef class System:
             tidal_host=None,
             cpp_bool is_star=False,
             semi_major_axis=None,
-            eccentricity=None):
+            eccentricity=None,
+            cpp_bool synchronous=False,
+            stellar_semi_major_axis=None,
+            stellar_eccentricity=None):
         """Add a world to the system, returning its index.
 
         Parameters
@@ -197,22 +268,50 @@ cdef class System:
             If ``True`` the world becomes the system star, the insolation source (the last world added
             as star wins). A star can also be a tidal host.
         semi_major_axis : float, optional
-            Two-body semi-major axis about the tidal host [m]. ``None`` leaves it unset. The orbit about
-            the star is set separately via :meth:`set_stellar_semi_major_axis`.
+            Two-body semi-major axis about the tidal host [m]. ``None`` leaves it unset.
         eccentricity : float, optional
             Orbital eccentricity about the tidal host. ``None`` (default) leaves it unset: it reads as ``0.0``
             unless an element set describing the same orbit gives it (the partner of a mutual pair, or the orbit
             about the star when the star is the tidal host).
+        synchronous : bool, optional
+            Set the world's spin frequency to its mean motion about its tidal host
+            (:meth:`set_synchronous_rotation`). Needs ``tidal_host`` and ``semi_major_axis``. Default False.
+        stellar_semi_major_axis : float, optional
+            Semi-major axis about the star [m] (:meth:`set_stellar_semi_major_axis`), for a world whose tidal host
+            is not the star. ``None`` (default) leaves it unset.
+        stellar_eccentricity : float, optional
+            Orbital eccentricity about the star (:meth:`set_stellar_eccentricity`). ``None`` (default) leaves it
+            unset.
 
         Returns
         -------
         int
             The world's index within the system.
+
+        Raises
+        ------
+        ValueError
+            An element is out of range, ``synchronous`` is given without a tidal host and a semi-major axis, or
+            stellar elements are given for a world whose tidal host is the star (its orbit about the star is its
+            tidal orbit, given by ``semi_major_axis`` and ``eccentricity``). A refused world is not added.
         """
         cdef double a = NAN if semi_major_axis is None else <double>semi_major_axis
         cdef double e = NAN if eccentricity is None else <double>eccentricity
-        # Resolved before the world is added, so a bad host leaves the system as it was.
+        cdef double stellar_a = NAN if stellar_semi_major_axis is None else <double>stellar_semi_major_axis
+        cdef double stellar_e = NAN if stellar_eccentricity is None else <double>stellar_eccentricity
+        cdef cpp_bool has_stellar_elements = (stellar_semi_major_axis is not None) or (stellar_eccentricity is not None)
+        cdef str world_name = world._world_ptr.get().get_name().decode("utf-8")
+        # Everything is checked before the world is added, so a refused world leaves the system as it was.
         cdef Py_ssize_t host_index = -1 if tidal_host is None else self._resolve_index(tidal_host)
+        if synchronous and ((host_index < 0) or (semi_major_axis is None)):
+            raise ValueError(
+                f"TidalPy: world '{world_name}' cannot be added with synchronous rotation: its mean motion needs a "
+                "tidal_host and a semi_major_axis about it.")
+        if has_stellar_elements and (host_index >= 0) and (host_index == self._system.get().get_star_index()):
+            raise ValueError(
+                f"TidalPy: world '{world_name}' has the star as its tidal host, so its orbit about the star is its "
+                "tidal orbit; give it as semi_major_axis and eccentricity, not the stellar elements.")
+        c_check_orbit(stellar_a, stellar_e, world._world_ptr.get().get_name())
         cdef size_t index = self._system.get().add_world(
             world._world_ptr,
             is_star,
@@ -221,7 +320,44 @@ cdef class System:
         self._world_wrappers.append(world)
         if host_index >= 0:
             self._system.get().set_tidal_host(index, <size_t>host_index)
+        if stellar_semi_major_axis is not None:
+            self._system.get().set_stellar_semi_major_axis(index, stellar_a)
+        if stellar_eccentricity is not None:
+            self._system.get().set_stellar_eccentricity(index, stellar_e)
+        if synchronous:
+            self.set_synchronous_rotation(<int>index)
         return <int>index
+
+    def set_synchronous_rotation(self, world) -> float:
+        """Set a world's spin frequency to its mean motion about its tidal host, returning it [rad s-1].
+
+        A synchronously rotating world (most large moons) has its spin equal to its orbital mean motion, so its tides
+        have no slow forcing term. The spin is set once, from the current orbit (:meth:`calc_orbital_frequency`): a
+        later change of the orbit or the masses does not move it, so call this again after one.
+
+        Parameters
+        ----------
+        world : int or str or BaseWorld
+            The world, identified by index, name, or the world object.
+
+        Returns
+        -------
+        float
+            The spin frequency set [rad s-1].
+
+        Raises
+        ------
+        ValueError
+            The world has no tidal host, or no semi-major axis about it, so it has no mean motion.
+        """
+        cdef size_t index = <size_t>self._resolve_index(world)
+        cdef double orbital_frequency = self._system.get().calc_orbital_frequency(index)
+        if not isfinite(orbital_frequency):
+            raise ValueError(
+                f"TidalPy: world '{cy_world_name(self._system.get(), index)}' has no mean motion to rotate "
+                "synchronously with: give it a tidal host and a semi-major axis about it first.")
+        self._world_wrappers[index].set_spin_frequency(orbital_frequency)
+        return orbital_frequency
 
     @property
     def name(self) -> str:
@@ -415,9 +551,10 @@ cdef class System:
         Returns
         -------
         dict
-            The orbital and spin state used, the raw tidal outputs (``tidal_heating``, ``dU_dM``,
-            ``dU_dw``, ``dU_dO``), the rates (``da_dt``, ``de_dt``, ``dn_dt``, ``dspin_dt``), and the
-            energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all MKS.
+            The world (``world_index``, ``world_name``), the orbital and spin state used, the raw tidal outputs
+            (``tidal_heating``, ``dU_dM``, ``dU_dw``, ``dU_dO``), the rates (``da_dt``, ``de_dt``, ``dn_dt``,
+            ``dspin_dt``), and the energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all
+            MKS.
             ``evolved`` is ``False`` for a world with no tidal host or no usable orbit about it.
             ``has_tide_model`` is ``False`` for a rigid world (no tide model attached): it raises no tide, so
             its rates and energy terms are zero while ``evolved`` stays ``True``, and a warning is logged once
@@ -427,7 +564,7 @@ cdef class System:
         cdef c_WorldEvolution evolution
         with nogil:
             evolution = self._system.get().calc_world_evolution(index)
-        return cy_evolution_to_dict(evolution)
+        return cy_evolution_to_dict(evolution, self._system.get())
 
     def calc_system_evolution(self) -> list:
         """Evolve every world in the system (single-body dissipation).
@@ -448,7 +585,7 @@ cdef class System:
         cdef list out = []
         cdef size_t i
         for i in range(results.size()):
-            out.append(cy_evolution_to_dict(results[i]))
+            out.append(cy_evolution_to_dict(results[i], self._system.get()))
         return out
 
     def calc_pair_evolution(self, world) -> dict:
@@ -469,7 +606,8 @@ cdef class System:
         dict
             Combined shared-orbit fields (``da_dt``, ``de_dt``, ``dn_dt``, ``tidal_heating_total``,
             ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, plus ``orbital_frequency`` /
-            ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``host_index`` / ``evolved``), and
+            ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``world_name`` / ``host_index`` /
+            ``host_name`` / ``evolved``), and
             each body's full single-body contribution under keys ``world`` and ``host`` (each a
             :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for a world with no tidal
             host or no usable orbit about it. ``has_tide_model`` is ``True`` when at least one body carries a
@@ -480,7 +618,7 @@ cdef class System:
         cdef c_PairEvolution pair
         with nogil:
             pair = self._system.get().calc_pair_evolution(index)
-        return cy_pair_to_dict(pair)
+        return cy_pair_to_dict(pair, self._system.get())
 
     @property
     def config(self):
@@ -492,7 +630,8 @@ cdef class System:
 
         Each member world is inlined with its own live configuration (its ``get_config_dict``) under its
         system name, together with its tidal host, its star role, and its orbital elements, so
-        ``build_system_from_dict`` rebuilds the system as it stands now and not as it was first described.
+        ``build_system`` rebuilds the system from it as it stands now and not as it was first described. A world whose
+        tidal host is the star carries no stellar elements, since its orbit about the star is its tidal orbit.
         :meth:`get_save_config` builds on it, keeping each unchanged member's original reference.
 
         Returns
@@ -525,8 +664,10 @@ cdef class System:
             if isfinite(a):
                 entry["semi_major_axis_m"] = a
                 entry["eccentricity"] = system_ptr.get_eccentricity(<size_t>i)
+            # A world whose tidal host is the star has one orbit, written above as its tidal elements; add_world
+            # refuses stellar elements for it.
             stellar_a = system_ptr.get_stellar_semi_major_axis(<size_t>i)
-            if isfinite(stellar_a):
+            if isfinite(stellar_a) and not system_ptr.is_hosted_by_star(<size_t>i):
                 entry["stellar_semi_major_axis_m"] = stellar_a
                 entry["stellar_eccentricity"] = system_ptr.get_stellar_eccentricity(<size_t>i)
             worlds_table[world.name] = entry
@@ -612,23 +753,26 @@ cdef class System:
         for i in range(num):
             self._world_wrappers.append(cy_wrap_world(system_ptr.get_world(i)))
 
-    def load_binary(self, str path, cpp_bool force=False):
+    def load_binary(self, path, cpp_bool force=False):
         """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).
 
         Rebuilds the heterogeneous world list from the stream (each world's concrete type is
         recovered from its record) and the Python wrappers around it. Each world comes back with its tide
         model and ``[tides]`` settings, spin model, pinned solver settings, and (for a star) luminosity
         model; solved state is not saved, so call ``solve_eos`` on each world with layers before evolving.
+        :func:`~TidalPy.Structures.load_system` loads a file into a new system.
 
         Parameters
         ----------
-        path : str
+        path : str or os.PathLike
             Source file path.
         force : bool, optional
             If True, attempt to load even on a schema-version mismatch.
 
         Raises
         ------
+        TypeError
+            ``path`` is not a string or path-like object.
         FileNotFoundError
             If the file does not exist.
         IOError
@@ -638,17 +782,47 @@ cdef class System:
             leaves the system, its worlds, and their wrappers as they were: the file is read into a new system
             first and reaches this one only once that read succeeded.
         """
-        import os as _os
-        if not _os.path.isfile(path):
-            raise FileNotFoundError(f"No such file: '{path}'")
+        cdef str file_path = cy_existing_binary_path(path)
         try:
-            self._system.get().load_binary(path.encode("utf-8"), force)
+            self._system.get().load_binary(file_path.encode("utf-8"), force)
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
         # Only a successful load replaces the worlds, so only then do the wrappers follow the new ones.
         self._rebuild_world_wrappers()
         self.source_config = None
         self.source_dir = None
+
+    def copy(self):
+        """An independent system with the same worlds, roles, and orbits.
+
+        The copy goes through the binary record (:meth:`save_binary` without the file), so each world is a copy as
+        :meth:`BaseWorld.copy <TidalPy.Structures.worlds.base.BaseWorld.copy>` makes one: same layers, models, and
+        settings, unsolved (run ``solve_eos`` on each world with layers again), with its own copies of the
+        configurations it was built from. ``copy.copy``, ``copy.deepcopy``, and ``pickle`` use it.
+
+        Returns
+        -------
+        System
+        """
+        return system_from_bytes(self._system.get().write_binary_bytes(), cy_system_configs(self))
+
+    def __copy__(self):
+        return self.copy()
+
+    def __deepcopy__(self, memo):
+        return self.copy()
+
+    def __reduce__(self):
+        # Pickled as its binary record and its configurations, rebuilt by system_from_bytes (see copy).
+        return (system_from_bytes, (self._system.get().write_binary_bytes(), cy_system_configs(self)))
+
+    def __repr__(self):
+        """One line: the class, the name, the member worlds by name, and the star."""
+        if self._system.get() == NULL:
+            return f"{type(self).__name__}(no system)"
+        cdef object star = self.star
+        return (f"{type(self).__name__}({self.name!r}, worlds={[world.name for world in self._world_wrappers]!r}, "
+                f"star={None if star is None else star.name!r})")
 
     # World identification: accept an index (int), a world name (str), or the world wrapper object.
     cdef Py_ssize_t _resolve_index(self, object world) except *:

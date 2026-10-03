@@ -207,15 +207,16 @@ const NODES = [
   { id: 'build_world', lane: 'config', kind: 'py', shape: 'func', star: true,
     label: 'build_world(source)', file: 'Structures/configs/world_builder.py',
     purpose: 'Entry point for worlds: a bundled name, a .toml path, or a dict becomes a TerrestrialWorld, ' +
-      'GasGiantWorld, StarWorld, or BaseWorld with every layer and physics model attached. build_world_from_dict and ' +
+      'GasGiantWorld, StarWorld, or BaseWorld with every layer and physics model attached; overrides merge into the ' +
+      'source first, and a binary file is loaded (load_world). build_world(world.get_config_dict()) and ' +
       'build_layer_from_dict rebuild an object from the dict its get_config_dict returns. A bundled name that ' +
       'resolves to a data-directory copy differing from the packaged file is reported once (worldpack.py).',
     inputs: 'bundled world name, TOML path, or config dict', outputs: 'world object with source_config retained' },
   { id: 'build_system', lane: 'config', kind: 'py', shape: 'func', star: true,
     label: 'build_system(source)', file: 'Structures/configs/system_builder.py',
     purpose: 'Entry point for systems: a system TOML names its worlds (bundled, path, or inline), the tidal host ' +
-      'of each, and their orbits about that host and the star. build_system_from_dict rebuilds a system from ' +
-      'the dict its get_config_dict returns, worlds included.',
+      'of each, and their orbits about that host and the star. build_system(system.get_config_dict()) rebuilds ' +
+      'a system, worlds included, and a binary file is loaded (load_system).',
     inputs: 'system name, TOML path, or dict', outputs: 'System holding the built worlds' },
   { id: 'toml_loader', lane: 'config', kind: 'py', shape: 'func',
     label: 'validate_world_config', sub: 'toml_loader.py', file: 'Structures/configs/toml_loader.py',
@@ -227,7 +228,8 @@ const NODES = [
       'with no TidalPy imports, and are re-exported here.',
     inputs: 'raw config dict', outputs: 'validated config (raises ValueError otherwise)' },
   { id: 'construct_world', lane: 'config', kind: 'py', shape: 'func',
-    label: 'construct_world and construct_layer', file: 'Structures/configs/world_builder.py',
+    label: 'world and layer construction', sub: '_construct_owned_world, construct_layer',
+    file: 'Structures/configs/world_builder.py',
     purpose: 'Builds the world type named by `type` and its layers inner to outer. Every omitted value comes ' +
       'from the configuration defaults, then the constructor default; PREM data files are expanded into layers ' +
       '(the given form is kept on portable_config for saving, and such a world pins RK45 for its EOS solve). A ' +

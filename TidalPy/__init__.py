@@ -37,6 +37,9 @@ from .cache import clear_data as clear_data
 # Save the effective configuration, headed by the package versions that produced it.
 from .configurations import save_config as save_config
 
+# Collect the log messages of a block of code (spdlog bypasses Python's logging).
+from .Utilities.logging.capture import capture_log as capture_log
+
 
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """

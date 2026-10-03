@@ -25,7 +25,8 @@ import toml
 
 import TidalPy
 # Shared with the material and system loaders, re-exported: this loader is where callers look for them.
-from TidalPy.configurations import validate_schema_version, warning_enabled
+from TidalPy.configurations import merge_configs, validate_schema_version, warning_enabled
+from TidalPy.Utilities.classes.classes import did_you_mean
 
 # The schema's version and key sets, re-exported: this loader is where callers look for them.
 from TidalPy.schema import (
@@ -75,7 +76,8 @@ def validate_solver_table(section: str, table, where: str) -> None:
     for key, value in table.items():
         if key not in rules:
             raise ValueError(
-                f"{where}: unexpected '[{section}]' key '{key}'. Allowed keys: {sorted(rules)}.")
+                f"{where}: unexpected '[{section}]' key '{key}'{did_you_mean(key, rules)}. Allowed keys: "
+                f"{sorted(rules)}.")
         kind, floor = rules[key]
         if kind is bool:
             if not isinstance(value, bool):
@@ -294,6 +296,9 @@ def validate_world_config(config: dict) -> None:
     # 'data_file' and 'data' are the two ways to give a radial profile in place of layer tables; the
     # builder expands either into 'layers' before validation.
     structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
+    # Every key a world table may hold, which an unknown key's message suggests the closest of.
+    world_keys = sorted(set(allowed) | structural | set(SOLVER_TABLES) | set(WORLD_MODEL_SECTIONS)
+                        | {"prescribed_heating"})
     for key, value in config.items():
         if key in SOLVER_TABLES:
             validate_solver_table(key, value, f"World '{config.get('name', '?')}'")
@@ -305,7 +310,7 @@ def validate_world_config(config: dict) -> None:
             for tides_key in value:
                 if tides_key not in ALLOWED_TIDES_KEYS:
                     raise ValueError(
-                        f"Unexpected '[tides]' key '{tides_key}'. "
+                        f"Unexpected '[tides]' key '{tides_key}'{did_you_mean(tides_key, ALLOWED_TIDES_KEYS)}. "
                         f"Allowed keys: {sorted(ALLOWED_TIDES_KEYS)}.")
             continue
         if key in structural:
@@ -323,11 +328,11 @@ def validate_world_config(config: dict) -> None:
             continue
         if isinstance(value, dict):
             raise ValueError(
-                f"Unexpected world-level table '[{key}]' for world type "
+                f"Unexpected world-level table '[{key}]'{did_you_mean(key, world_keys)} for world type "
                 f"'{world_type}'.")
         if key not in allowed:
             raise ValueError(
-                f"Unexpected world-level key '{key}' for world type "
+                f"Unexpected world-level key '{key}'{did_you_mean(key, world_keys)} for world type "
                 f"'{world_type}'. Allowed keys: {sorted(allowed)}.")
 
     layers = config.get("layers", None)
@@ -586,6 +591,9 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
             f"Layer '{layer_name}' specifies multiple outer-radius keys {specs_present}; "
             f"use exactly one of {LAYER_GEOMETRY_SPEC_KEYS}.")
 
+    # Every key a layer table may hold, which an unknown key's message suggests the closest of.
+    layer_keys = sorted(set(LAYER_SCALAR_KEYS) | set(LAYER_MODEL_SECTIONS) | set(LAYER_GEOMETRY_SPEC_KEYS)
+                        | {"layer_index", "material"})
     for key, value in layer_cfg.items():
         if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
@@ -602,10 +610,12 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
                     f"Layer '{layer_name}': '[{key}]' must be a table with a 'model' key.")
         elif isinstance(value, dict):
             raise ValueError(
-                f"Layer '{layer_name}' has unknown table '[{key}]'. Known tables: {LAYER_MODEL_SECTIONS}.")
+                f"Layer '{layer_name}' has unknown table '[{key}]'{did_you_mean(key, layer_keys)}. Known tables: "
+                f"{LAYER_MODEL_SECTIONS}.")
         elif key not in LAYER_SCALAR_KEYS:
             raise ValueError(
-                f"Unexpected key '{key}' on layer '{layer_name}'. Allowed keys: {sorted(LAYER_SCALAR_KEYS)}.")
+                f"Unexpected key '{key}'{did_you_mean(key, layer_keys)} on layer '{layer_name}'. Allowed keys: "
+                f"{sorted(LAYER_SCALAR_KEYS)}.")
         elif key == "state" and str(value).lower() not in LAYER_STATES:
             raise ValueError(f"Layer '{layer_name}': 'state' must be one of {LAYER_STATES}, not {value!r}.")
 
@@ -666,7 +676,8 @@ def validate_system_config(config: dict) -> None:
     for key in config:
         if key not in _SYSTEM_STRUCTURAL_KEYS:
             raise ValueError(
-                f"Unexpected system-level key '{key}'. Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
+                f"Unexpected system-level key '{key}'{did_you_mean(key, _SYSTEM_STRUCTURAL_KEYS)}. "
+                f"Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
 
     star_count = 0
     for world_key, world_cfg in worlds.items():
@@ -685,7 +696,7 @@ def validate_system_config(config: dict) -> None:
         for key in world_cfg:
             if key not in SYSTEM_WORLD_KEYS:
                 raise ValueError(
-                    f"Unexpected key '{key}' on system world '{world_key}'. "
+                    f"Unexpected key '{key}'{did_you_mean(key, SYSTEM_WORLD_KEYS)} on system world '{world_key}'. "
                     f"Allowed keys: {sorted(SYSTEM_WORLD_KEYS)}.")
         tidal_host = world_cfg.get("tidal_host", None)
         if tidal_host is not None:
@@ -734,3 +745,43 @@ def merge_with_defaults(config: dict) -> dict:
     merged = dict(config)
     merged.setdefault("schema_version", SCHEMA_VERSION)
     return merged
+
+
+def load_build_config(source: Union[str, dict], overrides: dict = None, force: bool = False) -> dict:
+    """The configuration a world or system build uses: the source loaded, its schema version graded, ``overrides``
+    merged over it, and the structural defaults filled in.
+
+    A file without a ``schema_version`` is warned about (:func:`validate_schema_version`); a dict built in Python
+    without one targets this build's schema and builds silently.
+
+    Parameters
+    ----------
+    source : str or dict
+        A resolved source: a ``.toml`` file path or a configuration dict (not modified).
+    overrides : dict, optional
+        Values merged over the loaded configuration before it is validated, table by table
+        (:func:`TidalPy.configurations.merge_configs`), so a nested table only needs the keys it changes. Default None.
+    force : bool, optional
+        Bypass the schema-version check. Default False.
+
+    Returns
+    -------
+    dict
+        A private copy of the configuration, ready for the builder.
+
+    Raises
+    ------
+    TypeError
+        ``overrides`` is not a dict.
+    ValueError
+        The schema's major version differs from this build's.
+    """
+    config = load_toml(source)
+    if not (isinstance(source, dict) and ("schema_version" not in config)):
+        # Checked before the defaults fill a missing version in, so a file without one says so.
+        validate_schema_version(config, force=force)
+    if overrides is not None:
+        if not isinstance(overrides, dict):
+            raise TypeError(f"overrides is a dict of configuration values, not {type(overrides).__name__}.")
+        config = merge_configs(config, overrides)
+    return merge_with_defaults(config)

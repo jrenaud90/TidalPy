@@ -37,7 +37,12 @@
 #define SPDLOG_WCHAR_FILENAMES
 #endif
 
+#include <deque>
+#include <mutex>
+#include <vector>
+
 #include "spdlog/spdlog.h"
+#include "spdlog/sinks/base_sink.h"
 #include "spdlog/sinks/dist_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/basic_file_sink.h"
@@ -59,6 +64,57 @@ struct c_LoggerConfig {
     int file_level        = 2;   // info
     bool log_to_file      = false;
     std::string log_file_path = "";
+    // Keep the console's messages for Python to print (c_PendingMessageSink) instead of writing them to stdout.
+    bool console_pending  = false;
+};
+
+/** Most messages a c_PendingMessageSink keeps before it drops the oldest, so a kernel that never drains it (no
+ * post-cell hook) holds a bounded amount of text.
+ */
+inline constexpr std::size_t C_MAX_PENDING_MESSAGES = 10000;
+
+/** The pattern of the notebook console sink: spdlog's default without the timestamp, so a re-run notebook's committed
+ * output does not change with the time it was run. The console and file sinks keep the default pattern.
+ */
+inline constexpr const char* C_PENDING_MESSAGE_PATTERN = "[%n] [%l] %v";
+
+/** The line ending of the notebook console sink. A notebook cell's stream output is not translated, so spdlog's
+ * platform line ending ("\r\n" on Windows) would reach the cell, and a committed notebook, as written.
+ */
+inline constexpr const char* C_PENDING_MESSAGE_EOL = "\n";
+
+/** The console sink of a Jupyter notebook. A notebook kernel does not show what C++ writes to the process's stdout on
+ * every platform (Windows kernels never do), while Python's sys.stderr reaches the running cell, so this sink keeps
+ * each formatted message until Python drains it after the cell (initialize.py registers the hook) and prints it there.
+ */
+class c_PendingMessageSink final : public spdlog::sinks::base_sink<std::mutex> {
+public:
+    c_PendingMessageSink()
+        : spdlog::sinks::base_sink<std::mutex>(std::make_unique<spdlog::pattern_formatter>(
+              C_PENDING_MESSAGE_PATTERN, spdlog::pattern_time_type::local, C_PENDING_MESSAGE_EOL)) {}
+
+    // The kept messages, oldest first, each with its trailing newline; the sink is empty afterward.
+    std::vector<std::string> drain() {
+        std::lock_guard<std::mutex> lock(this->mutex_);
+        std::vector<std::string> messages(this->p_messages.begin(), this->p_messages.end());
+        this->p_messages.clear();
+        return messages;
+    }
+
+protected:
+    void sink_it_(const spdlog::details::log_msg& message) override {
+        spdlog::memory_buf_t formatted;
+        this->formatter_->format(message, formatted);
+        if (this->p_messages.size() >= C_MAX_PENDING_MESSAGES) {
+            this->p_messages.pop_front();
+        }
+        this->p_messages.emplace_back(formatted.data(), formatted.size());
+    }
+
+    void flush_() override {}
+
+private:
+    std::deque<std::string> p_messages;
 };
 
 inline constexpr const char* TIDALPY_LOGGER_NAME = "TidalPy";
@@ -78,12 +134,15 @@ inline spdlog::logger* tidalpy_logger_ptr = nullptr;
 /** The sinks behind the logger, held by the logging DLL, the only one that creates or reconfigures the logger.
  * Every function that reads or replaces these is called from logger.pyx with the GIL held, so configuration calls
  * never race each other; C++ logging threads reach the children only through the locked distribution sink.
- * file_sink_sptr is null when no file is written.
+ * file_sink_sptr is null when no file is written. pending_sink_sptr is the notebook console sink, made on first use and
+ * kept across reconfigurations, so a message it holds is never lost to one; it is the console sink only while the
+ * configuration asks for it (console_pending).
  */
 struct c_LoggerSinks {
     std::shared_ptr<spdlog::sinks::dist_sink_mt> distribution_sink_sptr = nullptr;
     spdlog::sink_ptr console_sink_sptr = nullptr;
     spdlog::sink_ptr file_sink_sptr    = nullptr;
+    std::shared_ptr<c_PendingMessageSink> pending_sink_sptr = nullptr;
 };
 
 inline c_LoggerSinks tidalpy_logger_sinks;
@@ -168,7 +227,16 @@ inline void cy_init_logger(const c_LoggerConfig& config) {
 
     std::vector<spdlog::sink_ptr> new_sinks;
 
-    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    spdlog::sink_ptr console_sink = nullptr;
+    if (config.console_pending) {
+        if (!tidalpy_logger_sinks.pending_sink_sptr) {
+            tidalpy_logger_sinks.pending_sink_sptr = std::make_shared<c_PendingMessageSink>();
+        }
+        console_sink = tidalpy_logger_sinks.pending_sink_sptr;
+    }
+    else {
+        console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    }
     console_sink->set_level(static_cast<spdlog::level::level_enum>(config.console_level));
     new_sinks.push_back(console_sink);
 
@@ -224,6 +292,12 @@ inline void cy_log_message(int level, const std::string& message) {
     if (!tidalpy_logger_ptr) { return; }
     if ((level < spdlog::level::trace) || (level >= spdlog::level::off)) { return; }
     tidalpy_logger_ptr->log(static_cast<spdlog::level::level_enum>(level), message);
+}
+
+/// The messages the notebook console sink kept since the last call, oldest first; none when it was never used.
+inline std::vector<std::string> cy_drain_pending_messages() {
+    if (!tidalpy_logger_sinks.pending_sink_sptr) { return {}; }
+    return tidalpy_logger_sinks.pending_sink_sptr->drain();
 }
 
 /// File sinks buffer their output.

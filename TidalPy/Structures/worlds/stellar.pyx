@@ -8,6 +8,11 @@ temperature and luminosity are kept consistent through the Stefan-Boltzmann law 
 optional ``LuminosityBase`` model derives both from the star's mass.
 """
 
+cimport numpy as cnp
+cnp.import_array()
+
+import numpy as np
+
 from libcpp.utility cimport move
 from libcpp.memory cimport make_shared, shared_ptr, static_pointer_cast
 
@@ -117,6 +122,43 @@ cdef class StarWorld(BaseWorld):
     def calc_temperature_from_luminosity(self, double luminosity) -> float:
         """Effective temperature [K] from luminosity via Stefan-Boltzmann."""
         return self._star_ptr.calc_temperature_from_luminosity(luminosity)
+
+    def calc_insolation_flux(self, distance, eccentricity=0.0):
+        """Orbit-averaged incident flux [W m-2] at a body orbiting this star: F = L / (4 pi a^2 sqrt(1 - e^2)).
+
+        The same flux a ``System`` gives its worlds (``System.calc_insolation_flux``): the time average of
+        L / (4 pi r^2) over an orbit of semi-major axis ``distance`` and eccentricity ``eccentricity``, before the
+        body's albedo and emissivity act.
+
+        Parameters
+        ----------
+        distance : float or np.ndarray
+            Orbital semi-major axis [m] (the distance, for a circular orbit).
+        eccentricity : float or np.ndarray, optional
+            Orbital eccentricity, 0 <= e < 1. Default 0.0.
+
+        Returns
+        -------
+        float or np.ndarray
+            The flux, a float for scalar inputs, else an array of the broadcast shape.
+
+        Raises
+        ------
+        ValueError
+            A distance that is not finite and positive, or an eccentricity outside [0, 1).
+        """
+        if (np.ndim(distance) == 0) and (np.ndim(eccentricity) == 0):
+            return self._star_ptr.calc_insolation_flux(<double>distance, <double>eccentricity)
+        distance_array, eccentricity_array = np.broadcast_arrays(
+            np.asarray(distance, dtype=np.float64), np.asarray(eccentricity, dtype=np.float64))
+        cdef cnp.ndarray out = np.empty(distance_array.shape, dtype=np.float64)
+        cdef double[::1] out_view = out.reshape(-1)
+        cdef double[::1] distance_view = np.ascontiguousarray(distance_array).reshape(-1)
+        cdef double[::1] eccentricity_view = np.ascontiguousarray(eccentricity_array).reshape(-1)
+        cdef Py_ssize_t point_i
+        for point_i in range(out_view.shape[0]):
+            out_view[point_i] = self._star_ptr.calc_insolation_flux(distance_view[point_i], eccentricity_view[point_i])
+        return out
 
     def set_effective_temperature(self, double temperature):
         """Set effective temperature [K]; recomputes luminosity."""

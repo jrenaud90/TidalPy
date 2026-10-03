@@ -21,8 +21,8 @@ from TidalPy.exceptions import ConfigurationException, InitializationError
 from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir, write_file_atomically
 from TidalPy.defaultc import default_config_str
 from TidalPy.schema import (
-    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_RANGE, LOG_LEVELS, SCHEMA_VERSION, SOLVER_TABLES,
-    WORLD_TYPES, _SOLVER_KEY_RULES)
+    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_CONFIG_KEYS, LOG_LEVEL_RANGE, LOG_LEVELS,
+    SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES)
 
 
 def warning_enabled(name: str) -> bool:
@@ -311,7 +311,7 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
                 return "must not be negative"
             if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
                 return "must be positive"
-        elif path in ("logging.file_level", "logging.console_level"):
+        elif path in LOG_LEVEL_CONFIG_KEYS:
             low, high = LOG_LEVEL_RANGE
             if isinstance(value, str) and (value.lower() not in LOG_LEVELS):
                 return f"must be one of {sorted(LOG_LEVELS)} or an integer {low} to {high}"

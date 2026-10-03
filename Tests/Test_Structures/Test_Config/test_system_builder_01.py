@@ -6,7 +6,6 @@ import pytest
 from TidalPy.Structures.system.system import System
 from TidalPy.Structures.configs import (
     build_system,
-    construct_system,
     validate_system_config,
     available_systems,
 )
@@ -62,7 +61,7 @@ def _earth_moon_sun_config():
 
 
 def test_construct_from_dict_host_not_star():
-    system = construct_system(_earth_moon_sun_config())
+    system = build_system(_earth_moon_sun_config())
     assert system.num_worlds == 3
     assert system.get_tidal_host("moon").name == "earth"
     assert system.get_tidal_host("earth").name == "moon"
@@ -109,7 +108,7 @@ def test_template_reuse_under_different_names():
             "planet_b": {"world": "earth_simple", "tidal_host": "sun", "semi_major_axis_m": 2.0e11},
         },
     }
-    system = construct_system(config)
+    system = build_system(config)
     assert [w.name for w in system] == ["sun", "planet_a", "planet_b"]
     assert system["planet_a"] is not system["planet_b"]
     assert math.isclose(system.get_semi_major_axis("planet_b"), 2.0e11, rel_tol=1e-9)
@@ -148,6 +147,30 @@ def test_get_config_dict_expanded():
     assert config["worlds"]["earth"]["tidal_host"] == "sun"
     assert "tidal_host" not in config["worlds"]["sun"]
     assert config["worlds"]["sun"]["is_star"] is True
+
+
+def test_a_star_hosted_world_is_saved_without_stellar_elements(tmp_path):
+    """A world whose tidal host is the star writes its one orbit as its tidal elements (add_world refuses stellar
+    elements for it), while a moon keeps its separate orbit about the star; both round-trip."""
+    system = build_system({"name": "s", "worlds": {
+        "sun": {"world": "sol", "is_star": True},
+        "planet": {"world": "earth_simple", "tidal_host": "sun", "semi_major_axis_m": AU, "eccentricity": 0.0167},
+        "moon": {"world": "luna", "tidal_host": "planet", "semi_major_axis_m": 3.844e8, "eccentricity": 0.0549,
+                 "stellar_semi_major_axis_m": AU, "stellar_eccentricity": 0.0167}}})
+    for config in (system.get_config_dict(), system.get_save_config()):
+        planet, moon = config["worlds"]["planet"], config["worlds"]["moon"]
+        assert "stellar_semi_major_axis_m" not in planet and "stellar_eccentricity" not in planet
+        assert planet["semi_major_axis_m"] == AU and planet["eccentricity"] == 0.0167
+        assert moon["stellar_semi_major_axis_m"] == AU and moon["stellar_eccentricity"] == 0.0167
+
+    path = tmp_path / "star_hosted.toml"
+    system.save_to_toml(str(path))
+    rebuilt = build_system(str(path))
+    for name in ("planet", "moon"):
+        assert rebuilt.get_stellar_semi_major_axis(name) == system.get_stellar_semi_major_axis(name)
+        assert rebuilt.get_stellar_eccentricity(name) == system.get_stellar_eccentricity(name)
+        assert rebuilt.calc_insolation_flux(name) == system.calc_insolation_flux(name)
+    assert rebuilt.get_config_dict() == system.get_config_dict()
 
 
 def test_save_expanded_roundtrip(tmp_path):

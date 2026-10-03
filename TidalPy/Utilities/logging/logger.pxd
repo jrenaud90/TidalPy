@@ -6,6 +6,7 @@
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
+from libcpp.vector cimport vector
 
 
 cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
@@ -14,6 +15,7 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
         int file_level
         cpp_bool log_to_file
         string log_file_path
+        cpp_bool console_pending
 
     # Set this DLL's tidalpy_logger_ptr from a void* obtained via get_tidalpy_logger_address().
     void set_tidalpy_logger_ptr_void(void* ptr) noexcept
@@ -33,6 +35,9 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
     cpp_bool cy_set_file_level(int level) except +
 
     void cy_log_message(int level, const string& message) except +
+
+    # The messages the notebook console sink kept since the last call, oldest first.
+    vector[string] cy_drain_pending_messages() except +
 
     void cy_flush_logger() except +
 

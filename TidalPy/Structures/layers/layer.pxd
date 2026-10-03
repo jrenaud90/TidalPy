@@ -62,6 +62,7 @@ cdef extern from "layer_.hpp" namespace "tidalpy" nogil:
         # Geometry and identification
         const string& get_name() const
         int      get_layer_index() const
+        void set_layer_index(int layer_index)
         double   get_radius_inner() const
         double   get_radius_outer() const
         double   get_radius_mid() const
@@ -170,6 +171,9 @@ cdef class Layer(StructureBase):
     cdef cpp_bool _is_view                # True => non-owning view into a world-owned layer
     cdef object   _world_ref              # keep-alive ref to the owning world (views only)
     cdef cpp_bool _detached               # True => a world load replaced the layer this view pointed at
+    # Whether the constructor was given a layer_index and a radius_inner; BaseWorld.add_layer fills in those not given.
+    cdef cpp_bool p_index_given
+    cdef cpp_bool p_inner_given
     cdef object   __weakref__             # lets the owning world track the views it hands out
     cdef void _check_ptr(self) except *
     # Called by the owning world when a load replaces its layers: forget the C++ layer without deleting it.

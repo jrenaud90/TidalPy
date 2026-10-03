@@ -28,7 +28,7 @@ def _tide_results(world):
         world.get_tidal_heating(),
         np.array([layer.get_tidal_heating() for layer in world]),
         np.array([world.get_tidal_love_k(*mode) for mode in _MODES]),
-        np.array(world.get_tidal_potential_derivatives()))
+        np.array(list(world.get_tidal_potential_derivatives().values())))
 
 
 @pytest.mark.parametrize("threads", [2, 16, 0])

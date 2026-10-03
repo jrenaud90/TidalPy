@@ -1,6 +1,6 @@
 # Graphics (`Utilities.graphics`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-02_
 
 Two plotting helpers are used by the radial-solver solution's `plot_ys` and `plot_interior` methods and can also be used directly on arrays. Two more draw surface maps of the 3D tidal fields.
 
@@ -96,7 +96,7 @@ figure, axes = plot_interior(
 )
 ```
 
-The panels are gravity with density on a twin axis; pressure, with an optional temperature twin axis; and, when either modulus is supplied, the moduli in GPa. Real parts are solid lines, the imaginary parts of complex moduli are dotted on a twin axis, and the modulus panel is log-scaled when every value is positive.
+The panels are gravity with density on a twin axis; pressure, with an optional temperature twin axis; and, when either modulus is supplied, the moduli in GPa. The density axis leaves `DENSITY_AXIS_MARGIN` (0.1) of its range clear on each side, so a layer of uniform density does not sit on a spine. Axis labels are lowercase with their units in parentheses, such as "density (kg m$^{-3}$)". Real parts are solid lines, the imaginary parts of complex moduli are dotted on a twin axis, and the modulus panel is log-scaled when every value is positive.
 
 `use_scatter` draws points instead of lines. `annotate`, on by default, labels the surface gravity, central pressure, and bulk density. `planet_name` becomes the title. Styling (colors, line styles, marker size, fonts, and panel size) lives in the `INTERIOR_PLOT_STYLE` dictionary, filled from the `[graphics.interior]` table of `TidalPy_Configs.toml` when the module is imported (`load_interior_plot_style()` reads it again, and `reload_interior_plot_style()` refills the dictionary from it, after a `TidalPy.reinit`, say). Edit it in place to restyle every plot the module draws.
 

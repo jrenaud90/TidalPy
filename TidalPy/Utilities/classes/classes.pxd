@@ -10,7 +10,7 @@ from libcpp.string cimport string
 from libcpp.map cimport map as cpp_map
 from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.vector cimport vector
-from libc.stdint cimport uint8_t
+from libc.stdint cimport uint8_t, uint32_t
 
 
 cdef extern from "tidalpy_base_.hpp" namespace "tidalpy" nogil:
@@ -19,6 +19,14 @@ cdef extern from "tidalpy_base_.hpp" namespace "tidalpy" nogil:
         cpp_bool check_schema_compatibility(uint8_t major, uint8_t minor) const
         void save_binary(const string& path) except +
         void load_binary(const string& path, cpp_bool force) except +
+        void load_binary_bytes(const string& record_bytes, const string& source, cpp_bool force) except +
+        string write_binary_bytes() except +
+        uint32_t get_binary_class_id() const
+
+
+cdef extern from "binary_.hpp" namespace "tidalpy" nogil:
+    # The Python class a record of a binary class id loads into, for messages.
+    string c_binary_class_name(uint32_t class_id) except +
 
 
 cdef extern from "structure_base_.hpp" namespace "tidalpy" nogil:
@@ -110,6 +118,10 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
 
 # Python parameters (argument names or config keys to floats, booleans, integers, or sequences) as a c_ParamMap.
 cdef c_ParamMap cy_param_map(dict parameters) except *
+
+# A binary file path (str or os.PathLike) as a str; the second also raises FileNotFoundError for a missing file.
+cdef str cy_binary_path(object path)
+cdef str cy_existing_binary_path(object path)
 
 # Any spec model as the Python class of its family and model (registered by ModelFamily); None for a null pointer.
 cdef object cy_wrap_model(shared_ptr[c_PhysicsBase] model)

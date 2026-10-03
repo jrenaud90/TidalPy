@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from TidalPy.Structures.configs.world_builder import construct_world
+from TidalPy.Structures.configs.world_builder import build_world
 from TidalPy.Structures.layers import Layer
 
 _RADIUS = 2.0e6                # [m]
@@ -36,7 +36,7 @@ def _layer(index, radius_fraction, temperature, cooling, use_heating=True, densi
 
 
 def _world(layers):
-    return construct_world({
+    return build_world({
         "schema_version": "0.2.0", "name": "heating_test", "type": "terrestrial",
         "radius_m": _RADIUS, "mass_kg": _MASS, "layers": layers})
 
@@ -235,5 +235,5 @@ def test_use_heating_survives_config_and_binary_roundtrips(state, tmp_path):
 def test_use_heating_roundtrips_through_the_world_config():
     world = _world({"shell": _layer(0, 1.0, 1500.0, "off")})
     assert world.shell.use_heating is True
-    rebuilt = construct_world(world.get_config_dict())
+    rebuilt = build_world(world.get_config_dict())
     assert rebuilt.shell.use_heating is True

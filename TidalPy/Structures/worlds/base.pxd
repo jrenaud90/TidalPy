@@ -315,6 +315,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void set_spin_model(const c_Spin& spin)
         const c_Spin& get_spin_model() const
         double get_moment_of_inertia() const
+        double get_moment_of_inertia_factor() const
         double calc_spin_derivative(double host_mass) except +
         double calc_synchronous_spin(double orbital_frequency) const
 
@@ -345,6 +346,8 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double] get_love_number_k(size_t ytype_idx) const
         cpp_complex[double] get_love_number_h(size_t ytype_idx) const
         cpp_complex[double] get_love_number_l(size_t ytype_idx) const
+        double get_love_q_k(size_t ytype_idx) const
+        double get_love_lag_k(size_t ytype_idx) const
         cpp_complex[double] get_love_surface_y(size_t ytype_idx, size_t y_idx) const
         cpp_complex[double] get_radial_solution_y(double radius, size_t ytype_idx, size_t y_idx) const
         int get_love_method_last_int() const
@@ -356,12 +359,14 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void set_tide_model_handle(const shared_ptr[c_PhysicsBase]& model) except +
         cpp_bool get_tide_model_set() const
         const c_TideBase* get_tide_model() const
+        shared_ptr[c_PhysicsBase] share_tide_model() except +
         void set_tide_config(const c_TideConfig& cfg) except +
         const c_TideConfig& get_tide_config() const
         void calc_tides(const c_TideSolveConfig& state) except +
         cpp_bool get_tide_state(c_TideSolveConfig& state_out) except +
         cpp_bool get_tides_solved() const
         double get_tidal_heating() const
+        double get_tidal_heat_flux() const
         double get_tidal_dU_dM() const
         double get_tidal_dU_dw() const
         double get_tidal_dU_dO() const
@@ -428,6 +433,11 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
             const c_Heating3DCollapseConfig& cfg,
             double* out_values,
             double* out_layer_totals) except +
+
+
+cdef extern from "factory_.hpp" namespace "tidalpy" nogil:
+    # A world of its own concrete class rebuilt from one complete world record held in memory (a copy or a pickle).
+    shared_ptr[c_BaseWorld] c_world_from_binary_bytes(const string& record_bytes, cpp_bool force) except +
 
 
 cdef extern from "profile_world_.hpp" namespace "tidalpy" nogil:
@@ -529,6 +539,11 @@ cdef class BaseWorld(StructureBase):
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)
     cdef void _track_view(self, Layer view) except *
     cdef list _ensure_layer_views(self)
+
+
+# The Python-side configurations of a world (source, portable, built) that a copy carries over, and their setter.
+cdef dict cy_world_configs(BaseWorld world)
+cdef void cy_set_world_configs(BaseWorld world, dict configs) except *
 
 
 # A newly built world's spin model takes the [worlds] moment-of-inertia factor (cy_fill_world_config's defaults).

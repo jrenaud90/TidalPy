@@ -59,7 +59,7 @@ def test_setting_one_member_of_a_mutual_pair_sets_the_shared_orbit(member):
 
 
 def test_a_rebuilt_mutual_pair_can_be_updated_from_one_side():
-    from TidalPy.Structures.configs import build_system_from_dict
-    rebuilt = build_system_from_dict(_mutual_pair_with_elements_on_both().get_config_dict())
+    from TidalPy.Structures.configs import build_system
+    rebuilt = build_system(_mutual_pair_with_elements_on_both().get_config_dict())
     rebuilt.set_semi_major_axis("moon", 3.9e8)
     assert rebuilt.get_semi_major_axis("earth") == 3.9e8

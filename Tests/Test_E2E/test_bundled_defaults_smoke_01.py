@@ -122,7 +122,7 @@ def test_calc_tides_defaults(world_name):
     heating = world.get_tidal_heating()
     assert math.isfinite(heating) and heating >= 0.0
     assert world.get_num_tidal_modes() > 0
-    assert all(math.isfinite(value) for value in world.get_tidal_potential_derivatives())
+    assert all(math.isfinite(value) for value in world.get_tidal_potential_derivatives().values())
     if len(world) > 0:
         per_layer = [world.get_layer_tidal_heating(index) for index in range(world.num_layers)]
         assert all(math.isfinite(value) and value >= 0.0 for value in per_layer)

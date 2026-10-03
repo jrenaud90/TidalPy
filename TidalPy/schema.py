@@ -185,6 +185,8 @@ LOG_LEVELS = {
     "off":      6,
 }
 LOG_LEVEL_RANGE = (0, 6)
+# The TidalPy_Configs.toml keys that hold a log level.
+LOG_LEVEL_CONFIG_KEYS = ("logging.file_level", "logging.console_level", "logging.notebook_console_level")
 
 # TidalPy_Configs.toml values are checked against the type of their packaged default (an int also serves a float).
 # These keys take a second type: a log level as a name or an integer, a truncation as a level or a name ("exact",
@@ -192,6 +194,7 @@ LOG_LEVEL_RANGE = (0, 6)
 CONFIG_ALTERNATE_TYPES = {
     "logging.file_level":                    (str, int),
     "logging.console_level":                 (str, int),
+    "logging.notebook_console_level":        (str, int),
     "tides.eccentricity_trunc_lvl":          (int, str),
     "tides.obliquity_trunc_lvl":             (str, int),
     "layers.material":                       (str, dict),

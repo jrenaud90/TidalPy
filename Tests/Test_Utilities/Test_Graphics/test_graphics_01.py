@@ -16,6 +16,7 @@ from TidalPy.Utilities.graphics import (
     plot_interior,
     plot_ys,
 )
+from TidalPy.Utilities.graphics.interior import DENSITY_AXIS_MARGIN
 
 N = 40
 PLANET_RADIUS = 1600.0e3
@@ -166,7 +167,22 @@ def test_plot_interior_two_panels():
     assert any("g_{s}" in text for text in texts)
     assert any("P_{0}" in text for text in texts)
     assert any("3300.0" in text for text in texts)
-    assert figure.axes[0].get_xlabel().startswith("Gravity")
+    assert figure.axes[0].get_xlabel() == "gravity (m s$^{-2}$)"
+    assert figure.axes[1].get_xlabel() == "pressure (GPa)"
+    assert figure.axes[2].get_xlabel() == "density (kg m$^{-3}$)"
+    assert axes[0].get_ylabel() == "radius (km)"
+
+
+def test_plot_interior_density_axis_margin():
+    """The density twin axis leaves DENSITY_AXIS_MARGIN of its range clear on each side, so the density profile stays
+    off the spines."""
+    arrays = _interior_arrays()
+    arrays["density"] = np.where(np.arange(N) < N // 2, 8000.0, 3000.0)
+    figure, _ = plot_interior(**arrays)
+    density_min, density_max = figure.axes[2].get_xlim()
+    padding = DENSITY_AXIS_MARGIN * (8000.0 - 3000.0)
+    assert density_min == pytest.approx(3000.0 - padding)
+    assert density_max == pytest.approx(8000.0 + padding)
 
 
 def test_plot_interior_full_options():
@@ -187,7 +203,9 @@ def test_plot_interior_full_options():
         annotate=False)
     assert len(axes) == 3
     assert len(figure.axes) == 6
-    assert axes[0].get_ylabel() == "Depth [km]"
+    assert axes[0].get_ylabel() == "depth (km)"
+    assert axes[2].get_xlabel() == "real modulus, points (GPa)"
+    assert figure.axes[-1].get_xlabel() == "imaginary modulus, crosses (GPa)"
     assert figure.axes[-1].get_xscale() == "log"
     assert axes[2].get_legend() is not None
     # The name is used as given, not title-cased.
@@ -201,7 +219,7 @@ def test_plot_interior_real_moduli_linear_imaginary():
     figure, axes = plot_interior(**_interior_arrays(), shear_modulus=5.0e10 * np.ones(N))
     assert len(axes) == 3
     assert len(figure.axes) == 4
-    assert axes[2].get_xlabel() == "Modulus [GPa]"
+    assert axes[2].get_xlabel() == "modulus (GPa)"
 
 
 @pytest.mark.parametrize("override, match", (
@@ -241,4 +259,4 @@ def test_solution_plot_interior(solution):
     assert len(axes) == 3
     assert figure._suptitle.get_text() == "Io"
     _, axes = solution.plot_interior(show_plot=False, depth_plot=True)
-    assert axes[0].get_ylabel() == "Depth [km]"
+    assert axes[0].get_ylabel() == "depth (km)"

@@ -85,7 +85,7 @@ def test_add_layer_discontinuity_raises():
     """A layer leaving a radial gap is rejected but not consumed."""
     world = BaseWorld("W", _R_SURF, _M_TOT)
     # The first layer must start at radius 0.
-    bad = Layer("mantle", 0, _R_CMB, _R_SURF, _M_MANT)
+    bad = Layer("mantle", radius_inner=_R_CMB, radius_outer=_R_SURF, mass=_M_MANT)
     with pytest.raises(ValueError):
         world.add_layer(bad)
     world2 = BaseWorld("W2", _R_SURF, _M_MANT)

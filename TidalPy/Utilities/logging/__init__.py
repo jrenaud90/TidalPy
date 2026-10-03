@@ -2,6 +2,8 @@
 
 from TidalPy.Utilities.logging.logger import (
     init_logger,
+    get_logger_config,
+    resolve_log_level,
     set_log_level,
     set_console_level,
     set_file_level,
@@ -15,9 +17,12 @@ from TidalPy.Utilities.logging.logger import (
     log_error,
     log_critical,
 )
+from TidalPy.Utilities.logging.capture import capture_log
 
 __all__ = [
     "init_logger",
+    "get_logger_config",
+    "resolve_log_level",
     "set_log_level",
     "set_console_level",
     "set_file_level",
@@ -30,4 +35,5 @@ __all__ = [
     "log_warning",
     "log_error",
     "log_critical",
+    "capture_log",
 ]

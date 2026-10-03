@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants cimport cy_resolve_G, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
 from TidalPy.Utilities.logging.logger cimport set_tidalpy_logger_ptr_void, get_tidalpy_logger_address
 from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -21,7 +21,7 @@ def global_potential(
         double obliquity,
         double semi_major_axis,
         double host_mass,
-        double G_to_use,
+        G_to_use=None,
         int min_degree_l=2,
         int max_degree_l=2,
         object eccentricity_truncation=None,
@@ -31,7 +31,8 @@ def global_potential(
     """Build the global (1D) tidal potential mode tables for one orbital state.
 
     Arguments follow the world's ``calc_tides`` order after the body radius [m]; frequencies in rad s-1,
-    angles in radians, MKS throughout. ``min_degree_l`` and ``max_degree_l`` must satisfy
+    angles in radians, MKS throughout. ``G_to_use`` [m3 kg-1 s-2] of None (default) takes the TidalPy
+    configuration's G. ``min_degree_l`` and ``max_degree_l`` must satisfy
     2 <= min <= max <= 10. ``obliquity_truncation`` is ``'off'`` (0), 2 or 4 (every product of two obliquity
     functions through I^N), or ``'gen'`` (the general functions); None takes the ``[tides]`` ``obliquity_trunc_lvl``
     of the TidalPy configuration (``'off'`` by default, which ignores the obliquity). ``eccentricity_truncation``
@@ -54,7 +55,7 @@ def global_potential(
     # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
-    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
+    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session (and level).
     c_warn_standalone_tide_truncations(
         b"global_potential", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation, max_degree_l)
 
@@ -66,7 +67,7 @@ def global_potential(
         obliquity,
         eccentricity,
         host_mass,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         min_degree_l,
         max_degree_l,
         i_obliquity_truncation,

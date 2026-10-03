@@ -28,7 +28,7 @@ _STATE = dict(orbital_frequency=_N, spin_frequency=_N, eccentricity=0.05, obliqu
 # The automatic starting radius at l = 2 is R sqrt(1e-5), about 0.003 R: the first radius has no radial solution.
 _RADII = np.array([1.0e-4, 0.5, 0.9]) * _R
 _SUMMED = dict(latitude_summed=True, longitude_summed=True, radial_summed=True, num_threads=1)
-_RANGE_WARNING = "can underestimate the tides by 10% or more"
+_RANGE_WARNING = "can misstate the tides by 10% or more"
 _MISSING_NODES_WARNING = "have no radial solution"
 
 

@@ -374,6 +374,22 @@ cdef class RadialSolverSolution:
             **plot_kwargs)
 
     def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
+        """Summarize the equation-of-state and radial solves: success, messages, and the solved structure in SI
+        (the remaining surface-pressure mismatch and central pressure [Pa], mass [kg], moment of inertia [kg m2], and
+        surface gravity [m s-2]), then the radial solver's steps, conditioning, and Love numbers.
+
+        Parameters
+        ----------
+        print_diagnostics : bool, optional
+            Print the summary. Default True.
+        log_diagnostics : bool, optional
+            Log the summary at the info level instead, when not printing. Default False.
+
+        Returns
+        -------
+        str or None
+            The summary when neither printed nor logged, otherwise None.
+        """
         cdef str log_message = ""
         log_message += "\n\tEquation of State Solver:"
         log_message += f"\n\t\tSuccess:           {self.eos_success}"
@@ -381,12 +397,12 @@ cdef class RadialSolverSolution:
         log_message += f"\n\t\tMessage:           {self.eos_message}"
         if self.eos_success:
             log_message += f"\n\t\tIterations:        {self.eos_iterations}"
-            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
-            log_message += f"\n\t\tMass:              {self.mass:0.3e}"
-            log_message += (f"\n\t\tMOI:               {self.moi:0.3e} "
+            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e} Pa"
+            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e} Pa"
+            log_message += f"\n\t\tMass:              {self.mass:0.3e} kg"
+            log_message += (f"\n\t\tMOI:               {self.moi:0.3e} kg m2 "
                             f"(factor {self.moi_factor:0.4f}, sphere ratio {self.moi_sphere_ratio:0.4f})")
-            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
+            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e} m s-2\n"
         log_message += "\n\tRadial Solver Results:"
         log_message += f"\n\t\tSuccess:     {self.success}"
         log_message += f"\n\t\tError code:  {self.error_code}"
@@ -409,9 +425,22 @@ cdef class RadialSolverSolution:
         if log_diagnostics:
             log_info(log_message)
             return None
-            
+
         if not print_diagnostics and not log_diagnostics:
             return log_message
+
+    def __repr__(self):
+        """One line: whether the solve succeeded, its degree, and k of the first solved boundary condition (the
+        message when the solve failed)."""
+        if self.solution_storage_ptr == NULL:
+            return "RadialSolverSolution(no solution)"
+        if not (self.success and (self.error_code == 0)):
+            return f"RadialSolverSolution(success=False, degree_l={self.degree_l}, message={self.message!r})"
+        cdef object love_k = self.k
+        if self.num_ytypes > 1:
+            love_k = love_k[0]
+        return (f"RadialSolverSolution(success=True, degree_l={self.degree_l}, num_ytypes={self.num_ytypes}, "
+                f"k={complex(love_k):.6g})")
 
     # Properties
     @property

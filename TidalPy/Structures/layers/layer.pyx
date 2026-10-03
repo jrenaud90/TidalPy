@@ -167,10 +167,16 @@ cdef class Layer(StructureBase):
     ----------
     name : str
         Layer name (e.g. ``"mantle"``).
-    layer_index : int
-        Zero-based position in the parent world, innermost layer = 0.
-    radius_inner, radius_outer : float
-        Boundary radii [m].
+    layer_index : int, optional
+        Zero-based position in the parent world, innermost layer = 0. Left out, ``BaseWorld.add_layer`` gives the
+        layer its place in the stack; given, ``add_layer`` refuses the layer unless it is that place. A standalone
+        layer without one reports 0.
+    radius_inner : float, optional
+        Inner boundary radius [m]. Left out, ``BaseWorld.add_layer`` starts the layer at the top of the stack (0 for
+        the first layer); given, ``add_layer`` refuses the layer unless it matches. A standalone layer without one
+        starts at 0.
+    radius_outer : float
+        Outer boundary radius [m]; required (by keyword when the two arguments before it are left out).
     mass : float, optional
         Layer mass [kg]; each world EOS solve sets it from the solved profile. Default ``0.0``.
     material : Material, str, or dict, optional
@@ -218,6 +224,8 @@ cdef class Layer(StructureBase):
         self._is_view   = False
         self._world_ref = None
         self._detached  = False
+        self.p_index_given = True
+        self.p_inner_given = True
 
     cdef void _check_ptr(self) except *:
         if self._detached:
@@ -239,9 +247,9 @@ cdef class Layer(StructureBase):
     def __init__(
             self,
             str name,
-            int layer_index,
-            double radius_inner,
-            double radius_outer,
+            layer_index = None,
+            radius_inner = None,
+            radius_outer = None,
             double mass = 0.0,
             material = None,
             *,
@@ -261,11 +269,14 @@ cdef class Layer(StructureBase):
             bulk_rheology = None,
             cooling = None,
             radiogenics = None):
+        if radius_outer is None:
+            raise TypeError(f"TidalPy: layer '{name}' needs its radius_outer [m].")
         cdef c_LayerConfig config
         config.name              = name.encode("utf-8")
-        config.layer_index       = layer_index
-        config.radius_inner      = radius_inner
-        config.radius_outer      = radius_outer
+        # An index or inner radius left out holds its standalone default until BaseWorld.add_layer fills it in.
+        config.layer_index       = 0 if layer_index is None else <int>layer_index
+        config.radius_inner      = 0.0 if radius_inner is None else <double>radius_inner
+        config.radius_outer      = <double>radius_outer
         config.mass              = mass
         config.use_tides         = bool(use_tides)
         config.is_volume_fixed   = bool(is_volume_fixed)
@@ -281,6 +292,8 @@ cdef class Layer(StructureBase):
         config.use_heating       = bool(use_heating)
         self._layer_ptr = make_unique[c_Layer](config)
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
+        self.p_index_given = layer_index is not None
+        self.p_inner_given = radius_inner is not None
         if material is not None:
             self.material = material
         if shear_rheology is not None:
@@ -317,11 +330,11 @@ cdef class Layer(StructureBase):
         view._init_view(ptr, world)
         return view
 
-    def load_binary(self, str path, cpp_bool force=False):
-        """Load this layer's state from a TidalPy binary file.
+    def load_binary(self, path, cpp_bool force=False):
+        """Load this layer's state from a TidalPy binary file (a ``str`` or ``os.PathLike`` path).
 
         Only a standalone layer can be loaded: a layer view belongs to its world, whose structure a load would change
-        behind its back, so load the world instead.
+        behind its back, so load the world instead. The loaded layer carries the index and inner radius of the file.
         """
         self._check_ptr()
         if self._is_view:
@@ -329,6 +342,19 @@ cdef class Layer(StructureBase):
                 f"Layer '{self.name}' belongs to a world and cannot be loaded in place: load the world's binary "
                 f"file, or load into a standalone layer.")
         StructureBase.load_binary(self, path, force)
+        self.p_index_given = True
+        self.p_inner_given = True
+
+    def __repr__(self):
+        """One line: the name, index, radii [km], state, and temperature [K]."""
+        if self._detached or self._ptr is NULL:
+            return "Layer(no layer)"
+        cdef c_Layer* layer_ptr = self._layer_ptr.get()
+        return (
+            f"Layer({self.name!r}, index={layer_ptr.get_layer_index()}, "
+            f"radius_inner_km={layer_ptr.get_radius_inner() / 1.0e3:.6g}, "
+            f"radius_outer_km={layer_ptr.get_radius_outer() / 1.0e3:.6g}, state={self.state!r}, "
+            f"temperature_k={layer_ptr.get_temperature():.6g})")
 
     # =================================================================================================================
     # Geometry and identification
@@ -875,8 +901,10 @@ cdef class Layer(StructureBase):
         Returns
         -------
         dict
-            ``name``, ``layer_index``, ``radius_inner_m``, ``radius_outer_m``, ``mass_kg``, ``use_tides``,
-            ``is_volume_fixed``, ``tidal_scale`` when one is set, ``state``, ``is_static``, ``is_incompressible``,
+            ``name``, ``layer_index``, ``radius_inner_m``, ``radius_outer_m``, ``mass_kg`` once the layer has a mass
+            (one given, or set by a world EOS solve; a mass of 0.0 is the unset default and is left out),
+            ``use_tides``, ``is_volume_fixed``, ``tidal_scale`` when one is set, ``state``, ``is_static``,
+            ``is_incompressible``,
             ``temperature_k``, the four material switches, ``use_heating``, and the ``material``, ``shear_rheology``
             and ``bulk_rheology`` (the layer's overrides), ``cooling``, and ``radiogenics`` tables when set. ``name``
             and ``radius_inner_m`` are standalone-layer keys that a world drops when it nests the layer (see
@@ -891,10 +919,11 @@ cdef class Layer(StructureBase):
             "layer_index":       p.get_layer_index(),
             "radius_inner_m":    p.get_radius_inner(),
             "radius_outer_m":    p.get_radius_outer(),
-            "mass_kg":           p.get_mass(),
-            "use_tides":         bool(p.get_use_tides()),
-            "is_volume_fixed":   bool(p.get_is_volume_fixed()),
         }
+        if p.get_mass() != 0.0:
+            config["mass_kg"] = p.get_mass()
+        config["use_tides"]       = bool(p.get_use_tides())
+        config["is_volume_fixed"] = bool(p.get_is_volume_fixed())
         if tidal_scale == tidal_scale:
             config["tidal_scale"] = tidal_scale
         config["state"]                 = c_layer_state_name(p.get_state()).decode("utf-8")

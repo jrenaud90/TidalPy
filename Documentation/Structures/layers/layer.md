@@ -19,9 +19,9 @@ In C++ the class is `c_Layer` (`Structures/layers/layer_.hpp`).
 ```python
 Layer(
     name:                  str,
-    layer_index:           int,
-    radius_inner:          float,
-    radius_outer:          float,
+    layer_index:           int   = None,
+    radius_inner:          float = None,
+    radius_outer:          float = None,   # required
     mass:                  float = 0.0,
     material:              Material | str | dict = None,
     *,
@@ -51,8 +51,9 @@ Everything after `material` is keyword-only. `material` and every keyword-only a
 | Parameter | Units | Default | Description |
 |---|---|---|---|
 | `name` | - | | The layer's name (`"mantle"`). A world reaches the layer by it (`world.mantle`), so names are unique within a world. |
-| `layer_index` | - | | Position in the world, 0 for the innermost layer. |
-| `radius_inner`, `radius_outer` | m | | Boundary radii, with `0 <= radius_inner <= radius_outer`; otherwise `ValueError`. |
+| `layer_index` | - | `None` | Position in the world, 0 for the innermost layer. Left out, `BaseWorld.add_layer` gives the layer its place in the stack; given, `add_layer` refuses the layer unless it is that place. A standalone layer without one reports 0. |
+| `radius_inner` | m | `None` | Inner boundary radius. Left out, `add_layer` starts the layer at the top of the stack (0 for the first layer); given, `add_layer` refuses the layer unless it matches. A standalone layer without one starts at 0. |
+| `radius_outer` | m | | Outer boundary radius, required (by keyword when the two arguments before it are left out), with `0 <= radius_inner <= radius_outer`; otherwise `ValueError`. |
 | `mass` | kg | `0.0` | Each successful world EOS solve replaces it with the mass the solved profile places in the layer. A layer that holds its mass (`is_volume_fixed = False`) holds this one when it is positive. |
 | `material` | - | `None` | A `Material`, a MatPack name (`"peridotite"`), or a material table (see [Material](#material)). A world's EOS solve needs every layer to have one. |
 
@@ -73,6 +74,23 @@ mantle = Layer(
     cooling="convection",
 )                                   # A melting, convecting upper mantle
 print(mantle.thickness, mantle.state, mantle.can_change_state)   # 2886000.0 auto True
+print(mantle)                       # Layer('mantle', index=1, radius_inner_km=3485, radius_outer_km=6371, ...)
+```
+
+Inside a world the index and inner radius follow from the stack, so a layer for `add_layer` needs only its outer radius:
+
+```python
+from TidalPy.Structures.worlds import TerrestrialWorld
+
+world = TerrestrialWorld("Earth", 6.371e6, 5.972e24)
+world.add_layer(Layer(
+    "core",
+    radius_outer=3.485e6,
+    material="simple_iron_core"))   # Index 0, from r = 0
+world.add_layer(Layer(
+    "mantle",
+    radius_outer=6.371e6,
+    material="peridotite"))         # Index 1, from the top of the core
 ```
 
 The geometry is read through properties: `name`, `layer_index`, `radius` (the outer radius), `radius_inner`, `radius_outer`, `thickness`, `volume` \[m$^3$\], `surface_area_inner` and `surface_area_outer` \[m$^2$\], `mass`, and `density_bulk` (`mass / volume` \[kg m$^{-3}$\], NaN for a zero-volume layer). `set_radii(radius_inner, radius_outer)` moves both boundaries and keeps the derived geometry in step. On a layer of a world it leaves the world's radius and its other layers alone, so keep the stack continuous, and the world forgets its solved structure.
@@ -243,9 +261,9 @@ A layer that belongs to a world reads its profile under the world's call lock, s
 
 ## Serialization
 
-`get_config_dict()` returns the layer as the world builder's layer table: `name`, `layer_index`, `radius_inner_m`, `radius_outer_m`, `mass_kg`, `use_tides`, `is_volume_fixed`, `tidal_scale` when one is set, `state`, `is_static`, `is_incompressible`, `temperature_k`, the four material switches, `use_heating`, and the `material` table, the `shear_rheology` and `bulk_rheology` overrides, and the `cooling` and `radiogenics` tables when set. `name` and `radius_inner_m` belong to a standalone layer only (`LAYER_STANDALONE_CONFIG_KEYS`): a world drops them when it nests the layer under its name. `save_config(path)` writes the dict to TOML, and `TidalPy.Structures.build_layer_from_dict` builds a standalone layer from it.
+`get_config_dict()` returns the layer as the world builder's layer table: `name`, `layer_index`, `radius_inner_m`, `radius_outer_m`, `mass_kg` (once the layer has a mass: one given, or set by a world EOS solve; the unset 0.0 is left out), `use_tides`, `is_volume_fixed`, `tidal_scale` when one is set, `state`, `is_static`, `is_incompressible`, `temperature_k`, the four material switches, `use_heating`, and the `material` table, the `shear_rheology` and `bulk_rheology` overrides, and the `cooling` and `radiogenics` tables when set. `name` and `radius_inner_m` belong to a standalone layer only (`LAYER_STANDALONE_CONFIG_KEYS`): a world drops them when it nests the layer under its name. `save_config(path)` writes the dict to TOML, and `TidalPy.Structures.build_layer_from_dict` builds a standalone layer from it.
 
-`save_binary(path)` and `load_binary(path)` write and read the layer with its material, rheology overrides, cooling model, and radiogenics model (binary class id 100; see [Binary Serialization](../../Utilities/binary.md)). The solved profile and the tidal heating are not saved. A layer that belongs to a world cannot be loaded in place: load the world, or load into a standalone layer.
+`save_binary(path)` and `load_binary(path)` (a `str` or `os.PathLike` path) write and read the layer with its material, rheology overrides, cooling model, and radiogenics model (binary class id 100; see [Binary Serialization](../../Utilities/binary.md)). The solved profile and the tidal heating are not saved. A layer that belongs to a world cannot be loaded in place: load the world, or load into a standalone layer.
 
 ```python
 from TidalPy.Structures import build_layer_from_dict

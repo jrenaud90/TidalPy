@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 
 from TidalPy.Structures.configs import build_world
-from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Viscosity import make_viscosity
 from numpy_compat import trapezoid
 
@@ -56,7 +55,7 @@ def _config(core_temperature=1800.0, mantle_temperature=1600.0, cooling="conduct
 
 
 def _solve(config=None, **kwargs):
-    world = construct_world(config if config is not None else _config())
+    world = build_world(config if config is not None else _config())
     result = world.solve_eos(**kwargs)
     assert result["success"], result["message"]
     return world, result

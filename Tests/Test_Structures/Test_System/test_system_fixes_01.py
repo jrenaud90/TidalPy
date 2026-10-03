@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from TidalPy.Material import Material, Phase
-from TidalPy.Structures.configs.system_builder import build_system_from_dict
+from TidalPy.Structures.configs.system_builder import build_system
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.base import BaseWorld
@@ -124,7 +124,7 @@ def test_mutual_pair_merged_orbit_survives_the_config_round_trip():
     for name in ("earth", "moon"):
         assert config["worlds"][name]["eccentricity"] == 0.055
         assert config["worlds"][name]["semi_major_axis_m"] == 3.844e8
-    rebuilt = build_system_from_dict(config)
+    rebuilt = build_system(config)
     assert rebuilt.get_eccentricity("earth") == 0.055
     assert rebuilt.get_semi_major_axis("moon") == 3.844e8
 

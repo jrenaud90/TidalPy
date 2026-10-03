@@ -28,6 +28,11 @@ def load_interior_plot_style() -> Dict[str, object]:
     return style
 
 
+# Fraction of the data range left clear on each side of the density twin axis, wider than matplotlib's default of
+# 0.05 so the density profile stays off the gravity panel's spines, where a layer of uniform density at either end of
+# the range would otherwise sit.
+DENSITY_AXIS_MARGIN = 0.1
+
 # Read once at import. Edit in place to restyle every later plot, or call `reload_interior_plot_style` after
 # `TidalPy.reinit` to pick up a changed configuration.
 INTERIOR_PLOT_STYLE: Dict[str, object] = load_interior_plot_style()
@@ -144,19 +149,20 @@ def plot_interior(
     ax_density = ax_gravity.twiny()
     _draw(ax_gravity, arrays["gravity"], vertical_km, style["gravity_color"], use_scatter)
     _draw(ax_density, arrays["density"], vertical_km, style["density_color"], use_scatter)
-    ax_gravity.set_ylabel("Depth [km]" if depth_plot else "Radius [km]", fontsize=style["label_fontsize"])
-    ax_gravity.set_xlabel("Gravity [m s$^{-2}$]", color=style["gravity_color"], fontsize=style["label_fontsize"])
-    ax_density.set_xlabel("Density [kg m$^{-3}$]", color=style["density_color"], fontsize=style["label_fontsize"])
+    ax_density.margins(x=DENSITY_AXIS_MARGIN)
+    ax_gravity.set_ylabel("depth (km)" if depth_plot else "radius (km)", fontsize=style["label_fontsize"])
+    ax_gravity.set_xlabel("gravity (m s$^{-2}$)", color=style["gravity_color"], fontsize=style["label_fontsize"])
+    ax_density.set_xlabel("density (kg m$^{-3}$)", color=style["density_color"], fontsize=style["label_fontsize"])
 
     # Pressure with optional temperature.
     ax_pressure = axes[1]
     _draw(ax_pressure, pressure_gpa, vertical_km, style["pressure_color"], use_scatter)
-    ax_pressure.set_xlabel("Pressure [GPa]", color=style["pressure_color"], fontsize=style["label_fontsize"])
+    ax_pressure.set_xlabel("pressure (GPa)", color=style["pressure_color"], fontsize=style["label_fontsize"])
     ax_pressure.yaxis.set_ticklabels([])
     if "temperature" in arrays:
         ax_temperature = ax_pressure.twiny()
         _draw(ax_temperature, arrays["temperature"], vertical_km, style["temperature_color"], use_scatter)
-        ax_temperature.set_xlabel("Temperature [K]", color=style["temperature_color"],
+        ax_temperature.set_xlabel("temperature (K)", color=style["temperature_color"],
                                   fontsize=style["label_fontsize"])
 
     # Moduli: real parts, imaginary parts on a twin axis.
@@ -164,7 +170,7 @@ def plot_interior(
         ax_modulus = axes[2]
         ax_imaginary = ax_modulus.twiny() if use_complex else None
         colors = {"shear_modulus": style["shear_color"], "bulk_modulus": style["bulk_color"]}
-        names = {"shear_modulus": "Shear", "bulk_modulus": "Bulk"}
+        names = {"shear_modulus": "shear", "bulk_modulus": "bulk"}
         imaginary_values = []
         for name, values in moduli.items():
             _draw(ax_modulus, np.real(values), vertical_km, colors[name], use_scatter, label=names[name])
@@ -172,14 +178,14 @@ def plot_interior(
                 _draw(ax_imaginary, np.imag(values), vertical_km, colors[name], use_scatter, imaginary=True)
                 imaginary_values.append(np.imag(values))
         marker_note = "points" if use_scatter else "solid"
-        ax_modulus.set_xlabel(f"Re[Modulus] ({marker_note}) [GPa]" if use_complex else "Modulus [GPa]",
+        ax_modulus.set_xlabel(f"real modulus, {marker_note} (GPa)" if use_complex else "modulus (GPa)",
                               fontsize=style["label_fontsize"])
         ax_modulus.yaxis.set_ticklabels([])
         if len(moduli) > 1:
             ax_modulus.legend(loc="best")
         if ax_imaginary is not None:
             imaginary_note = "crosses" if use_scatter else "dotted"
-            ax_imaginary.set_xlabel(f"Im[Modulus] ({imaginary_note}) [GPa]", fontsize=style["label_fontsize"])
+            ax_imaginary.set_xlabel(f"imaginary modulus, {imaginary_note} (GPa)", fontsize=style["label_fontsize"])
             stacked = np.concatenate(imaginary_values)
             if stacked.size > 0 and np.all(stacked > 0.0):
                 ax_imaginary.set_xscale("log")

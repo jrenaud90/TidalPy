@@ -110,7 +110,7 @@ cdef class CoolingResult:
     boundary_layer_thickness : float or numpy.ndarray
         Thermal boundary-layer thickness [m]: the conducting thickness that carries the flux across the whole
         temperature drop (thickness / Nu for convection). A layer with a boundary layer at its base and its top
-        splits the drop between them, so each is half this thick.
+        splits the drop between them, so each is half this thick. NaN for off, which has no boundary layer.
     rayleigh : float or numpy.ndarray
         Rayleigh number [dimensionless] (0 for off/conduction).
     nusselt : float or numpy.ndarray
@@ -281,7 +281,7 @@ cdef class CoolingBase(PhysicsBase):
 
 cdef class OffCooling(CoolingBase):
     """No heat transport inside the layer (alias ``"none"``): it holds one temperature. Its flux law gives zero flux
-    and a boundary layer of half the layer thickness."""
+    and no boundary layer (a ``boundary_layer_thickness`` of NaN)."""
     MODEL_NAME = "off"
 
 

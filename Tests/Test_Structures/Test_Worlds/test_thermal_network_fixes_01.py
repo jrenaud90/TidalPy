@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from TidalPy.Structures.configs.world_builder import construct_world
+from TidalPy.Structures.configs.world_builder import build_world
 
 _RADIUS = 1.0e6                # [m]
 _CONDUCTIVITY = 3.0            # [W/(m K)]
@@ -35,7 +35,7 @@ def _solve(layers, densities):
     radii = [0.0] + [layer["radius_fraction"] * _RADIUS for layer in layers.values()]
     mass = sum((4.0 / 3.0) * math.pi * density * (radii[i + 1] ** 3 - radii[i] ** 3)
                for i, density in enumerate(densities))
-    world = construct_world({
+    world = build_world({
         "schema_version": "0.2.0", "name": "network_fixes", "type": "terrestrial",
         "radius_m": _RADIUS, "mass_kg": mass, "layers": layers})
     result = world.solve_eos(surface_temperature=_SURFACE_TEMPERATURE)

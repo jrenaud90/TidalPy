@@ -105,11 +105,11 @@ def test_prescribed_heating_settings():
     assert world.prescribed_heating == {"mantle": {"power": 1.0e12}}
     with pytest.raises(ValueError, match="not both"):
         world.set_prescribed_heating("mantle", power=1.0, specific_rate=1.0)
-    with pytest.raises(ValueError, match="no layer named"):
+    with pytest.raises(KeyError, match="no layer named"):
         world.set_prescribed_heating("crust", power=1.0)
-    with pytest.raises(ValueError, match="no layer at index"):
+    with pytest.raises(IndexError, match="out of range"):
         world.set_prescribed_heating(5, power=1.0)
-    with pytest.raises(ValueError, match="integer index"):
+    with pytest.raises(TypeError, match="integer index"):
         world.set_prescribed_heating(1.7, power=1.0)
     with pytest.raises(ValueError, match="finite"):
         world.set_prescribed_heating("mantle", power=math.inf)

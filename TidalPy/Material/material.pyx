@@ -189,6 +189,18 @@ cdef class Phase(PhysicsBase):
     def _component(self, str slot):
         return cy_wrap_model(self._phase().get_components().get(slot.encode("utf-8")))
 
+    def __repr__(self):
+        """One line: the model of each component the phase has."""
+        if self._ptr is NULL:
+            return "Phase(no model)"
+        cdef list shown = []
+        cdef str slot
+        for slot in _PHASE_SLOTS:
+            model = self._component(slot)
+            if model is not None:
+                shown.append(f"{slot}={model.model_name!r}")
+        return f"Phase({', '.join(shown)})"
+
     @property
     def eos(self):
         """The equation of state."""
@@ -306,6 +318,21 @@ cdef class Material(PhysicsBase):
 
     def _component(self, str slot):
         return cy_wrap_model(self._material().get_components().get(slot.encode("utf-8")))
+
+    def __repr__(self):
+        """One line: the equation of state of each phase the material has, and its solidus when it melts."""
+        if self._ptr is NULL:
+            return "Material(no model)"
+        cdef list shown = []
+        cdef str slot
+        for slot in ("solid", "liquid"):
+            phase = self._component(slot)
+            if phase is not None:
+                shown.append(f"{slot}_eos={phase.eos.model_name!r}")
+        solidus = self._component("solidus")
+        if solidus is not None:
+            shown.append(f"solidus={solidus.model_name!r}")
+        return f"Material({', '.join(shown)})"
 
     @property
     def solid(self):

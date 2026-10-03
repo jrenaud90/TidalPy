@@ -10,6 +10,7 @@ imported once per process, so ``TidalPy.reinit()`` never registers the hook a se
 
 import atexit
 import numbers
+import sys
 
 from TidalPy.schema import LOG_LEVELS, LOG_LEVEL_RANGE
 
@@ -22,12 +23,18 @@ from TidalPy.Utilities.logging.logger cimport (
     cy_set_file_level,
     cy_log_message,
     cy_flush_logger,
+    cy_drain_pending_messages,
     cy_shutdown_logger,
     cy_get_logger_ptr,
 )
 
 # At import, before init_logger, so the pointer address is stable: stdout sink at info level.
 cy_create_default_logger()
+
+# The logger's configuration as init_logger takes it: the last init_logger call's, with the level changes made since
+# (set_console_level, set_file_level). get_logger_config hands out copies, and capture_log restores it.
+p_logger_config = {
+    "console_level": "info", "file_level": "info", "log_to_file": False, "log_file_path": "", "console_pending": False}
 
 
 # Non-owning address of the logger, owned by this extension's spdlog registry for the life of the
@@ -60,6 +67,40 @@ cdef int cy_resolve_level(object level) except -1:
         )
 
 
+def resolve_log_level(level) -> int:
+    """A log level as the spdlog level integer: trace 0, debug 1, info 2, warning 3, error 4, critical 5, off 6.
+
+    Parameters
+    ----------
+    level : str or int
+        A level name (case-insensitive, ``"warn"`` included) or the integer itself.
+
+    Returns
+    -------
+    int
+
+    Raises
+    ------
+    ValueError
+        An unknown name or an integer outside 0 to 6.
+    TypeError
+        Neither a str nor an int.
+    """
+    return cy_resolve_level(level)
+
+
+def get_logger_config() -> dict:
+    """The logger's current configuration, in the form :func:`init_logger` takes, so passing it back restores it.
+
+    Returns
+    -------
+    dict
+        ``console_level``, ``file_level``, ``log_to_file``, and ``log_file_path``: the last :func:`init_logger` call's
+        values, with the levels set since by :func:`set_console_level` and :func:`set_file_level`. A copy.
+    """
+    return dict(p_logger_config)
+
+
 def init_logger(dict config = None):
     """Initialize the TidalPy C++ logger from a configuration dictionary.
 
@@ -71,7 +112,9 @@ def init_logger(dict config = None):
     ----------
     config : dict, optional
         ``console_level`` and ``file_level`` (name or integer, default ``"info"``), ``log_to_file``
-        (default False), and ``log_file_path``, read only when writing a file.
+        (default False), ``log_file_path``, read only when writing a file, and ``console_pending`` (default False):
+        keep the console's messages for :func:`print_pending_messages` instead of writing them to stdout, as a
+        notebook does.
 
     Notes
     -----
@@ -86,6 +129,7 @@ def init_logger(dict config = None):
     c_config.console_level = cy_resolve_level(config.get("console_level", "info"))
     c_config.file_level    = cy_resolve_level(config.get("file_level", "info"))
     c_config.log_to_file   = True if config.get("log_to_file", False) else False
+    c_config.console_pending = True if config.get("console_pending", False) else False
 
     # `object`, not `str`: a config can hold a non-string here, which the isinstance check below turns
     # into an empty path. `cdef str` would raise on the assignment first.
@@ -94,6 +138,13 @@ def init_logger(dict config = None):
                               else b"")
 
     cy_init_logger(c_config)
+    p_logger_config.update({
+        "console_level": config.get("console_level", "info"),
+        "file_level": config.get("file_level", "info"),
+        "log_to_file": True if c_config.log_to_file else False,
+        "log_file_path": log_path if isinstance(log_path, str) else "",
+        "console_pending": True if c_config.console_pending else False,
+    })
 
 
 def set_log_level(level):
@@ -131,7 +182,10 @@ def set_console_level(level):
         True when the console sink was updated.
     """
     cdef int int_level = cy_resolve_level(level)
-    return cy_set_console_level(int_level)
+    cdef cpp_bool updated = cy_set_console_level(int_level)
+    if updated:
+        p_logger_config["console_level"] = int_level
+    return updated
 
 
 def set_file_level(level):
@@ -151,7 +205,10 @@ def set_file_level(level):
         True when the file sink was updated; False, changing nothing, when no log file is being written.
     """
     cdef int int_level = cy_resolve_level(level)
-    return cy_set_file_level(int_level)
+    cdef cpp_bool updated = cy_set_file_level(int_level)
+    if updated:
+        p_logger_config["file_level"] = int_level
+    return updated
 
 
 def flush_logger():
@@ -161,6 +218,23 @@ def flush_logger():
     with ``atexit`` at import, so a normal interpreter exit flushes the file.
     """
     cy_flush_logger()
+
+
+def print_pending_messages(*args):
+    """Print the messages the notebook console sink kept since the last call to ``sys.stderr``.
+
+    In a Jupyter notebook the console sink keeps its messages (``console_pending``), because the kernel does not show
+    what C++ writes to the process's stdout on every platform; TidalPy registers this function as an IPython
+    ``post_run_cell`` hook, so a cell's warnings print below it once it finishes. Each message prints as
+    ``[TidalPy] [<level>] <text>`` with an LF line ending on every platform and no timestamp, so a re-run notebook's
+    output stays the same; the console and log file keep their timestamps. The arguments IPython passes are ignored.
+    """
+    cdef vector[string] messages = cy_drain_pending_messages()
+    cdef size_t i
+    for i in range(messages.size()):
+        sys.stderr.write(messages[i].decode("utf-8", errors="replace"))
+    if messages.size() > 0:
+        sys.stderr.flush()
 
 
 def log_message(level, str message):

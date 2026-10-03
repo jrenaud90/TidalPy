@@ -1,6 +1,6 @@
 # Getting Started with TidalPy
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 ## Installation
 
@@ -11,23 +11,14 @@ _Updated: 2026-10-01_
 
 ## First Calculation
 
-TidalPy builds worlds out of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior and Love numbers, and places it in orbit about Jupiter to find its tidal heating and orbital rates.
+TidalPy builds worlds out of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior, places it in orbit about Jupiter, and finds its Love numbers, tidal heating, and orbital rates.
 
 ```python
-import numpy as np
-
-from TidalPy.Structures import build_world
-from TidalPy.Structures.system import System
+from TidalPy.Structures import System, build_world
 
 # Build a bundled world: its layers, materials, and physics models come from its TOML file
 io = build_world("io")
-io.solve_eos()                                        # Solve the interior structure (density, gravity, pressure)
-
-# Love numbers at Io's orbital period
-orbital_frequency = 2.0 * np.pi / (1.769 * 86400.0)   # [rad s-1]
-io.solve_love_numbers(
-    frequency=orbital_frequency)                      # Radial solve with the world's rheology
-print(io.love_number_k)                               # Complex k2, about 0.036 - 0.015j
+io.solve_eos()  # Solve the interior structure (density, gravity, pressure)
 
 # Link Io to Jupiter; orbital state lives on the system, not on the world
 jupiter = build_world("jupiter_simple")
@@ -37,12 +28,18 @@ system.add_world(
     io,
     tidal_host=jupiter,
     semi_major_axis=4.217e8,
-    eccentricity=0.0041)
-io.set_spin_frequency(system.calc_orbital_frequency(io))   # Keep Io synchronous
+    eccentricity=0.0041,
+    synchronous=True)  # Spin Io at its mean motion
 
-rates = system.calc_world_evolution(io)               # Tidal solve plus orbital and spin rates
-print(rates["tidal_heating"])                         # [W], about 9e13
-print(rates["da_dt"], rates["de_dt"])                 # [m s-1], [s-1]
+# Love numbers at Io's mean motion, its tidal forcing frequency since it rotates synchronously
+orbital_frequency = system.calc_orbital_frequency(io)  # [rad s-1], from Kepler's third law
+io.solve_love_numbers(
+    frequency=orbital_frequency)  # Radial solve with the world's rheology
+print(io.love_number_k)  # Complex k2, about 0.036 - 0.015j
+
+rates = system.calc_world_evolution(io)  # Tidal solve plus orbital and spin rates
+print(rates["tidal_heating"])  # [W], about 9e13
+print(rates["da_dt"], rates["de_dt"])  # [m s-1], [s-1]
 ```
 
 TidalPy computes rates only; to evolve a system in time, integrate these rates with an integrator of your choice (the demos use [CyRK](https://github.com/jrenaud90/CyRK)).

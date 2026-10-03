@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`Dynamics`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-02_
 
 The module holds two calculators:
 
@@ -9,7 +9,7 @@ The module holds two calculators:
 
 Both take the tidal-potential derivatives from a completed tidal solve and return derivatives of orbital and spin wrt to time.
 
-The inputs depend on $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$, the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, each in J kg$^{-1}$ rad$^{-1}$. They come from `world.calc_tides(...)` and are read back with `world.get_tidal_potential_derivatives()`. Everything on this page assumes that solve has already run.
+The inputs depend on $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$, the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, each in J kg$^{-1}$ rad$^{-1}$. They come from `world.calc_tides(...)`, whose result dict holds them as `dU_dM`, `dU_dw`, and `dU_dO`, and are read back with `world.get_tidal_potential_derivatives()`, a dict with the same keys. Everything on this page assumes that solve has already run.
 
 ## Spin
 

@@ -21,6 +21,9 @@ cdef extern from "factory_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "system_.hpp" namespace "tidalpy" nogil:
+    # std::invalid_argument for a semi-major axis that is not positive or an eccentricity outside [0, 1); NaN skips.
+    void c_check_orbit(double semi_major_axis, double eccentricity, const string& world_name) except +
+
     cdef cppclass c_WorldEvolution:
         size_t   world_index
         cpp_bool evolved
@@ -82,6 +85,7 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         void     clear_tidal_host(size_t index) except +
         double   get_tidal_host_mass(size_t index) except +
         cpp_bool is_mutual_pair(size_t index) except +
+        cpp_bool is_hosted_by_star(size_t index) except +
         cpp_bool has_star() const
         int      get_star_index() const
         void     set_star(size_t index) except +

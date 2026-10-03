@@ -35,9 +35,10 @@
 # so its -Im(k2) is near the measured k2/Q of about 0.011 but its Re(k2) is a quarter of Juno's.
 #
 # Orbital state is not a world property in this schema; add Io to a System to give it an orbit. The
-# spin frequency is the synchronous rate from the 0.7 file's 1.769 day spin period, which differs
-# from a System's Kepler mean motion by about 2e-4; the slow 2(n - spin) tide at that difference then
-# dominates the heating. In a System, keep Io synchronous with
+# spin frequency is Io's observed rate (the 0.7 file's 1.769 day spin period), not the Kepler mean
+# motion of the rounded semi-major axis above: a System's mean motion differs from it by about 2e-4,
+# and the slow 2(n - spin) tide at that difference then dominates the heating (a tide solve warns
+# about such a near-synchronous spin). In a System, keep Io synchronous with
 # world.set_spin_frequency(system.calc_orbital_frequency(world)).
 schema_version = "0.2.0"
 name = "Io"

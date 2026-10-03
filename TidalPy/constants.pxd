@@ -93,3 +93,11 @@ cdef extern from "constants_.hpp" nogil:
     void set_tidalpy_config_ptr(TidalPyConfig* ptr)
 
 cdef TidalPyConfig* get_shared_config_address()
+
+
+# A G_to_use argument as the gravitational constant [m3 kg-1 s-2]: None takes the configured value (SciPy's G), read at
+# call time so a reinitialized configuration is honored; a number is used as given.
+cdef inline double cy_resolve_G(object G_to_use) except? -1.0:
+    if G_to_use is None:
+        return tidalpy_config_ptr.d_G
+    return <double>G_to_use

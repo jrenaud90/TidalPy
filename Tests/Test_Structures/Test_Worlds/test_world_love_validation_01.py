@@ -4,7 +4,7 @@ import pytest
 
 from TidalPy.RadialSolver import build_rs_input_homogeneous_layers, radial_solver
 from TidalPy.Rheology import Maxwell, Elastic
-from TidalPy.Structures import build_world, build_world_from_dict
+from TidalPy.Structures import build_world
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 
@@ -54,7 +54,7 @@ def test_homogeneous_methods_use_the_solved_mass(io):
     config = io.get_config_dict()
     k2 = io.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2, love_method="homogeneous")["love_number_k"]
     lighter = dict(config, mass_kg=0.8 * config["mass_kg"])
-    other = build_world_from_dict(lighter)
+    other = build_world(lighter)
     other.solve_eos()
     assert other.planet_mass_eos == pytest.approx(io.planet_mass_eos, rel=1e-10)
     k2_other = other.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2, love_method="homogeneous")["love_number_k"]

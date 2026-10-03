@@ -1,4 +1,5 @@
-"""``get_config_dict`` of a layer, world, or system rebuilds the same object through ``build_*_from_dict``."""
+"""``get_config_dict`` of a layer, world, or system rebuilds the same object through ``build_layer_from_dict``,
+``build_world``, and ``build_system``."""
 import copy
 import math
 
@@ -11,9 +12,7 @@ from TidalPy.Structures import (
     available_worlds,
     build_layer_from_dict,
     build_system,
-    build_system_from_dict,
     build_world,
-    build_world_from_dict,
 )
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.system.system import System
@@ -92,14 +91,9 @@ def test_layer_config_needs_its_standalone_keys(missing):
         build_layer_from_dict(config)
 
 
-@pytest.mark.parametrize("builder, source, match", [
-    pytest.param(build_layer_from_dict, "mantle", None, id="layer"),
-    pytest.param(build_world_from_dict, "io", "build_world", id="world"),
-    pytest.param(build_system_from_dict, "sol_system", "build_system", id="system"),
-])
-def test_builder_rejects_a_non_dict(builder, source, match):
-    with pytest.raises(TypeError, match=match):
-        builder(source)
+def test_layer_builder_rejects_a_non_dict():
+    with pytest.raises(TypeError, match="configuration dict"):
+        build_layer_from_dict("mantle")
 
 
 # =====================================================================================================================
@@ -111,7 +105,7 @@ def test_world_rebuilds_from_its_config_dict(world_name):
     config = world.get_config_dict()
     snapshot = copy.deepcopy(config)
 
-    rebuilt = build_world_from_dict(config)
+    rebuilt = build_world(config)
     assert config == snapshot, "the input dictionary must not be modified"
     assert type(rebuilt) is type(world)
     assert rebuilt.get_config_dict() == config
@@ -129,7 +123,7 @@ def test_world_changes_made_after_the_build_are_in_the_dict():
             layer.temperature = 1777.0
             layer.is_incompressible = True
 
-    rebuilt = build_world_from_dict(world.get_config_dict())
+    rebuilt = build_world(world.get_config_dict())
     assert rebuilt.spin_frequency == 1.234e-5
     assert rebuilt.obliquity == 0.05
     assert rebuilt.get_config_dict()["moment_of_inertia_factor"] == 0.3769
@@ -142,7 +136,7 @@ def test_world_changes_made_after_the_build_are_in_the_dict():
 
 def test_rebuilt_world_solves_to_the_same_numbers():
     world = build_world("io")
-    rebuilt = build_world_from_dict(world.get_config_dict())
+    rebuilt = build_world(world.get_config_dict())
     for each in (world, rebuilt):
         each.solve_eos()
         each.solve_love_numbers(frequency=4.11e-5)
@@ -156,7 +150,7 @@ def test_star_luminosity_model_survives_the_round_trip():
     config = star.get_config_dict()
     assert config["luminosity"]["model"] == "power_law"
 
-    rebuilt = build_world_from_dict(config)
+    rebuilt = build_world(config)
     assert rebuilt.luminosity_model_set
     assert rebuilt.get_config_dict() == config
     assert rebuilt.calc_luminosity_from_mass() == star.calc_luminosity_from_mass()
@@ -172,7 +166,7 @@ def test_world_builder_rejects_a_bad_key(key, value):
     config = build_world("io").get_config_dict()
     config[key] = value
     with pytest.raises(ValueError, match=key):
-        build_world_from_dict(config)
+        build_world(config)
 
 
 # =====================================================================================================================
@@ -183,7 +177,7 @@ def test_bundled_system_rebuilds_from_its_config_dict():
     config = system.get_config_dict()
     snapshot = copy.deepcopy(config)
 
-    rebuilt = build_system_from_dict(config)
+    rebuilt = build_system(config)
     assert config == snapshot, "the input dictionary must not be modified"
     assert isinstance(rebuilt, System)
     assert rebuilt.get_config_dict() == config
@@ -197,7 +191,7 @@ def test_system_dict_carries_the_live_state_of_its_worlds():
     system["earth"].set_spin_frequency(9.9e-5)
     system.set_eccentricity("earth", 0.05)
 
-    rebuilt = build_system_from_dict(system.get_config_dict())
+    rebuilt = build_system(system.get_config_dict())
     assert rebuilt["earth"].spin_frequency == 9.9e-5
     assert rebuilt.get_eccentricity("earth") == 0.05
     assert math.isclose(rebuilt.get_semi_major_axis("earth"), system.get_semi_major_axis("earth"))
@@ -213,7 +207,7 @@ def test_mutual_pair_survives_the_round_trip():
     system.add_world(moon, tidal_host=earth, semi_major_axis=3.844e8, eccentricity=0.0549)
     system.set_tidal_host(earth, moon)
 
-    rebuilt = build_system_from_dict(system.get_config_dict())
+    rebuilt = build_system(system.get_config_dict())
     assert rebuilt.is_mutual_pair("earth") and rebuilt.is_mutual_pair("moon")
     assert rebuilt.get_semi_major_axis("earth") == 3.844e8
     assert rebuilt.get_config_dict() == system.get_config_dict()

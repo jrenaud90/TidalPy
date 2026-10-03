@@ -133,7 +133,7 @@ def test_world_evolution_matches_standalone_engines():
         obliquity=0.0,
         semi_major_axis=_SMA,
         host_mass=_HOST)
-    dU_dM, dU_dw, _ = moon.get_tidal_potential_derivatives()
+    dU_dM, dU_dw, _ = moon.get_tidal_potential_derivatives().values()
     orbit = OrbitSolver()
     da_ref = orbit.calc_da_dt(_N, _SMA, _ECC, _MASS, _HOST, dU_dM)
     de_ref = orbit.calc_de_dt(_N, _SMA, _ECC, _MASS, _HOST, dU_dM, dU_dw)

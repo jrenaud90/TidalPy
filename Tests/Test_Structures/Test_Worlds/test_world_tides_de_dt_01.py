@@ -36,7 +36,7 @@ def test_matches_the_separate_sums_at_moderate_eccentricity():
     """At e = 0.1 the combined sum equals dU/dM - dU/dw."""
     world = _cpl_world()
     _solve(world, 0.1)
-    dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives()
+    dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives().values()
     assert np.isclose(world.get_tidal_dU_dM_minus_dw(), dU_dM - dU_dw, rtol=1.0e-10)
 
 
@@ -48,7 +48,7 @@ def test_keeps_de_dt_over_e_steady_at_small_eccentricity():
     rate_per_e = []
     for eccentricity in (1.0e-3, 1.0e-5, 1.0e-7):
         _solve(world, eccentricity)
-        dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives()
+        dU_dM, dU_dw, _ = world.get_tidal_potential_derivatives().values()
         de_dt = solver.calc_de_dt(
             ORBITAL_FREQUENCY,
             SEMI_MAJOR_AXIS,

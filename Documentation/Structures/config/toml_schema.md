@@ -13,7 +13,7 @@ A config's `schema_version` is checked with a graded policy:
 - Patch difference (`0.0.X`): allowed silently.
 - Minor difference (`0.X.0`): allowed with a warning that some functionality may break.
 - Major difference (`X.0.0`): refused with a `ValueError`.
-- Missing `schema_version`: allowed with a warning.
+- Missing `schema_version` in a file: allowed with a warning. A dict built in Python without one targets the current schema and builds silently.
 
 Pass `force=True` (to `build_world`, `BaseWorld.build`, or `validate_schema_version`) to bypass these checks entirely.
 
@@ -36,6 +36,11 @@ earth.save_to_toml("earth_copy.toml")
 # Build from a file path or an in-memory dict instead.
 world = build_world("earth_copy.toml")
 world = build_world(earth.get_config_dict())
+
+# Change a few values of a source as it is built; nested tables merge key by key.
+hot_earth = build_world(
+    "earth_simple",
+    overrides={"layers": {"mantle": {"temperature_k": 2000.0}}})
 ```
 
 `build_world(source)` returns a `BaseWorld`: a `TerrestrialWorld`, `GasGiantWorld`, `StarWorld`, or, for the `layered` type, the `BaseWorld` class itself (see [Python API](#python-api)).
@@ -469,7 +474,7 @@ stellar_eccentricity = 0.0167
 ```
 
 ```python
-from TidalPy.Structures.configs import build_system
+from TidalPy.Structures import build_system
 system = build_system("sol_system")     # or a path / a config dict
 ```
 
@@ -477,15 +482,17 @@ system = build_system("sol_system")     # or a path / a config dict
 
 ## Python API
 
-Every entry point below is exported from `TidalPy.Structures.configs`, and the main ones (`build_world`, `build_world_from_dict`, `build_layer_from_dict`, `build_system`, `build_system_from_dict`, `construct_world`, `construct_layer`, `available_worlds`, `available_systems`, `save_world_to_toml`, `install_worldpack`, `SCHEMA_VERSION`) from `TidalPy.Structures` too.
+Every entry point below is exported from `TidalPy.Structures.configs`, and the main ones (`build_world`, `build_layer_from_dict`, `build_system`, `load_world`, `load_system`, `available_worlds`, `available_systems`, `save_world_to_toml`, `install_worldpack`, `SCHEMA_VERSION`) from `TidalPy.Structures` too, together with the classes (`Layer`, `BaseWorld`, `TerrestrialWorld`, `GasGiantWorld`, `StarWorld`, `System`) and `make_tide`.
 
 ### High Level
 
-* `build_world(source, force=False) -> BaseWorld`: resolve `source` (bundled name, file path, or dict), validate it, and return the built Cython world. `force=True` bypasses the schema-version warning. A thin wrapper over `BaseWorld.build(source, force=False)`, which returns the type-appropriate subclass.
+* `build_world(source, overrides=None, force=False) -> BaseWorld`: resolve `source` (bundled name, file path, or dict), validate it, and return the built Cython world. `overrides` is a nested dict merged over the configuration before the build (`TidalPy.configurations.merge_configs`: tables merge key by key, any other value replaces the source's), so it only needs the keys it changes. `force=True` bypasses the schema-version warning. A path to a binary file (`save_binary`) is loaded with `load_world` instead, and refuses `overrides`. A thin wrapper over `BaseWorld.build(source, overrides=None, force=False)`, which returns the type-appropriate subclass. `build_system(source, overrides=None, force=False)` is the same for a system.
+* `load_world(path, force=False) -> BaseWorld` and `load_system(path, force=False) -> System`: read a binary file into a new object of the class that saved it, with no placeholder object. Each raises `IOError` naming what a file holds when it is not of its kind (`"it is a System file; load it with load_system"`, or not a TidalPy binary file). `TidalPy.Utilities.binary.binary_file_class(path)` reads only the header and returns the class name, or `None` for a file that is not a TidalPy binary file.
+* An unknown bundled name raises `FileNotFoundError` naming the closest bundled name and listing them all, and an unknown world, `[tides]`, layer, solver-table, or system key raises `ValueError` naming the closest accepted key (`"did you mean 'temperature_k'?"`).
 * `load_radial_data(source, surface_radius=None) -> dict`: read a radial profile (a data-file path or a mapping of arrays) into MKS arrays ascending in radius, the same reader `data_file` and `data` worlds use. `detect_layer_boundaries(radius, shear_modulus)` returns the `(start, end, is_solid)` runs it splits into.
 * `world.save_to_toml(path, overwrite=True)`: write the world as it is now (`world.get_save_config(destination_dir)`), stamped with the current `schema_version` under a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it. That is the live `get_config_dict()`, validated against this schema first so it writes a buildable file or raises `ValueError`, except for a world built from a `data_file` and unchanged since its build, which writes its `portable_config` with the file reference rewritten for the destination folder. The layer masses an EOS solve sets and the world's name do not count as changes. `path` may be a string or a `pathlib.Path`.
 * `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with each layer's scalars, `material` table, and model sub-tables, `tides`, `schema_version`).
-* `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> Layer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
+* `build_world(world.get_config_dict())`, `build_system(system.get_config_dict())`, and `build_layer_from_dict(layer.get_config_dict()) -> Layer`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)), leaving the dict unmodified. `build_layer_from_dict` takes only a `dict` and raises `TypeError` for anything else.
 * `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly). `world.portable_config`: for a world built from a `data_file`, the configuration as given (`None` otherwise). `world.built_config`: the world's `get_config_dict()` at the end of its build, which `save_to_toml` compares the live state against. A successful `load_binary` clears all three, since they describe the world before the load, and `save_to_toml` then writes `get_config_dict()`.
 * `EOS_SOLVER_KEYS`, `RADIAL_SOLVER_KEYS`, and `validate_solver_table(section, table, where)`: the keys a world's `[eos_solver]` and `[radial_solver]` tables may pin, and the check the loader and `set_solver_defaults` apply to them.
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir unioned with packaged `WorldPack`). Bundled system files share that directory and are listed by `available_systems()` instead. `build_world` on a system config raises a `ValueError` naming `build_system`, and the reverse holds too.
@@ -493,8 +500,7 @@ Every entry point below is exported from `TidalPy.Structures.configs`, and the m
 
 ### Low Level
 
-* `construct_world(config) -> BaseWorld`: validate a dict and build the underlying Cython world (and its layers).
-* `construct_layer(name, layer_cfg, layer_index, radius_inner, radius_outer) -> Layer`: build a single layer, its material, and its models from a validated layer table.
+* `load_build_config(source, overrides=None, force=False) -> dict`: the configuration a build uses, the step `build_world` and `build_system` share: the source loaded, its schema version graded, the overrides merged, and the structural defaults filled in.
 * `save_world_to_toml(config, path, overwrite=True)`: serialize a config dict.
 
 ### Loader / Validation
@@ -519,20 +525,20 @@ world.save_to_toml("earth_copy.toml")
 reloaded = build_world("earth_copy.toml")   # identical structure
 ```
 
-The retained configuration is the world as its file described it. `get_config_dict()` is the world as it stands now, including every change made since the build. `build_*_from_dict` rebuilds the same class with the same parameters and attached models from that dict, for a layer, a world, or a system. A world constructed directly in Python with no tide model attached writes no `tides` table, so its rebuild takes the builder's default tide model for its type (see [Tidal Dissipation](#tidal-dissipation-tides)):
+The retained configuration is the world as its file described it. `get_config_dict()` is the world as it stands now, including every change made since the build. `build_world` and `build_system` rebuild the same class with the same parameters and attached models from that dict, and `build_layer_from_dict` does the same for a standalone layer. A world constructed directly in Python with no tide model attached writes no `tides` table, so its rebuild takes the builder's default tide model for its type (see [Tidal Dissipation](#tidal-dissipation-tides)):
 
 ```python
-from TidalPy.Structures import build_world_from_dict, build_layer_from_dict, build_system_from_dict
+from TidalPy.Structures import build_layer_from_dict
 
 world.set_spin_frequency(2.0e-5)                 # A change made after the build
 config = world.get_config_dict()                 # Builder-valid: type, layers by name, tides, schema_version
-twin = build_world_from_dict(config)             # Same class, same parameters, same models
+twin = build_world(config)                       # Same class, same parameters, same models
 assert twin.get_config_dict() == config
 
 mantle = world.mantle                            # The layer named "mantle"
 mantle_twin = build_layer_from_dict(mantle.get_config_dict())    # A standalone layer, owned by no world
 
-system_twin = build_system_from_dict(system.get_config_dict())   # Worlds, tidal hosts, star, and orbits
+system_twin = build_system(system.get_config_dict())             # Worlds, tidal hosts, star, and orbits
 ```
 
 The live dict carries every layer scalar, the layer's full material table, its rheology overrides, and its cooling and radiogenics tables explicitly, so a rebuild takes nothing from `[layers] material` or a MatPack file that may have changed since. A standalone layer's dict adds the keys a world would supply from the layer's place in its `layers` table (`name` and `radius_inner_m`). A world drops those keys when it nests the layer. A system's dict inlines each member world's live dict under `world`. Solved state (the EOS, Love numbers, tides) is not configuration, so run the solves again on a rebuilt object.

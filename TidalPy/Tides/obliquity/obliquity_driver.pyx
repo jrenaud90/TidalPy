@@ -90,10 +90,11 @@ def obliquity_accuracy_limit(object truncation, double tolerance=0.01, int max_d
     """The largest obliquity [rad] at which a level's heating stays within ``tolerance`` of the general value.
 
     Measured against the general functions for each degree on its own, worst case over constant-phase-lag,
-    constant-time-lag, and Maxwell tides at spin rates of 0.5, 1, and 2.3 times the mean motion and eccentricities of 0
-    and 0.2. A solve through ``max_degree_l`` takes the tightest limit of degrees 2 to ``max_degree_l``. The tabulated
-    tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses the next smaller one. Zero for
-    ``"off"``, which holds only at zero obliquity, and NaN for ``"gen"``, which has no such limit.
+    constant-time-lag, Maxwell (relaxation times of 1e-3 to 1e3 inverse mean motions), and Andrade tides at spin rates
+    of -10 to 30 times the mean motion and eccentricities of 0 to 0.2; synchronous rotation at low eccentricity sets
+    every limit. A solve through ``max_degree_l`` takes the tightest limit of degrees 2 to ``max_degree_l``. The
+    tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses the next smaller one.
+    Zero for ``"off"``, which holds only at zero obliquity, and NaN for ``"gen"``, which has no such limit.
     """
     cdef int level = validate_obliquity_truncation(truncation)
     return c_obliquity_accuracy_limit(level, tolerance, max_degree_l)
@@ -115,9 +116,9 @@ def recommend_obliquity_truncation(double obliquity, double tolerance=0.01, int 
     Returns
     -------
     int or str
-        0 (off) at zero obliquity, a tabulated level, or ``"gen"`` when no level holds the tolerance there (past about
-        0.47 rad, 27 degrees, at the default 1% and degree 2, and lower at higher degrees). The limits barely depend
-        on the spin rate or the eccentricity.
+        0 (off) at zero obliquity, a tabulated level, or ``"gen"`` when no level holds the tolerance there (past 0.405
+        rad, 23.2 degrees, at the default 1% and degree 2, and lower at higher degrees). The limits are set by
+        synchronous rotation at low eccentricity; other spin rates and eccentricities usually hold a level further.
 
     Raises
     ------

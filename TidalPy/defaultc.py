@@ -37,8 +37,11 @@ schema_version = "{SCHEMA_VERSION}"
     # Log levels: "trace", "debug", "info", "warning", "error", "critical", or "off".
     file_level = "debug"
     console_level = "info"
-    # In a Jupyter notebook: print log messages below the cell, and write the log file.
+    # In a Jupyter notebook: print every log message at console_level and above below the cell, and write the log
+    # file. With print_log_notebook off, a notebook still prints the messages at notebook_console_level and above (the
+    # accuracy and convergence warnings, by default).
     print_log_notebook = false
+    notebook_console_level = "warning"
     write_log_notebook = false
 
 [configs]
@@ -210,14 +213,14 @@ schema_version = "{SCHEMA_VERSION}"
     min_degree_l = 2
     max_degree_l = 2
     # Eccentricity truncation levels 2, 4, 6, 8, 10, 20, 50: level N keeps every product of two eccentricity
-    # functions (the heating) through e^N. Level 10 stays within 1% of the exact heating to e ~ 0.31, level 20 to
-    # e ~ 0.49, level 50 to e ~ 0.74 (Documentation/Tides/Eccentricity.md).
+    # functions (the heating) through e^N. Level 10 stays within 1% of the exact heating to e ~ 0.29, level 20 to
+    # e ~ 0.44, level 50 to e ~ 0.545 (Documentation/Tides/Eccentricity.md).
     eccentricity_trunc_lvl = 10
     # For eccentricity_trunc_lvl = "exact" (the functions from the exact orbit, any e < 1): the modes kept leave a
     # q^2-weighted tail of the squared functions below this fraction of the total.
     eccentricity_exact_tolerance = 1.0e-4
     # Obliquity truncation "off" (level 0), 2, 4 (every product of two obliquity functions through I^N), or "gen" (the
-    # exact functions). Level 2 stays within 1% of the exact heating to I ~ 8 degrees, level 4 to I ~ 27 degrees
+    # exact functions). Level 2 stays within 1% of the exact heating to I ~ 6 degrees, level 4 to I ~ 23 degrees
     # (Documentation/Tides/Obliquity.md).
     obliquity_trunc_lvl = "off"
 

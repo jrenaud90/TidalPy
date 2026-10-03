@@ -226,10 +226,12 @@ def test_recommend_eccentricity_truncation():
     """The recommended level for a few eccentricities and tolerances."""
     assert recommend_eccentricity_truncation(0.0) == 2
     assert recommend_eccentricity_truncation(0.05) == 4
-    assert recommend_eccentricity_truncation(0.3, tolerance=1.0e-2) == 10
+    assert recommend_eccentricity_truncation(0.25, tolerance=1.0e-2) == 10
+    assert recommend_eccentricity_truncation(0.3, tolerance=1.0e-2) == 20
     assert recommend_eccentricity_truncation(0.3, tolerance=1.0e-2, max_degree_l=3) == 20
-    assert recommend_eccentricity_truncation(0.55, tolerance=1.0e-6) == 50
-    assert recommend_eccentricity_truncation(0.6, tolerance=1.0e-6) == "exact"
+    assert recommend_eccentricity_truncation(0.4, tolerance=1.0e-6) == 50
+    assert recommend_eccentricity_truncation(0.45, tolerance=1.0e-6) == "exact"
+    assert recommend_eccentricity_truncation(5.0e-4, tolerance=1.0e-4) == 2
     assert recommend_eccentricity_truncation(0.8) == "exact"
     assert recommend_eccentricity_truncation(0.3, tolerance=1.0e-12) == "exact"
     with pytest.raises(ValueError):

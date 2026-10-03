@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from TidalPy.Rheology.rheology import make_rheology
-from TidalPy.Structures import build_world, build_world_from_dict
+from TidalPy.Structures import build_world
 from TidalPy.Viscosity import make_viscosity
 
 
@@ -113,7 +113,7 @@ def test_rebuilt_world_takes_the_same_path(tmp_path):
 
     file_path = str(tmp_path / "rheology_path.toml")
     world.save_to_toml(file_path)
-    for rebuilt in (build_world(file_path), build_world_from_dict(world.get_config_dict())):
+    for rebuilt in (build_world(file_path), build_world(world.get_config_dict())):
         assert rebuilt.solve_eos()["success"]
         radius = float(_mantle_radii(world)[2])
         assert rebuilt.get_shear_viscosity(radius) == pytest.approx(world.get_shear_viscosity(radius), rel=1.0e-12)

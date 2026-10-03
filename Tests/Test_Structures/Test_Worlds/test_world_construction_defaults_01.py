@@ -23,8 +23,10 @@ _COLD_WARNING = "has no temperature of its own"
 
 def _scalars(world):
     config = world.get_config_dict()
-    return {key: config[key] for key in ("albedo", "emissivity", "obliquity_rad", "spin_frequency_rad_s",
-                                         "moment_of_inertia_factor")}
+    scalars = {key: config[key] for key in ("albedo", "emissivity", "obliquity_rad", "spin_frequency_rad_s")}
+    # The configured moment-of-inertia factor is not written back, so compare the spin model's value.
+    scalars["moment_of_inertia"] = world.get_moment_of_inertia()
+    return scalars
 
 
 # =====================================================================================================================
@@ -44,7 +46,8 @@ def test_a_manual_world_matches_a_built_one(world_class, world_type):
 def test_a_manual_star_takes_the_star_defaults():
     star = StarWorld("sun", _SUN_RADIUS, _SUN_MASS)
     defaults = TidalPy.config["worlds"]["star"]
-    assert star.get_config_dict()["moment_of_inertia_factor"] == defaults["moment_of_inertia_factor"]
+    # The [worlds.star] default is the configuration's to supply, so the star's config leaves it out.
+    assert "moment_of_inertia_factor" not in star.get_config_dict()
     assert star.albedo == defaults["albedo"]
     assert star.effective_temperature == defaults["effective_temperature_k"]
     assert star.get_moment_of_inertia() == pytest.approx(

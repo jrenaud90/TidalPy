@@ -162,8 +162,8 @@ def tide_config_keys(str model_name) -> frozenset:
     return _FAMILY.config_keys_of(model_name)
 
 
-def make_tide(str model_name, dict config=None) -> TideBase:
-    """Build a tide model from a (case-insensitive) name and config dict.
+def make_tide(str model_name, dict config=None, **parameters) -> TideBase:
+    """Build a tide model from a (case-insensitive) name, a config dict, and keyword parameters.
 
     Parameters
     ----------
@@ -173,6 +173,9 @@ def make_tide(str model_name, dict config=None) -> TideBase:
         Model parameters by config key (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s], lists indexed from l = 2, as
         the model reads them; see ``get_parameter_info()``). A list left out takes the ``[tides]`` value of the
         TidalPy configuration, as the world builder does, so ``{"fixed_q": [50]}`` keeps the configured ``fixed_k``.
+    **parameters
+        The same parameters by argument name or config key (``fixed_q=[50]``, ``fixed_dt=[600.0]``), merged over
+        ``config``.
 
     Returns
     -------
@@ -182,5 +185,7 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     ------
     ValueError
         Unknown model name, or a parameter the model does not read; each message names the closest accepted one.
+    TypeError
+        One parameter given under both of its spellings.
     """
-    return _FAMILY.make(model_name, config)
+    return _FAMILY.make(model_name, config, **parameters)

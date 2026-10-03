@@ -5,7 +5,7 @@ import pytest
 
 import TidalPy
 from TidalPy.constants import G
-from TidalPy.Structures import build_world, build_world_from_dict
+from TidalPy.Structures import build_world
 from TidalPy.Structures.configs import EOS_SOLVER_KEYS, RADIAL_SOLVER_KEYS, validate_solver_table
 
 _FREQUENCY = 2.0e-5
@@ -76,7 +76,7 @@ def test_the_tables_round_trip_through_the_config_dict():
     assert world.get_solver_defaults() == tables
     config = world.get_config_dict()
     assert config["eos_solver"] == tables["eos_solver"] and config["radial_solver"] == tables["radial_solver"]
-    rebuilt = build_world_from_dict(config)
+    rebuilt = build_world(config)
     assert rebuilt.get_solver_defaults() == tables
     # A method name comes back in the configuration's spelling, and only the table given changes.
     world.set_solver_defaults(eos_solver={"integration_method": "radau"})

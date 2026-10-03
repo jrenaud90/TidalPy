@@ -22,7 +22,7 @@ cnp.import_array()
 
 from libcpp.vector cimport vector
 
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport cy_resolve_G, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.logging.logger cimport set_tidalpy_logger_ptr_void, get_tidalpy_logger_address
 from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 from TidalPy.Tides.potential.potential_3d cimport (
@@ -43,7 +43,7 @@ def tidal_potential_3d_modes(
         double obliquity,
         double semi_major_axis,
         double host_mass,
-        double G_to_use,
+        object G_to_use,
         double colatitude,
         double longitude,
         int min_degree_l=2,
@@ -54,9 +54,10 @@ def tidal_potential_3d_modes(
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
 
     The body radius comes first, then the orbital state in the same order as the world's ``calc_tides``,
-    then Newton's constant, the point's colatitude and longitude, and the degree range and truncations. The
-    obliquity truncation is ``'off'`` (0, which ignores the obliquity), 2, 4, or ``'gen'``; None takes the
-    ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration, as a built world does.
+    then Newton's constant (``G_to_use`` [m3 kg-1 s-2]; None takes the TidalPy configuration's G), the point's
+    colatitude and longitude, and the degree range and truncations. The obliquity truncation is ``'off'`` (0, which
+    ignores the obliquity), 2, 4, or ``'gen'``; None takes the ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy
+    configuration, as a built world does.
 
     Returns
     -------
@@ -72,7 +73,7 @@ def tidal_potential_3d_modes(
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
     cdef int i_obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
-    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
+    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session (and level).
     c_warn_standalone_tide_truncations(
         b"tidal_potential_3d_modes", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
         max_degree_l)
@@ -86,7 +87,7 @@ def tidal_potential_3d_modes(
         obliquity,
         eccentricity,
         host_mass,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         min_degree_l,
         max_degree_l,
         i_obliquity_truncation,

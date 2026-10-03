@@ -30,12 +30,11 @@
 
 namespace tidalpy {
 
-// No heat transport inside the layer: zero flux, and a boundary layer of half the layer thickness so downstream users
-// see a sane value.
-TIDALPY_FORCE_INLINE c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
+// No heat transport inside the layer: zero flux, and no boundary layer, so its thickness is NaN (not applicable).
+TIDALPY_FORCE_INLINE c_CoolingResult cool_off(const c_CoolingInputs& /*in*/) noexcept {
     c_CoolingResult result;
     result.cooling_flux    = 0.0;
-    result.blt             = 0.5 * in.thickness;
+    result.blt             = TidalPyConstants::d_NAN;
     result.rayleigh_number = 0.0;
     result.nusselt_number  = 1.0;
     return result;

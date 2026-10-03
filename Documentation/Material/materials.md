@@ -197,6 +197,7 @@ Each slot takes a model, a config table with a `model` key, or a model name for 
 | `replace(**changes)` | `Material` | A copy with some slots or parameters replaced; `None` removes a slot. |
 | `parameters`, `get_parameter(name)`, `get_parameter_info()` | | The scalar parameters, as for any law. |
 | `get_config_dict()`, `save_config(path)` | `dict`, - | The nested table, and that table written as TOML. |
+| `repr(...)` | `str` | One line: a phase's component models (`Phase(eos='vinet', shear_modulus='constant')`), or a material's phase equations of state and solidus (`Material(solid_eos='birch_murnaghan', liquid_eos='murnaghan', solidus='constant')`). |
 
 ### Changing a Material
 

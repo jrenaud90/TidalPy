@@ -9,6 +9,11 @@ from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
 
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
 
 def takeuchi_solid_dynamic_compressible(
         double frequency,
@@ -17,7 +22,7 @@ def takeuchi_solid_dynamic_compressible(
         double complex bulk_modulus,
         double complex shear_modulus,
         int degree_l,
-        double G_to_use,
+        object G_to_use,
         double complex[:, ::1] starting_conditions_view):
     """
     Calculate Takeuchi starting conditions for a solid dynamic compressible layer.
@@ -38,8 +43,8 @@ def takeuchi_solid_dynamic_compressible(
         Shear modulus [Pa].
     degree_l : int
         Tidal harmonic order.
-    G_to_use : float
-        Gravitational constant.
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
     starting_conditions_view : complex[:, ::1]
         Output array of shape [num_solutions, num_ys].
     """
@@ -57,7 +62,7 @@ def takeuchi_solid_dynamic_compressible(
         K,
         mu,
         degree_l,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         num_ys,
         ptr)
 
@@ -68,7 +73,7 @@ def takeuchi_solid_static_compressible(
         double complex bulk_modulus,
         double complex shear_modulus,
         int degree_l,
-        double G_to_use,
+        object G_to_use,
         double complex[:, ::1] starting_conditions_view):
     """
     Calculate Takeuchi starting conditions for a solid static compressible layer.
@@ -82,7 +87,7 @@ def takeuchi_solid_static_compressible(
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
     cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
-    c_takeuchi_solid_static_compressible(radius, density, K, mu, degree_l, G_to_use, num_ys, ptr)
+    c_takeuchi_solid_static_compressible(radius, density, K, mu, degree_l, cy_resolve_G(G_to_use), num_ys, ptr)
 
 
 def takeuchi_liquid_dynamic_compressible(
@@ -91,7 +96,7 @@ def takeuchi_liquid_dynamic_compressible(
         double density,
         double complex bulk_modulus,
         int degree_l,
-        double G_to_use,
+        object G_to_use,
         double complex[:, ::1] starting_conditions_view):
     """
     Calculate Takeuchi starting conditions for a liquid dynamic compressible layer.
@@ -110,6 +115,6 @@ def takeuchi_liquid_dynamic_compressible(
         density,
         K,
         degree_l,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         num_ys,
         ptr)

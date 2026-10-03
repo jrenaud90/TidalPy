@@ -51,7 +51,7 @@ def test_star_analytic_tides_positive_heating(model, config):
     assert star.tides_solved
     assert star.get_num_tidal_modes() > 0
     assert star.get_tidal_heating() > 0.0
-    dUdM, dUdw, dUdO = star.get_tidal_potential_derivatives()
+    dUdM, dUdw, dUdO = star.get_tidal_potential_derivatives().values()
     assert abs(dUdM) > 0.0
 
 
