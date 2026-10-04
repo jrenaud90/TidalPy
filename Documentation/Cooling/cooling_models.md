@@ -84,7 +84,7 @@ The temperature drop of a convecting layer is the sum of the drops across its tw
 
 ### Convective Reference State
 
-The convection model evaluates the viscosity of its Rayleigh number at its own reference point: the top of its adiabatic interior, under its upper boundary layer, at the layer's own temperature and the solved pressure there. The boundary layer's thickness follows from that viscosity, so the model iterates the two to agreement on each pass's structure, starting from the previous pass's boundary layer (the layer's top before there is one). Near the melt onset, where the viscosity follows the pressure through the melt fraction, this saves the solve tens of passes. That is where the layer's temperature applies, so the viscosity is the one the interior actually has where it is coolest. The gravity, the density, and the thermal constants are the mid-layer values at the layer's temperature, and the diffusivity is $k / (\rho c_p)$ there.
+The convection model evaluates the viscosity of its Rayleigh number over the top of its layer: the logarithmic mean of the material's viscosity at the layer's own temperature and the solved pressure, at eight depths spread evenly through the top `viscosity_depth_fraction` of the layer's thickness (default 0.05, about 145 km for Earth's mantle). The middle of that range is the reference point the solve reports (`layer_reference_pressure`, `layer_reference_melt_fraction`) and decides whether the interior is liquid. The range is fixed by the layer's geometry rather than by the boundary layer on purpose: a viscosity taken where the boundary layer ends feeds back on the boundary layer's thickness, and near the melt onset, where the melting curve follows the pressure and melt weakening lowers the viscosity by orders of magnitude within a few km of the surface, that loop has two self-consistent solutions, and the heat flow jumped between them (elevenfold in one case) as the temperature changed. With the range fixed, the heat flow follows the temperature continuously, which an integration of the temperature over time needs.
 
 The interior is liquid at the reference point, and takes the magma-ocean scaling, where the Love solve takes it as liquid: everywhere in a liquid layer (a liquid-only material, or `state = "liquid"`), and, in a layer that can change state, where the material is fully molten or its post-melt shear modulus is at or below `[numerical] minimum_solid_rigidity` times the world's $\rho g R$. A melting mantle past the critical melt fraction of its weakening law is therefore a magma ocean even before it is fully molten. The solve reports the reference point as `layer_reference_pressure`, `layer_reference_viscosity`, and `layer_reference_melt_fraction` (NaN for a layer that does not convect).
 
@@ -132,6 +132,7 @@ Constructors take the model's parameters by argument name or config key, as keyw
 | `critical_rayleigh` | `critical_rayleigh` | 1100.0 | Convection, solid interior |
 | `liquid_convection_alpha` | `liquid_convection_alpha` | 0.089 | Convection, liquid interior |
 | `liquid_convection_beta` | `liquid_convection_beta` | 1/3 | Convection, liquid interior |
+| `viscosity_depth_fraction` | `viscosity_depth_fraction` | 0.05 | Convection: the top fraction of the layer the interior viscosity is averaged over |
 
 The parameters read as attributes, and every model has `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, and `save_config(path)`. `off` and `conduction` have no parameters. `cooling_model_names()` lists the canonical names and `cooling_config_keys(name)` the keys one model reads.
 
@@ -222,7 +223,7 @@ result = world.solve_eos(
 
 print(result["layer_nusselt_number"])        # The mantle convects
 print(result["layer_boundary_thickness"])    # [m] each of the mantle's boundary layers
-print(result["layer_reference_viscosity"])   # [Pa s] at the top of the mantle's interior
+print(result["layer_reference_viscosity"])   # [Pa s] over the top of the mantle
 print(result["layer_magma_ocean"])           # Whether that interior is liquid
 
 world.mantle.cooling = {"model": "convection", "critical_rayleigh": 1000.0}   # Replace it

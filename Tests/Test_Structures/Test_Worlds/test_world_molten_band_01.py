@@ -86,9 +86,10 @@ def _upper_mantle_bands(world):
     return [(inner, outer) for name, inner, outer in world.molten_regions if (name == "mantle") and (inner > middle)]
 
 
-# Just past the rheological transition (Henning's critical melt fraction, 0.5) at the top of the interior: 0.59 melt at
-# 1850 K. Below it (1825 K, 0.49) the interior is a partially molten solid and no stretch is molten.
-_BAND_TEMPERATURES = (1850.0, 1855.0)
+# Just past the rheological transition (Henning's critical melt fraction, 0.5) at the top of the interior, where the
+# near-surface band is 8 to 12 km thick; at 1850 K and below the interior is a partially molten solid and no stretch is
+# molten.
+_BAND_TEMPERATURES = (1860.0, 1865.0)
 
 
 @pytest.mark.parametrize("mantle_temperature", _BAND_TEMPERATURES)

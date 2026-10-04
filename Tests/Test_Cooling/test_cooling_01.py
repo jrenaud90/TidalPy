@@ -209,7 +209,8 @@ def test_make_cooling_adopted_object_is_usable(tmp_path):
     ("OffCooling", {"model"}),
     ("ConductiveCooling", {"model"}),
     ("ConvectiveCooling", {"model", "convection_alpha", "convection_beta", "critical_rayleigh",
-                           "liquid_convection_alpha", "liquid_convection_beta"}),
+                           "liquid_convection_alpha", "liquid_convection_beta",
+                           "viscosity_depth_fraction"}),
 ])
 def test_config_dict_keys(cls_name, keys):
     assert set(getattr(Cooling, cls_name)().get_config_dict()) == keys

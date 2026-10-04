@@ -296,6 +296,7 @@ convection_beta = 0.3333333333333333
 critical_rayleigh = 1100.0
 liquid_convection_alpha = 0.089     # a liquid interior (a magma ocean): Nu = alpha Ra^beta (Solomatov 2000)
 liquid_convection_beta = 0.3333333333333333
+viscosity_depth_fraction = 0.05     # the interior viscosity: its log-mean over the top 5% of the layer
 
 [layers.upper_mantle.radiogenics]
 model = "isotope"

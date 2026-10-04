@@ -21,6 +21,10 @@ _CORE_RADIUS = 1.5e6
 _SURFACE_TEMPERATURE = 300.0
 _CRITICAL_RAYLEIGH = 1100.0
 _LIQUID_ALPHA = 0.089
+# d_INTERIOR_VISCOSITY_SAMPLES of TidalPy/Cooling/cooling_.hpp and the convection model's default viscosity_depth_fraction:
+# the depths the interior viscosity is averaged over, through the top 5% of the layer.
+_INTERIOR_VISCOSITY_SAMPLES = 8
+_VISCOSITY_DEPTH_FRACTION = 0.05
 
 
 def _mantle_material(melting, shear_law=True):
@@ -64,21 +68,25 @@ def _solved_world(mantle_temperature, melting, shear_law=True, state="auto"):
     return world, result
 
 
-def test_the_viscosity_is_taken_at_the_top_of_the_interior():
-    """The reference point is the base of the upper boundary layer, at the layer's temperature: far shallower than the
-    mid-layer, where the pressure-dependent viscosity is about ten times higher."""
+def test_the_viscosity_is_taken_over_the_top_of_the_layer():
+    """The viscosity is the logarithmic mean at the layer's temperature over the top viscosity_depth_fraction of the
+    layer, and the reference point is the middle of that range: far shallower than the mid-layer, where the
+    pressure-dependent viscosity is several times higher. Neither depends on the boundary layer."""
     world, result = _solved_world(1600.0, melting=False)
-    boundary = result["layer_boundary_thickness"][1]
+    depth = _VISCOSITY_DEPTH_FRACTION * (_RADIUS - _CORE_RADIUS)
     reference_pressure = result["layer_reference_pressure"][1]
-    # The reference point lags the boundary layer by one pass; converged, the two agree.
-    assert reference_pressure == pytest.approx(world.get_pressure(_RADIUS - boundary), rel=1.0e-6)
+    assert reference_pressure == pytest.approx(world.get_pressure(_RADIUS - 0.5 * depth), rel=1.0e-6)
     mid_pressure = world.get_pressure(0.5 * (_RADIUS + _CORE_RADIUS))
     assert reference_pressure < 0.1 * mid_pressure
 
-    reference = world.mantle.calc_state(reference_pressure, 1600.0)["shear_viscosity"]
+    # The midpoints of _INTERIOR_VISCOSITY_SAMPLES equal slices of the top of the layer.
+    radii = _RADIUS - depth + (np.arange(_INTERIOR_VISCOSITY_SAMPLES) + 0.5) * depth / _INTERIOR_VISCOSITY_SAMPLES
+    log_viscosities = [np.log(world.mantle.calc_state(world.get_pressure(radius), 1600.0)["shear_viscosity"])
+                       for radius in radii]
+    interior_viscosity = np.exp(np.mean(log_viscosities))
     mid_layer = world.mantle.calc_state(mid_pressure, 1600.0)["shear_viscosity"]
-    assert result["layer_reference_viscosity"][1] == pytest.approx(reference, rel=1.0e-12)
-    assert mid_layer > 5.0 * reference
+    assert result["layer_reference_viscosity"][1] == pytest.approx(interior_viscosity, rel=1.0e-6)
+    assert mid_layer > 5.0 * interior_viscosity
     # Only a convecting layer has a reference point.
     assert math.isnan(result["layer_reference_viscosity"][0])
 
