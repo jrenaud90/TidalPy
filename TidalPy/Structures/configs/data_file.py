@@ -483,11 +483,12 @@ def _validate_profile(arrays: dict, where: str) -> None:
 # Layer detection
 # =====================================================================================================================
 def detect_layer_boundaries(radius, shear_modulus, shear_floor: float = DEFAULT_SHEAR_FLOOR_PA) -> list:
-    """Split a radial profile into layers by shear modulus (solid vs liquid).
+    """Split a radial profile into layers by shear modulus (solid vs liquid) and at its discontinuities.
 
     Scans the (ascending-radius) profile from the center outward. A slice with shear modulus at or
     below ``shear_floor`` is liquid; above it is solid. Each solid<->liquid transition begins a new
-    layer.
+    layer, and so does every radius the profile gives twice inside a layer (a discontinuity, such as
+    PREM's 220, 400, and 670 km jumps), whose upper copy starts the new layer.
 
     Parameters
     ----------
@@ -510,6 +511,10 @@ def detect_layer_boundaries(radius, shear_modulus, shear_floor: float = DEFAULT_
     inner-core/outer-core boundary, for one), which would otherwise produce zero-thickness "layers".
     Such degenerate runs (whose outer radius does not exceed their inner radius) are absorbed into
     the previous real layer, so every returned layer spans a non-zero radius interval.
+
+    Splitting at a discontinuity keeps the profile exactly as given (each side is still interpolated
+    linearly); it moves the jump onto a layer interface, where the EOS and radial integrations restart
+    instead of shortening their steps to cross it.
     """
     radius = np.ascontiguousarray(radius, dtype=np.float64)
     shear_modulus = np.ascontiguousarray(shear_modulus, dtype=np.float64)
@@ -535,4 +540,16 @@ def detect_layer_boundaries(radius, shear_modulus, shear_floor: float = DEFAULT_
     while len(layers) > 1 and radius[layers[0][1]] <= radius[layers[0][0]]:
         layers[1][0] = layers[0][0]
         layers.pop(0)
-    return [(start, end, is_solid) for start, end, is_solid in layers]
+
+    # A radius given twice inside a layer is a discontinuity of the profile (PREM's 220, 400, and 670 km jumps): it
+    # starts a new layer of the same state, the upper copy belonging to it. The jump then sits on an interface, where
+    # the EOS and radial integrations restart, rather than inside an integration, whose steps it would cut short.
+    split_layers = []
+    for start, end, is_solid in layers:
+        piece_start = start
+        for row in range(start, end):
+            if (radius[row + 1] == radius[row]) and (radius[row] > radius[piece_start]) and (radius[end] > radius[row]):
+                split_layers.append((piece_start, row, is_solid))
+                piece_start = row + 1
+        split_layers.append((piece_start, end, is_solid))
+    return split_layers

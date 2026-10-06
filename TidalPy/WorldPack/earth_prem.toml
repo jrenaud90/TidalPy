@@ -4,23 +4,26 @@
 # (and, optionally, a shear and a bulk viscosity). Columns are found by name, so their
 # order does not matter and they may state their units. On build the profile is split
 # into layers by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition starts
-# a new layer, named layer_0, layer_1, ... from the center outward), and each layer's
+# a new layer) and at every radius it gives twice (a discontinuity), named layer_0,
+# layer_1, ... from the center outward, and each layer's
 # slice of the profile becomes its material: radius-tabulated (interpolate) laws carrying
 # that layer's density and static bulk and shear moduli. A liquid layer's material is
 # liquid-only, with no shear modulus.
 # The bundled PREM.csv replaces PREM's 3 km surface ocean with the upper crust, so it
-# gives three layers: inner core (solid), outer core (liquid), and mantle plus crust
-# (solid). It names no viscosity, so the body is elastic and its degree-2 Love number
-# k2 is about 0.30, purely real.
+# gives twelve layers: inner core (solid), outer core (liquid), and ten solid mantle and
+# crust layers between PREM's discontinuities (3630, 5600, 5701, 5771, 5971, 6151, 6291,
+# 6346.6, and 6356 km). It names no viscosity, so the body is elastic and its degree-2
+# Love number k2 is about 0.30, purely real.
 #
 # A profile holds no complex moduli, so a rheology is still named in a layer table, as
 # are a cooling model and radiogenics. Add a [layers.<name>] table with a `layer_index`
-# saying which detected layer it refines (or call it layer_N); only the layers you are
+# saying which detected layer it refines (or call it layer_N), or a `radius_range_m`
+# refining every detected layer between two detected boundaries; only the layers you are
 # refining need one, and a provided outer radius must match the detected boundary. A
 # viscoelastic rheology also needs a viscosity, which this profile does not carry; a
 # material table in the layer table adds it to the profile's slice, for example:
 #   [layers.mantle]
-#   layer_index = 2
+#   radius_range_m = [3480.0e3, 6371.0e3]
 #   [layers.mantle.shear_rheology]
 #   model = "maxwell"
 #   [layers.mantle.material.solid.shear_viscosity]

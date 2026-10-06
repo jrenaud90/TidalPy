@@ -128,7 +128,7 @@ def test_an_inline_member_finds_its_data_file_beside_the_system_file(tmp_path):
     with open(tmp_path / "solo.toml", "w", encoding="utf-8") as system_file:
         toml.dump(system_config, system_file)
     system = build_system(str(tmp_path / "solo.toml"))
-    assert len(system["earth"].get_config_dict()["layers"]) == 3
+    assert len(system["earth"].get_config_dict()["layers"]) == 12
 
 
 # =====================================================================================================================

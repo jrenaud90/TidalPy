@@ -34,6 +34,7 @@ from TidalPy.Rheology.rheology import canonical_rheology_name, make_rheology
 from TidalPy.Cooling.cooling import canonical_cooling_name, make_cooling
 from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import load_material, merge_material_tables
+from TidalPy.schema import LAYER_RADIUS_RANGE_KEY
 from TidalPy.Material.matpack import PRESET_KEY
 from TidalPy.Tides.classes.tide import make_tide, tide_config_keys
 from TidalPy.Stellar.luminosity import make_luminosity
@@ -506,7 +507,7 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
 
     # The geometry specifiers were handled above.
     for key, value in user_cfg.items():
-        if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
+        if key in ("layer_index", LAYER_RADIUS_RANGE_KEY) or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if key == "material":
             if not isinstance(value, dict):
@@ -543,6 +544,65 @@ def _hold_profile_constants(material_cfg: dict) -> dict:
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     law_cfg[key] = [float(value)] * num_points
     return material_cfg
+
+
+def _user_layer_indices(layer_name: str, user_cfg: dict, detected_bounds: list, world_radius: float,
+                        world_name: Optional[str]) -> list:
+    """Resolve which detected layers a user layer table refines.
+
+    A ``radius_range_m = [inner, outer]`` key refines every detected layer between those radii, which must be
+    detected boundaries (a profile split at its discontinuities gives a mantle many layers, and one table then
+    refines them all). Otherwise the table refines the one layer its ``layer_index`` or its ``layer_N`` name gives.
+
+    Parameters
+    ----------
+    layer_name : str
+        The user table's name.
+    user_cfg : dict
+        The user table.
+    detected_bounds : list of tuple of float
+        ``(radius_inner, radius_outer)`` [m] of each detected layer, inner to outer.
+    world_radius : float
+        The world's radius [m], which sets the tolerance for matching a boundary.
+    world_name : str or None
+        For error messages.
+
+    Returns
+    -------
+    list of int
+        The detected layers the table refines, inner to outer.
+
+    Raises
+    ------
+    ValueError
+        A range given with ``layer_index`` or an outer-radius key, not two increasing radii, or with an end off the
+        detected boundaries; or an index out of range.
+    """
+    if LAYER_RADIUS_RANGE_KEY not in user_cfg:
+        return [_user_layer_index(layer_name, user_cfg, len(detected_bounds), world_name)]
+    where = f"World '{world_name}': layer table '{layer_name}'"
+    conflicting = sorted(key for key in ("layer_index",) + tuple(LAYER_GEOMETRY_SPEC_KEYS) if key in user_cfg)
+    if conflicting:
+        raise ValueError(
+            f"{where} gives '{LAYER_RADIUS_RANGE_KEY}' and {conflicting}; a table refines either the detected layers "
+            "in a radius range or one detected layer.")
+    radius_range = user_cfg[LAYER_RADIUS_RANGE_KEY]
+    is_pair = isinstance(radius_range, (list, tuple)) and (len(radius_range) == 2)
+    is_numeric = is_pair and all(
+        isinstance(value, (int, float)) and not isinstance(value, bool) for value in radius_range)
+    if not (is_numeric and (radius_range[0] < radius_range[1])):
+        raise ValueError(
+            f"{where}: '{LAYER_RADIUS_RANGE_KEY}' must be two increasing radii [m], not {radius_range!r}.")
+    inner, outer = float(radius_range[0]), float(radius_range[1])
+    tolerance = 1.0e-6 * world_radius
+    boundaries = sorted({bound for pair in detected_bounds for bound in pair})
+    for end in (inner, outer):
+        if not any(abs(end - bound) <= tolerance for bound in boundaries):
+            raise ValueError(
+                f"{where}: '{LAYER_RADIUS_RANGE_KEY}' ends at {end:.6g} m, which is not a boundary detected from the "
+                f"radial profile. The boundaries are {[float(f'{bound:.6g}') for bound in boundaries]} m.")
+    return [index for index, (layer_inner, layer_outer) in enumerate(detected_bounds)
+            if (layer_inner >= inner - tolerance) and (layer_outer <= outer + tolerance)]
 
 
 def _user_layer_index(layer_name: str, user_cfg: dict, num_detected: int, world_name: Optional[str]) -> int:
@@ -735,8 +795,9 @@ def _expand_radial_data(config: dict) -> dict:
 
     It does not fix everything a layer can carry: a profile holds no rheology, no cooling model and
     no radiogenics, so those are still given in ``[layers.<name>]`` tables. Such a table names the
-    layer it refines with ``layer_index`` (or by being called ``layer_<N>``), and only the layers
-    being refined need one. Returns a copy of ``config`` whose ``layers`` table is the detected
+    layer it refines with ``layer_index`` (or by being called ``layer_<N>``), or every detected
+    layer between two boundaries with ``radius_range_m``, and only the layers being refined need
+    one. Returns a copy of ``config`` whose ``layers`` table is the detected
     layers with those refinements merged in; a config with neither profile key is returned
     unchanged.
 
@@ -778,22 +839,28 @@ def _expand_radial_data(config: dict) -> dict:
         arrays = _quality_factors_as_loss(arrays, world_name, source)
     auto_layers = _layers_from_radial_data(arrays, liquid_loss=(q_settings is None))
 
-    # Each user table refines one detected layer, and lends it its own name.
+    # Each user table refines one detected layer, or every one in its radius range, and lends them its name: the
+    # table's own for one layer, numbered from the inside out (<name>_0, <name>_1, ...) for several.
     names = [name for name, _, _ in auto_layers]
     merged = [cfg for _, cfg, _ in auto_layers]
     is_solid = [solid for _, _, solid in auto_layers]
+    detected_bounds = []
+    for layer_cfg in merged:
+        radius_inner = detected_bounds[-1][1] if detected_bounds else 0.0
+        detected_bounds.append((radius_inner, float(layer_cfg["radius_outer_m"])))
     claimed = {}
     for layer_name, user_cfg in (config.get("layers", {}) or {}).items():
-        index = _user_layer_index(layer_name, user_cfg, len(auto_layers), world_name)
-        if index in claimed:
-            raise ValueError(
-                f"World '{world_name}': layer tables '{claimed[index]}' and '{layer_name}' both "
-                f"refine detected layer {index}.")
-        claimed[index] = layer_name
-        names[index] = layer_name
-        if q_settings is not None:
-            _check_q_layer_table(user_cfg, layer_name, world_name, is_solid[index])
-        merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, layer_name)
+        indices = _user_layer_indices(layer_name, user_cfg, detected_bounds, world_radius, world_name)
+        for position, index in enumerate(indices):
+            if index in claimed:
+                raise ValueError(
+                    f"World '{world_name}': layer tables '{claimed[index]}' and '{layer_name}' both "
+                    f"refine detected layer {index}.")
+            claimed[index] = layer_name
+            names[index] = layer_name if len(indices) == 1 else f"{layer_name}_{position}"
+            if q_settings is not None:
+                _check_q_layer_table(user_cfg, names[index], world_name, is_solid[index])
+            merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, names[index])
 
     if q_settings is not None:
         for index, layer_cfg in enumerate(merged):

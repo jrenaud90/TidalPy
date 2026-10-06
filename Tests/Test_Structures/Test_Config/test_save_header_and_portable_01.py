@@ -36,7 +36,8 @@ def test_a_data_file_world_saves_its_file_reference(tmp_path):
     assert world.portable_config is not None
     assert world.portable_config["data_file"] == "PREM.csv"
     assert "layers" not in world.portable_config or "interpolate" not in str(world.portable_config["layers"])
-    assert len(world.source_config["layers"]) == 3
+    # The inner core, the outer core, and ten mantle and crust layers between PREM's discontinuities.
+    assert len(world.source_config["layers"]) == 12
 
     path = str(tmp_path / "earth_prem_copy.toml")
     world.save_to_toml(path)
@@ -45,7 +46,7 @@ def test_a_data_file_world_saves_its_file_reference(tmp_path):
     assert "interpolate" not in text and "density_kg_m3 = [" not in text
 
     rebuilt = build_world(path)
-    assert rebuilt.num_layers == 3
+    assert rebuilt.num_layers == 12
     world.solve_eos(G_to_use=G)
     rebuilt.solve_eos(G_to_use=G)
     assert math.isclose(rebuilt.planet_mass_eos, world.planet_mass_eos, rel_tol=1.0e-12)

@@ -1,4 +1,5 @@
 from TidalPy.RadialSolver.solver import radial_solver as radial_solver
+from TidalPy.RadialSolver.solver import warn_if_internal_discontinuity as warn_if_internal_discontinuity
 from TidalPy.RadialSolver.helpers import homogeneous_love_numbers as homogeneous_love_numbers
 
 # Native input builders (Rheology models); the output feeds either radial solver positionally.

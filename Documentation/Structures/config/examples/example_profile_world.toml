@@ -1,13 +1,14 @@
-# Example-Profile: a world built from a radial data file rather than layer tables, showing `data_file`, the two
-# ways a table refines a detected layer, and a world file overriding the RK45 default such worlds pin.
+# Example-Profile: a world built from a radial data file rather than layer tables, showing `data_file`, the ways a
+# table refines detected layers, and a world file overriding the RK45 default such worlds pin.
 #
 # The profile (radius, density, Vp, Vs, and optionally viscosities; columns found by name) is split into layers at
-# every solid-liquid transition, and each layer's slice of it becomes that layer's interpolated material. A profile
-# holds no rheology, cooling model, or radiogenics, so a [layers.<name>] table names the detected layer it refines
-# (by `layer_index`, or by being called layer_N) and adds them; only the layers being refined need a table, and a
-# provided outer radius has to match the detected boundary. The bundled PREM.csv gives three layers: a solid inner
-# core, a liquid outer core, and the mantle plus crust. From Python the same world takes a `data` mapping of
-# arrays in place of `data_file`.
+# every solid-liquid transition and at every radius it gives twice (a discontinuity), and each layer's slice of it
+# becomes that layer's interpolated material. A profile holds no rheology, cooling model, or radiogenics, so a
+# [layers.<name>] table names the detected layer it refines (by `layer_index`, or by being called layer_N), or every
+# detected layer between two detected boundaries (by `radius_range_m`), and adds them; only the layers being refined
+# need a table, and a provided outer radius has to match the detected boundary. The bundled PREM.csv gives twelve
+# layers: a solid inner core, a liquid outer core, and ten solid mantle and crust layers between PREM's
+# discontinuities. From Python the same world takes a `data` mapping of arrays in place of `data_file`.
 #
 # The reference is resolved relative to this file's directory, then the worlds data directory, then the packaged
 # WorldPack, so "PREM.csv" finds the bundled profile from anywhere. A saved copy of a built world keeps this
@@ -30,14 +31,14 @@ rtol = 1.0e-9
 global_tidal_model = "rheology"
 love_method = "radial_solver"
 
-# Refines the outermost detected layer by index and gives it a name, a rheology, a viscosity, and a temperature;
-# the profile's own density and moduli stay. Its material table merges over the layer's slice of the profile, which
-# is a solid phase of radius-tabulated laws; a law it names is added (or, naming another model, replaces the
-# profile's).
+# Refines every detected layer from the core-mantle boundary to the surface, naming them mantle_0 to mantle_9 from
+# the inside out, and gives each a rheology, a viscosity, and a temperature; the profile's own density and moduli
+# stay. Its material table merges over each layer's slice of the profile, which is a solid phase of radius-tabulated
+# laws; a law it names is added (or, naming another model, replaces the profile's). Every key applies to each layer,
+# so a share such as tidal_scale is left to its default (each layer's volume fraction).
 [layers.mantle]
-layer_index = 2
+radius_range_m = [3480.0e3, 6371.0e3]
 use_tides = true
-tidal_scale = 0.999                 # the layer's share in the quasi-homogeneous Love methods (default: its volume fraction)
 temperature_k = 1600.0
 
 [layers.mantle.shear_rheology]

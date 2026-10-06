@@ -27,10 +27,11 @@ q_frequency_exponent = 0.0                         # a in Q ~ omega^a; 0 keeps t
 global_tidal_model = "rheology"
 love_method = "radial_solver"
 
-# The mantle keeps the world's reference frequency but lets its Q fall toward tidal periods, as an absorption band
-# does; its bulk response stays elastic, ignoring PREM's Q_kappa.
+# The mantle (every detected layer from the core-mantle boundary to the surface) keeps the world's reference
+# frequency but lets its Q fall toward tidal periods, as an absorption band does; its bulk response stays elastic,
+# ignoring PREM's Q_kappa.
 [layers.mantle]
-layer_index = 2
+radius_range_m = [3480.0e3, 6371.0e3]
 
 [layers.mantle.shear_rheology]
 model = "seismic_q"

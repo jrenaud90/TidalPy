@@ -51,6 +51,48 @@ cdef class _ProfileWorldAnchor:
     cdef shared_ptr[c_BaseWorld] world_sptr
 
 
+# A profile with a jump inside a declared layer is warned about once per session, since a loop over frequencies
+# rebuilds the same profile on every call.
+_internal_discontinuity_warned = False
+
+
+def warn_if_internal_discontinuity(radius_array, upper_radius_bylayer_array):
+    """Log once per session when a profile gives a radius twice inside a declared layer.
+
+    A repeated radius marks a discontinuity. At a declared interface it is expected (each layer takes its own
+    copy); inside a layer the radius-tabulated material jumps there, and the adaptive EOS and radial integrations
+    shorten their steps to cross it, at a cost in time and accuracy (a PREM profile with its mantle jumps inside one
+    layer: about 2x the time and 20x the k2 error of one whose layers start at those radii).
+
+    Parameters
+    ----------
+    radius_array : np.ndarray[dtype=np.float64]
+        Radius at each slice [m]; interface radii appear twice.
+    upper_radius_bylayer_array : np.ndarray[dtype=np.float64]
+        Upper radius of each layer [m].
+
+    Returns
+    -------
+    list of float
+        The repeated radii [m] that are not declared interfaces.
+    """
+    global _internal_discontinuity_warned
+    radius = np.asarray(radius_array, dtype=np.float64)
+    upper = np.asarray(upper_radius_bylayer_array, dtype=np.float64)
+    repeated = radius[1:][radius[1:] == radius[:-1]]
+    tolerance = 1.0e-9 * max(float(np.max(np.abs(radius))) if radius.size else 0.0, 1.0)
+    internal = [float(value) for value in repeated
+                if (upper.size == 0) or (np.min(np.abs(upper - value)) > tolerance)]
+    if internal and not _internal_discontinuity_warned:
+        _internal_discontinuity_warned = True
+        log_warning(
+            f"TidalPy: the profile given to radial_solver repeats {len(internal)} radius value(s) inside a declared "
+            f"layer (first at {internal[0]:.6g} m), which marks a discontinuity the integrations must cross. Declaring "
+            f"a layer boundary at each such radius gives the same profile with fewer steps and a more accurate "
+            f"result. Shown once per session.")
+    return internal
+
+
 cdef cpp_bool cy_resolve_prop_matrix(str love_method) except *:
     # Map a Love-number method name (or alias) onto the two radial techniques this array API offers.
     cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
@@ -306,6 +348,8 @@ def radial_solver(
             &bc_models_out[0],
             num_bc_models_out
         )
+        if warnings:
+            warn_if_internal_discontinuity(radius_array, upper_radius_bylayer_array)
         # A method left as None keeps the configured one, already an enum; only a name passed here is parsed.
         if integration_method is not None:
             love_cfg.integration_method = c_parse_ode_method(

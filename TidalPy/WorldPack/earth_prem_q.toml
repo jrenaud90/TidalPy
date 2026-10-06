@@ -9,8 +9,8 @@
 # layer's seismic Q at tidal periods; a > 0 (about 0.1 to 0.3 for Earth's mantle) lets it fall toward them as an
 # absorption band does. Liquid layers (the outer core, Q_mu = 0) take no quality factor.
 #
-# A [layers.layer_N] table may still refine a detected layer, and a seismic_q rheology table in it overrides these
-# world settings for that layer; it may not give the layer a viscosity or melting. See
+# A [layers.layer_N] table (or one with a radius_range_m) may still refine detected layers, and a seismic_q rheology
+# table in it overrides these world settings for those layers; it may not give a layer a viscosity or melting. See
 # Documentation/Structures/config/toml_schema.md.
 schema_version = "0.2.0"
 name = "Earth-PREM-Q"

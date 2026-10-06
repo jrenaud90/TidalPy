@@ -86,12 +86,15 @@ def test_earth_prem_q_gives_each_solid_layer_seismic_q():
     world = build_world("earth_prem_q")
     live = world.get_config_dict()["layers"]
     solid = [name for name, layer in zip(live, world) if not layer.is_liquid]
-    assert solid == ["layer_0", "layer_2"]
+    # The inner core and the ten mantle and crust layers between PREM's discontinuities.
+    assert solid == ["layer_0"] + [f"layer_{index}" for index in range(2, 12)]
     for name in solid:
         for table in ("shear_rheology", "bulk_rheology"):
             assert live[name][table] == {"model": "seismic_q", "reference_frequency_rad_s": _PREM_REFERENCE,
                                          "q_frequency_exponent": 0.0}
-    mantle_q = world.source_config["layers"]["layer_2"]["material"]["solid"]["shear_viscosity"]["viscosity_pas"]
+    layer_tables = world.source_config["layers"]
+    mantle_q = [value for name in solid[1:]
+                for value in layer_tables[name]["material"]["solid"]["shear_viscosity"]["viscosity_pas"]]
     assert (min(mantle_q), max(mantle_q)) == (80.0, 600.0)
     # The liquid outer core has a liquid-only material, no quality factor, and no rheology.
     outer_core = world.source_config["layers"]["layer_1"]
@@ -104,8 +107,8 @@ def test_mantle_modulus_is_the_seismic_q_of_the_profile():
     """The complex modulus the Love solve sees is seismic_q applied to the profile's modulus and Q."""
     world = build_world("earth_prem_q")
     world.solve_eos(G_to_use=G, verbose=False)
-    mantle = list(world)[2]
     radius = 5.0e6                                    # lower mantle, Q_mu = 312
+    mantle = next(layer for layer in world if layer.radius_inner <= radius <= layer.radius_outer)
     shear = mantle.get_shear_modulus(radius)
     got = mantle.calc_complex_shear_modulus(radius, _M2)
     expected = seismic_q(shear, 312.0, _M2)

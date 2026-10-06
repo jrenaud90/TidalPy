@@ -70,16 +70,23 @@ def test_prem_center_first_copy_loads_identically(tmp_path):
     np.testing.assert_allclose(reloaded["density_kg_m3"], arrays["density_kg_m3"])
 
 
-def test_detect_three_layers_alternating():
-    """PREM splits into inner core, outer core, and mantle plus crust, each ending on its own boundary row."""
+def test_detect_prem_layers_at_its_transitions_and_discontinuities():
+    """PREM splits into inner core and outer core at its two solid-liquid transitions, and its mantle and crust at
+    every repeated radius, each layer ending on its own boundary row."""
     arrays = data_file.load_radial_data(_prem_path())
     radius, shear = arrays["radius_m"], arrays["shear_modulus_pa"]
     layers = data_file.detect_layer_boundaries(radius, shear)
-    assert len(layers) == 3
-    assert [is_solid for (_, _, is_solid) in layers] == [True, False, True]
+    assert len(layers) == 12
+    assert [is_solid for (_, _, is_solid) in layers] == [True, False] + [True] * 10
     assert radius[layers[0][1]] == pytest.approx(1221.5e3) and shear[layers[0][1]] > 0.0
     assert radius[layers[1][1]] == pytest.approx(3480.0e3) and shear[layers[1][1]] == 0.0
-    assert radius[layers[2][1]] == pytest.approx(6371.0e3)
+    tops = [radius[end] for (_, end, _) in layers[2:]]
+    assert tops == pytest.approx([3630.0e3, 5600.0e3, 5701.0e3, 5771.0e3, 5971.0e3, 6151.0e3, 6291.0e3, 6346.6e3,
+                                  6356.0e3, 6371.0e3])
+    # Each layer above a discontinuity starts on the upper copy of its repeated radius.
+    for (_, lower_end, _), (upper_start, _, _) in zip(layers[:-1], layers[1:]):
+        assert upper_start == lower_end + 1
+        assert radius[upper_start] == radius[lower_end]
     previous_outer = -1.0
     for start, end, _ in layers:
         assert radius[end] > radius[start]
@@ -102,6 +109,10 @@ def test_detect_three_layers_alternating():
         [(0, 1, True), (2, 3, True)],
         id="stray-liquid-point"),
     pytest.param([0.0, 1.0e6, 2.0e6], [0.0, 0.0, 0.0], [(0, 2, False)], id="all-liquid"),
+    # A radius given twice inside a solid run is a discontinuity, and the upper copy starts a new layer.
+    pytest.param([0.0, 1.0e6, 1.0e6, 2.0e6], [1.0e10] * 4, [(0, 1, True), (2, 3, True)], id="internal-discontinuity"),
+    # A radius repeated at the surface would leave a zero-thickness layer, so it stays in the layer below.
+    pytest.param([0.0, 1.0e6, 2.0e6, 2.0e6], [1.0e10] * 4, [(0, 3, True)], id="surface-duplicate"),
 ])
 def test_no_layer_is_ever_zero_thickness(radius, shear, expected):
     radius = np.array(radius, dtype=np.float64)

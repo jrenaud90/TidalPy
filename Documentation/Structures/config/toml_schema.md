@@ -384,7 +384,7 @@ A radius or depth column with no stated unit is read as kilometers when its larg
 
 ### Layer Detection
 
-The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed, so no zero-thickness layer is produced. At a duplicated boundary radius the lower layer's row comes first, whichever way the file is ordered. The bundled `PREM.csv` replaces PREM's 3 km ocean with the upper crust and yields three layers: inner core (solid), outer core (liquid), and mantle plus crust (solid).
+The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. A radius the profile gives twice inside a layer is a discontinuity, and it starts a new layer of the same state, with the upper row belonging to it. The jump then sits on a layer boundary, where the EOS and radial integrations restart, instead of inside an integration, which would shorten its steps to cross it: for PREM this takes about half the time and gives Love numbers about 20 times closer to the converged values. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius points that would make a zero-thickness layer are absorbed into a neighbor. At a duplicated radius the lower layer's row comes first, whichever way the file is ordered. The bundled `PREM.csv` replaces PREM's 3 km ocean with the upper crust and yields twelve layers: inner core (solid), outer core (liquid), and ten solid mantle and crust layers between PREM's discontinuities (3630, 5600, 5701, 5771, 5971, 6151, 6291, 6346.6, and 6356 km).
 
 Each layer's slice of the profile becomes its material, a phase of radius-tabulated (`interpolate`) laws: the density and bulk modulus in its `eos`, the shear modulus of a solid layer, and any viscosities the profile gave. A solid layer's material is a solid phase, and a liquid layer's is a liquid-only material, so the layer is a liquid (static, unless its table sets `is_static = false`). The material holds those arrays and is the only place a radial grid persists. A layer starts where the one below it ends. When the profile repeats no row at that boundary, the layer's first row is repeated at the boundary radius, so its table spans the layer. A solid layer takes part in the tides (`use_tides`) and a liquid one does not. No other law and no melting is added: a profile that names no viscosity produces an elastic layer, with no viscosity law, no melting, and no rheology it did not ask for.
 
@@ -392,9 +392,9 @@ Each layer's slice of the profile becomes its material, a phase of radius-tabula
 
 A profile fixes the number of layers, their boundaries, and their materials. It holds no complex moduli, so a rheology, a cooling model, and radiogenics are still named in a `[layers.<name>]` table.
 
-A table picks the detected layer it refines with `layer_index`, or by being named `layer_N`. Only the refined layers need a table, and the table gives the layer its name.
+A table picks the detected layer it refines with `layer_index`, or by being named `layer_N`. It may instead refine every detected layer between two detected boundaries with `radius_range_m = [inner, outer]` \[m\], which is how one table covers a mantle the profile's discontinuities split into several layers. Only the refined layers need a table, and the table gives them its name: its own for one layer, numbered from the inside out (`mantle_0`, `mantle_1`, ...) for several.
 
-- A given outer radius (`radius_outer_m` or `radius_fraction`) must match the detected boundary.
+- A given outer radius (`radius_outer_m` or `radius_fraction`) must match the detected boundary, and both ends of a `radius_range_m` must be detected boundaries. A range may not be combined with `layer_index` or an outer radius.
 - Two tables may not claim the same layer.
 - An index outside the detected range raises an error.
 - A `material` table merges over the layer's slice of the profile: a law naming another model replaces the profile's (a constant viscosity, say), and a law the profile lacks is added. A MatPack name is refused, since the profile is the layer's material.
@@ -403,8 +403,8 @@ A table picks the detected layer it refines with `layer_index`, or by being name
 - In a world that sets `q_provided = true`, a table may not give a viscosity law or a `preset`, and names no rheology but `seismic_q` (or `elastic` for the bulk). A solid layer's table may not turn `use_melting` on or name the `convection` cooling model. See below.
 
 ```toml
-[layers.mantle]             # refines the outermost detected layer; the other two need no table
-layer_index = 2
+[layers.mantle]             # refines every detected layer from the core-mantle boundary to the surface
+radius_range_m = [3480.0e3, 6371.0e3]
 [layers.mantle.shear_rheology]
 model = "maxwell"
 [layers.mantle.material.solid.shear_viscosity]
@@ -435,7 +435,7 @@ These keys belong only to a world with a profile. The last two require `q_provid
 - **Liquid layers.** These (a liquid's $Q_\mu$ is conventionally 0) take no quality factor and no rheology.
 - **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity law, or name a material `preset`: each would put a viscosity where `seismic_q` reads a quality factor. On a solid layer it may not turn `use_melting` on or name the `convection` cooling model: the melt weakening and the Rayleigh number both read the layer's viscosity, which there holds $Q_\mu$.
 
-The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ about equals the elastic PREM's (0.298351 against 0.298362). At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
+The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ about equals the elastic PREM's (0.298363 against 0.298365). At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
 
 The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack` (see [`worldpack.md`](worldpack.md)). A world built this way pins `integration_method = "RK45"` in its `[eos_solver]` table unless the file sets that key, and `get_solver_defaults()` reports it. On an interpolated profile RK45 is about 2.8 times faster than DOP853 at equal accuracy, because the profile's kinks defeat the higher order.
 

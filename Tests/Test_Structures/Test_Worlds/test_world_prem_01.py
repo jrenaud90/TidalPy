@@ -34,18 +34,25 @@ def _solved_prem():
     return world
 
 
-def test_earth_prem_builds_three_layers_with_a_liquid_outer_core():
-    """earth_prem detects three layers with a liquid, non-tidal outer core."""
+# PREM's discontinuities inside the mantle and crust [m], where the detected layers break.
+_PREM_MANTLE_BREAKS = (3630.0e3, 5600.0e3, 5701.0e3, 5771.0e3, 5971.0e3, 6151.0e3, 6291.0e3, 6346.6e3, 6356.0e3)
+
+
+def test_earth_prem_builds_its_layers_with_a_liquid_outer_core():
+    """earth_prem detects the inner core, a liquid, non-tidal outer core, and ten mantle and crust layers between
+    PREM's discontinuities."""
     world = build_world("earth_prem")
     assert world.name == "Earth-PREM"
-    assert world.num_layers == 3
+    assert world.num_layers == 12
     assert world.all_materials_set is True
-    assert [not layer.is_liquid for layer in world] == [True, False, True]
-    assert [layer.is_static for layer in world] == [True, True, True]
-    assert [layer.use_tides for layer in world] == [True, False, True]
+    assert [layer.radius_outer for layer in world] == pytest.approx(
+        [1221.5e3, 3480.0e3, *_PREM_MANTLE_BREAKS, 6371.0e3])
+    assert [not layer.is_liquid for layer in world] == [True, False] + [True] * 10
+    assert all(layer.is_static for layer in world)
+    assert [layer.use_tides for layer in world] == [True, False] + [True] * 10
     # A detected liquid layer gets a liquid-only material.
     phases = [list(cfg["material"]) for cfg in world.source_config["layers"].values()]
-    assert phases == [["solid"], ["liquid"], ["solid"]]
+    assert phases == [["solid"], ["liquid"]] + [["solid"]] * 10
 
 
 def test_earth_prem_eos_solve_converges_and_reproduces_earth():
@@ -112,14 +119,14 @@ def test_earth_prem_toml_override_of_modulus():
     world = build_world(_prem_config(layers={
         "layer_0": {"layer_index": 0},
         "layer_1": {"layer_index": 1, "is_incompressible": True},
-        "layer_2": {
-            "layer_index": 2,
+        "mantle": {
+            "radius_range_m": [3480.0e3, 6371.0e3],
             "material": {"solid": {"shear_modulus": {"model": "constant", "shear_modulus_pa": 1.0e11}}}},
     }))
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isclose(world.get_shear_modulus(_MANTLE_RADIUS_M), 1.0e11, rel_tol=1e-6)
-    assert [not layer.is_liquid for layer in world] == [True, False, True]
-    assert [layer.is_incompressible for layer in world] == [False, True, False]
+    assert [not layer.is_liquid for layer in world] == [True, False] + [True] * 10
+    assert [layer.is_incompressible for layer in world] == [False, True] + [False] * 10
 
 
 @pytest.mark.parametrize("slot, key, value, getter", [
@@ -131,7 +138,8 @@ def test_a_single_value_holds_across_a_profile_layer(slot, key, value, getter):
     """One number in place of a profile column holds across the layer; the layer's other columns stay the file's."""
     reference = build_world(_prem_config())
     reference.solve_eos(G_to_use=G, verbose=False)
-    world = build_world(_prem_config(layers={"layer_2": {"material": {"solid": {slot: {key: value}}}}}))
+    world = build_world(_prem_config(layers={
+        "mantle": {"radius_range_m": [3480.0e3, 6371.0e3], "material": {"solid": {slot: {key: value}}}}}))
     world.solve_eos(G_to_use=G, verbose=False)
     radii = np.array([4.0e6, _MANTLE_RADIUS_M, 6.2e6])
     np.testing.assert_array_equal(np.asarray(getattr(world, getter)(radii)), value)
@@ -151,10 +159,10 @@ def test_one_layer_table_refines_one_layer():
             "material": {"solid": {"shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}},
         },
     }))
-    assert world.num_layers == 3
-    assert [layer.name for layer in world] == ["layer_0", "layer_1", "mantle"]
-    assert [layer.shear_rheology is not None for layer in world] == [False, False, True]
-    assert [not layer.is_liquid for layer in world] == [True, False, True]
+    assert world.num_layers == 12
+    assert [layer.name for layer in world] == ["layer_0", "layer_1", "mantle"] + [f"layer_{i}" for i in range(3, 12)]
+    assert [layer.shear_rheology is not None for layer in world] == [False, False, True] + [False] * 9
+    assert [not layer.is_liquid for layer in world] == [True, False] + [True] * 10
     world.solve_eos(G_to_use=G, verbose=False)
     arrays = _prem_arrays()
     expected = np.interp(_MANTLE_RADIUS_M, arrays["radius_m"], arrays["density_kg_m3"])
@@ -179,8 +187,8 @@ def _prem_config_without_radius():
             id="table_without_layer_index",
         ),
         pytest.param(
-            lambda: _prem_config(layers={"layer_7": {"is_static": True}}),
-            "layer_index 7",
+            lambda: _prem_config(layers={"layer_17": {"is_static": True}}),
+            "layer_index 17",
             id="table_out_of_range",
         ),
         pytest.param(
@@ -201,6 +209,23 @@ def _prem_config_without_radius():
             id="data_and_data_file",
         ),
         pytest.param(_prem_config_without_radius, "radius_m", id="profile_without_radius"),
+        pytest.param(
+            lambda: _prem_config(layers={"mantle": {"radius_range_m": [3480.0e3, 6000.0e3]}}),
+            "not a boundary",
+            id="range_end_off_a_boundary"),
+        pytest.param(
+            lambda: _prem_config(layers={"mantle": {"radius_range_m": [3480.0e3, 6371.0e3], "layer_index": 2}}),
+            "in a radius range or one detected layer",
+            id="range_and_index"),
+        pytest.param(
+            lambda: _prem_config(layers={"mantle": {"radius_range_m": [6371.0e3, 3480.0e3]}}),
+            "two increasing radii",
+            id="range_not_increasing"),
+        pytest.param(
+            lambda: _prem_config(layers={"mantle": {"radius_range_m": [3480.0e3, 6371.0e3]},
+                                         "layer_5": {"is_static": True}}),
+            "both",
+            id="range_overlapping_another_table"),
     ],
 )
 def test_invalid_profile_config_raises(make_config, match):
@@ -225,8 +250,8 @@ def test_a_world_can_be_built_from_arrays_in_memory():
             "vs_m_s":        arrays["vs_m_s"],
         },
     })
-    assert world.num_layers == 3
-    assert [not layer.is_liquid for layer in world] == [True, False, True]
+    assert world.num_layers == 12
+    assert [not layer.is_liquid for layer in world] == [True, False] + [True] * 10
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isclose(world.planet_mass_eos, _PREM_MASS, rel_tol=1.0e-3)
     # The arrays became the layers' materials, so the config does not carry them twice.
@@ -249,3 +274,67 @@ def test_a_profile_without_viscosities_is_elastic():
     result = world.solve_love_numbers(frequency=2.0 * math.pi / 86400.0, degree_l=2)
     assert result["success"] is True, result["message"]
     assert abs(world.love_number_k.imag) < 1.0e-6
+
+
+def test_a_radius_range_refines_every_layer_in_it():
+    """One table with a radius range refines every detected layer between those boundaries, numbering their names
+    from the inside out."""
+    world = build_world(_prem_config(layers={
+        "mantle": {
+            "radius_range_m": [3480.0e3, 6371.0e3],
+            "shear_rheology": {"model": "maxwell"},
+            "material": {"solid": {"shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}},
+        },
+    }))
+    assert [layer.name for layer in world] == ["layer_0", "layer_1"] + [f"mantle_{i}" for i in range(10)]
+    assert [layer.shear_rheology is not None for layer in world] == [False, False] + [True] * 10
+    world.solve_eos(G_to_use=G, verbose=False)
+    assert world.get_shear_viscosity(_MANTLE_RADIUS_M) == pytest.approx(1.0e21)
+    result = world.solve_love_numbers(frequency=2.0 * math.pi / 86400.0, degree_l=2)
+    assert result["success"] is True, result["message"]
+    assert world.love_number_k.imag < 0.0
+
+
+def _prem_rows_as_profile(split):
+    """PREM's rows as standalone radial_solver arrays: three declared layers with the mantle's discontinuities inside
+    one, or a layer declared at every repeated radius (the layers the data-file builder detects)."""
+    arrays = _prem_arrays()
+    columns = np.column_stack(
+        [arrays[key] for key in ("radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa")])
+    # Midpoints on the existing segments give every stretch between repeated radii the five slices a layer of the
+    # standalone solver needs, without changing the piecewise-linear profile.
+    blocks = []
+    edges = np.concatenate(([0], np.flatnonzero(np.diff(columns[:, 0]) == 0.0) + 1, [len(columns)]))
+    for start, stop in zip(edges[:-1], edges[1:]):
+        block = columns[start:stop]
+        while len(block) < 8:
+            merged = np.empty((2 * len(block) - 1, block.shape[1]))
+            merged[0::2], merged[1::2] = block, 0.5 * (block[:-1] + block[1:])
+            block = merged
+        blocks.append(block)
+    radius, density, shear, bulk = np.concatenate(blocks).T
+    tops = [1221.5e3, 3480.0e3] + (list(_PREM_MANTLE_BREAKS) if split else []) + [float(radius[-1])]
+    num_layers = len(tops)
+    layer_types = tuple("liquid" if top == 3480.0e3 else "solid" for top in tops)
+    return (np.ascontiguousarray(radius), np.ascontiguousarray(density), np.ascontiguousarray(bulk + 0j),
+            np.ascontiguousarray(shear + 0j), 1.4052e-4, 5513.26, layer_types, (True,) * num_layers,
+            (False,) * num_layers, np.asarray(tops))
+
+
+def test_splitting_at_the_discontinuities_keeps_the_profile():
+    """Declaring a layer at each discontinuity describes the same piecewise-linear profile, so the converged k2 agree;
+    at the default tolerances the split profile is the more accurate one, and the standalone solver warns about the
+    jumps left inside a declared layer."""
+    from TidalPy.RadialSolver import radial_solver, warn_if_internal_discontinuity
+
+    tight = dict(integration_rtol=1.0e-11, integration_atol=1.0e-15, eos_rtol=1.0e-11, eos_atol=1.0e-15,
+                 eos_pressure_tol=1.0e-9, raise_on_fail=True, warnings=False)
+    converged = {split: complex(radial_solver(*_prem_rows_as_profile(split), **tight).k) for split in (False, True)}
+    assert converged[True] == pytest.approx(converged[False], rel=1.0e-8)
+    k2_split = complex(radial_solver(*_prem_rows_as_profile(True), raise_on_fail=True, warnings=False).k)
+    assert abs(k2_split - converged[True]) / abs(converged[True]) < 1.0e-5
+
+    merged = _prem_rows_as_profile(False)
+    assert warn_if_internal_discontinuity(merged[0], merged[9]) == pytest.approx(list(_PREM_MANTLE_BREAKS))
+    split = _prem_rows_as_profile(True)
+    assert warn_if_internal_discontinuity(split[0], split[9]) == []

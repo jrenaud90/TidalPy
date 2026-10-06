@@ -37,6 +37,10 @@ LAYER_GEOMETRY_SPEC_KEYS = (
     "volume_fraction",  # layer volume = volume_fraction * world volume (-> outer radius)
 )
 
+# A layer table of a world built from a radial profile (data_file or data) may refine every detected layer between two
+# detected boundaries, [inner, outer] radii [m], in place of the one its layer_index names.
+LAYER_RADIUS_RANGE_KEY = "radius_range_m"
+
 # Scalar (non-table) layer keys, the Layer constructor's arguments under their config spelling. ``layer_index`` and the
 # outer-radius specifiers are handled separately.
 LAYER_SCALAR_KEYS = frozenset((

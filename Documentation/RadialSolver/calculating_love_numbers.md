@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 `TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `BaseWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
@@ -42,6 +42,7 @@ The [input builders](build_inputs.md) exist because the solver's array requireme
 - Each layer needs at least 5 slices, so the arrays hold at least `5 * num_layers` points.
   - This entry point always builds an interpolated equation of state from the supplied arrays (`eos_method_bylayer` accepts only `"interpolate"`, and any other name raises), so the number of slices a layer needs depends on its profiles, as the last two rules explain.
 - Every interface radius appears twice: once as the top of the lower layer and once as the base of the upper layer. The last radius is the planet radius and must equal the last entry of `upper_radius_bylayer_array`.
+- A radius given twice inside a layer marks a discontinuity of its profile (PREM's 220, 400, and 670 km jumps, say). The solver accepts it, but the integrations then shorten their steps to cross the jump. Declaring a layer boundary at each such radius describes the same profile and is faster and more accurate: for PREM about half the time and about 20 times closer to the converged k2. The solver logs a warning naming the first such radius, once per session (`warn_if_internal_discontinuity` returns them all); `warnings=False` silences it. A world built from a data file is split at these radii already.
 - The solver runs its own equation of state. Gravity, pressure, mass, and moment of inertia are integrated and read through the integrator's dense output at the exact integration radius. Density and the complex shear and bulk moduli are linearly interpolated from the supplied arrays at every integration radius, and the interpolated density also drives the structural integration, so the slices control these three.
 - The error depends on how curved those profiles are within a layer, since linear interpolation reproduces a straight line exactly. For a single solid layer at degree 2, k2 from 5 slices is within 1e-9 of the converged value when density and the moduli are constant and within 1e-8 when they vary linearly, but a density falling exponentially by a factor of two across the layer is off by 1.3% at 5 slices, 0.2% at 10, and 0.03% at 25. Give a layer enough slices to follow the curvature of its profiles, and test the count against a refined run for your own problem.
 
