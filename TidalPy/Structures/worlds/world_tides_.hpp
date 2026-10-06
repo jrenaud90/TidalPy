@@ -8,7 +8,7 @@
  * -Im[k_l] from their fixed per-degree parameters; the rheology model takes it from the world's Love solve at each
  * unique tidal frequency (the EOS must be solved first). Each layer then takes its share of the heating. The Love
  * solves of these paths go into workspaces of their own, so they leave the world's last solve_love_numbers result
- * alone. calc_tides_probe runs the same global solve without committing anything to the world.
+ * alone.
  *
  * This header pulls in the heavy global-potential tables; force-include it only in the extensions that call
  * calc_tides or the 3D paths (the base world and the system).
@@ -169,7 +169,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     }
     c_TideSolveOutcome outcome;
     try {
-        this->p_solve_tides(state, false, outcome);
+        this->p_solve_tides(state, outcome);
     } catch (...) {
         // A failed global potential reports its error code through get_tide_result.
         this->p_tide_result.error_code = outcome.tide_result.error_code;
@@ -187,19 +187,12 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     this->p_tides_solved = true;
 }
 
-inline c_TideSolveOutcome c_BaseWorld::calc_tides_probe(const c_TideSolveConfig& state) {
-    const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    c_TideSolveOutcome outcome;
-    this->p_solve_tides(state, true, outcome);
-    return outcome;
-}
-
-inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_probe, c_TideSolveOutcome& outcome) {
+inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSolveOutcome& outcome) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
-    this->p_check_tide_state(state, !is_probe);
+    this->p_check_tide_state(state);
 
     const double planet_radius = this->get_radius();
     const double planet_volume =
@@ -214,7 +207,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_p
     c_GlobalTideResult& tide_result = outcome.tide_result;
     c_IntMap<c_Key4, tidalpy::c_LoveNumbers>& tide_love = outcome.tide_love;
     std::vector<double>& layer_heating = outcome.layer_heating;
-    layer_heating.assign(is_probe ? 0 : n_layers, TidalPyConstants::d_NAN);
+    layer_heating.assign(n_layers, TidalPyConstants::d_NAN);
     // What the tidal heat source spreads in later solves: the layer heating, with the radial profile where the
     // heating integral gives one.
     c_TidalHeatingRecord& heating_record = outcome.heating_record;
@@ -233,7 +226,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_p
         // integral needs the radial solution of exactly these (degree, |omega|) groups.
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
-        const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating && !is_probe;
+        const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
         std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
         // The solve of each (degree_l, unique-frequency index) pair, indexed directly by
@@ -264,9 +257,8 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_p
             solve_by_mode.set(lmpq_key, solve_index);
         }
 
-        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate. A probe's
-        // frequencies are not the world's own, so it leaves the estimate to calc_tides.
-        if (!is_probe && !quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
+        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate.
+        if (!quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
             this->warn_if_dynamic_liquid_unstable(
                 *std::max_element(solve_degree.begin(), solve_degree.end()),
                 *std::min_element(solve_frequency.begin(), solve_frequency.end()),
@@ -326,8 +318,6 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_p
 
         tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love);
 
-        // A probe resolves no layer.
-        if (is_probe) { return; }
         if (quasi_homogeneous) {
             // The collapse is linear in each mode's -Im[k], so the layers' own collapses sum to the total.
             std::fill(layer_heating.begin(), layer_heating.end(), 0.0);
@@ -348,7 +338,6 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, bool is_p
         // fraction its tidal scale is of all the tidal layers' scales, and the layers sum to the total. With no
         // tidal layer the heating has nowhere to go and every layer reports NaN.
         tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
-        if (is_probe) { return; }
         double scale_sum = 0.0;
         for (std::size_t i = 0; i < n_layers; ++i) {
             layer_heating[i] = this->p_layers[i]->calc_tidal_scale(planet_volume);
@@ -813,13 +802,15 @@ inline c_RadialValues3D c_radial_values_3d(
 // solution does not reach the radius). False where there is no depth-resolved strain solution (the center, below the
 // solver start), where a point-wise quantity is NaN and a radial sum takes it as zero. A liquid point is not missing:
 // it has no shear kernel, so its coefficients are invalid and it contributes no heating (0) while its stress and
-// strain are NaN.
+// strain are NaN. A solid's complex shear modulus takes the Love solve's floor `shear_floor` [Pa]
+// (c_floor_complex_shear), so the strain comes from the modulus the solve used.
 inline bool c_strain_coeffs_at_radius_3d(
         const c_RadiusLayer3D& layer,
         const c_RadialY3D& y_at_r,
         bool y_found,
         double radius,
         const c_RadialGroup3D& group,
+        double shear_floor,
         tides::c_StrainRadialCoeffs& out) {
     if (layer.liquid) {
         out = tides::c_StrainRadialCoeffs();
@@ -841,6 +832,7 @@ inline bool c_strain_coeffs_at_radius_3d(
         is_incompressible = layer.layer_ptr->get_is_incompressible();
         shear = layer.layer_ptr->calc_complex_shear_modulus(radius, group.frequency);
         bulk  = layer.layer_ptr->calc_complex_bulk_modulus(radius, group.frequency);
+        if (is_solid) { shear = c_floor_complex_shear(shear, shear_floor); }
     }
     out = tides::c_compute_strain_radial_coeffs(
         y_at_r[0],
@@ -883,6 +875,7 @@ inline c_RadialCoefficients3D c_radial_coefficients_3d(
         radius_layers[ir] = c_radius_layer_3d(world, radii[ir]);
     }
     const c_RadialValues3D values = c_radial_values_3d(world, set, radii, num_radii, what, true, num_threads);
+    const double shear_floor = c_complex_shear_floor(world.get_mass(), world.get_radius(), c_get_G());
     for (size_t g = 0; g < num_groups; ++g) {
         for (size_t ir = 0; ir < num_radii; ++ir) {
             const size_t slot = ir * num_groups + g;
@@ -892,6 +885,7 @@ inline c_RadialCoefficients3D c_radial_coefficients_3d(
                 values.found[slot] != 0,
                 radii[ir],
                 set.radial_groups[g],
+                shear_floor,
                 out.by_radius[ir][g])) {
                 radius_missing[ir] += 1;
             }

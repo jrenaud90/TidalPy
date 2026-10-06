@@ -74,6 +74,7 @@ min_frequency = d_NAN
 max_frequency =  d_NAN
 min_modulus = d_NAN
 minimum_solid_rigidity = d_NAN
+minimum_complex_rigidity = d_NAN
 minimum_zone_fraction = d_NAN
 min_thickness = d_NAN
 numerical_floor = d_NAN
@@ -161,6 +162,7 @@ def update_constants():
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
     global maximum_eos_mass_ratio
     global eos_invert_rtol, eos_invert_max_iters, minimum_solid_rigidity, minimum_zone_fraction, minimum_surface_rcond
+    global minimum_complex_rigidity
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
     global tides_3d_min_radii_per_thread, love_solve_threads, love_solve_min_parallel
 
@@ -170,6 +172,7 @@ def update_constants():
     tidalpy_config_ptr.d_MAX_FREQUENCY = numerical['maximum_frequency']
     tidalpy_config_ptr.d_MIN_MODULUS = numerical['minimum_modulus']
     tidalpy_config_ptr.d_MIN_SOLID_RIGIDITY = numerical['minimum_solid_rigidity']
+    tidalpy_config_ptr.d_MIN_COMPLEX_RIGIDITY = numerical['minimum_complex_rigidity']
     tidalpy_config_ptr.d_MIN_ZONE_FRACTION = numerical['minimum_zone_fraction']
     tidalpy_config_ptr.d_MIN_THICKNESS = numerical['minimum_layer_thickness']
     tidalpy_config_ptr.d_NUMERICAL_FLOOR = numerical['numerical_floor']
@@ -233,6 +236,7 @@ def update_constants():
     minimum_nusselt = tidalpy_config_ptr.d_MIN_NUSSELT
     maximum_eos_mass_ratio = tidalpy_config_ptr.d_MAX_EOS_MASS_RATIO
     minimum_solid_rigidity = tidalpy_config_ptr.d_MIN_SOLID_RIGIDITY
+    minimum_complex_rigidity = tidalpy_config_ptr.d_MIN_COMPLEX_RIGIDITY
     minimum_zone_fraction = tidalpy_config_ptr.d_MIN_ZONE_FRACTION
     eos_invert_rtol = tidalpy_config_ptr.d_EOS_INVERT_RTOL
     eos_invert_max_iters = tidalpy_config_ptr.d_EOS_INVERT_MAX_ITERS

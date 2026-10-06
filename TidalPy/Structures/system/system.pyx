@@ -19,8 +19,6 @@ from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 from libcpp.memory cimport make_unique
 
-import TidalPy
-
 from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
@@ -31,6 +29,7 @@ from TidalPy.Structures.worlds.base cimport BaseWorld, cy_set_world_configs, cy_
 from TidalPy.Structures.worlds.terrestrial cimport TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant cimport GasGiantWorld
 from TidalPy.Structures.worlds.stellar cimport StarWorld
+from TidalPy.Structures.system.evolution import evolve_pair
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -90,19 +89,7 @@ cdef dict cy_evolution_to_dict(c_WorldEvolution evolution, c_System* system_ptr)
         'dE_orbit_dt':       evolution.dE_orbit_dt,
         'dE_spin_dt':        evolution.dE_spin_dt,
         'energy_residual':   evolution.energy_residual,
-        'spin_locked': True if evolution.spin_locked else False,
-        'spin_lock_weight': evolution.spin_lock_weight,
-        'spin_lock_bracket': evolution.spin_lock_bracket,
     }
-
-
-cdef c_SpinLockConfig cy_spin_lock_config(object use_locks, object lock_tolerance):
-    """The spin-lock settings of one evolution call: each argument left as None takes its [dynamics] default."""
-    cdef dict dynamics = TidalPy.config["dynamics"]
-    cdef c_SpinLockConfig lock_config
-    lock_config.use_locks = bool(dynamics["use_spin_locks"] if use_locks is None else use_locks)
-    lock_config.lock_tolerance = <double>(dynamics["spin_lock_tolerance"] if lock_tolerance is None else lock_tolerance)
-    return lock_config
 
 
 cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
@@ -550,7 +537,7 @@ cdef class System:
         """
         return self._system.get().calc_equilibrium_temperature(<size_t>self._resolve_index(world))
 
-    def calc_world_evolution(self, world, use_locks=None, lock_tolerance=None) -> dict:
+    def calc_world_evolution(self, world) -> dict:
         """Evolve one orbiting world for a single tidal solve, returning its rates as a dict.
 
         Solves the world's global tides in the current system state (mean motion from Kepler's third law,
@@ -558,25 +545,13 @@ cdef class System:
         host mass from that host), then turns the tidal-potential derivatives into the orbital rates
         and the world's spin rate. Only this world raises tides; its host is treated as a point mass.
 
-        With ``use_locks``, a spin within ``lock_tolerance`` (in spin ratio, spin / n) of a stable zero of its spin
-        balance is held there by a spin-orbit resonance lock: one more tidal solve probes the side the spin moves
-        toward, and when the two sides straddle the zero the restoring way, every rate and the total heating are a
-        combination of the two sides whose spin balance b0^2 / (b0 - b1) (b0 at the spin, b1 at the probe) matches the
-        free one at the edge of the hold and is zero at the equilibrium, so the held spin relaxes smoothly onto it.
-        The lock is decided from the state alone on every call, so it works in any integrator's right-hand side. The
-        probe changes nothing on the world: its stored tide result, layer heating (``get_layer_tidal_heating``), and
-        tidal heat source stay those of the solve at its own spin.
+        A spin at a spin-orbit equilibrium is not held here: :meth:`evolve` integrates a world through its
+        equilibria.
 
         Parameters
         ----------
         world : int or str or BaseWorld
             The orbiting world, identified by index, name, or the world object.
-        use_locks : bool, optional
-            Hold a spin at a stable spin-orbit equilibrium. None takes ``[dynamics] use_spin_locks`` of the TidalPy
-            configuration (off by default).
-        lock_tolerance : float, optional
-            Width of the hold, and the narrowest equilibrium held, in units of the spin ratio; finite and in
-            (0, 0.25). None takes ``[dynamics] spin_lock_tolerance`` (1e-5 by default).
 
         Returns
         -------
@@ -589,33 +564,17 @@ cdef class System:
             ``has_tide_model`` is ``False`` for a rigid world (no tide model attached): it raises no tide, so
             its rates and energy terms are zero while ``evolved`` stays ``True``, and a warning is logged once
             per world.
-            ``spin_locked`` is ``True`` when a lock held the spin; ``spin_lock_weight`` is then the weight of the
-            solve at the current spin and ``spin_lock_bracket`` the spin ratio of the probe (both NaN for a free spin).
-
-        Raises
-        ------
-        ValueError
-            ``lock_tolerance`` is not finite and in (0, 0.25).
         """
         cdef size_t index = <size_t>self._resolve_index(world)
-        cdef c_SpinLockConfig lock_config = cy_spin_lock_config(use_locks, lock_tolerance)
         cdef c_WorldEvolution evolution
         with nogil:
-            evolution = self._system.get().calc_world_evolution(index, lock_config)
+            evolution = self._system.get().calc_world_evolution(index)
         return cy_evolution_to_dict(evolution, self._system.get())
 
-    def calc_system_evolution(self, use_locks=None, lock_tolerance=None) -> list:
+    def calc_system_evolution(self) -> list:
         """Evolve every world in the system (single-body dissipation).
 
         Solves each orbiting world's tides for its current orbit, then returns the rates.
-
-        Parameters
-        ----------
-        use_locks : bool, optional
-            Hold a spin at a stable spin-orbit equilibrium (see :meth:`calc_world_evolution`). None takes
-            ``[dynamics] use_spin_locks``.
-        lock_tolerance : float, optional
-            Width of the hold in spin ratio, in (0, 0.25). None takes ``[dynamics] spin_lock_tolerance``.
 
         Returns
         -------
@@ -625,17 +584,16 @@ cdef class System:
             ``has_tide_model`` set to ``False``. The two members of a mutual pair each get an entry, and their
             contributions to the orbit they share add.
         """
-        cdef c_SpinLockConfig lock_config = cy_spin_lock_config(use_locks, lock_tolerance)
         cdef vector[c_WorldEvolution] results
         with nogil:
-            results = self._system.get().calc_system_evolution(lock_config)
+            results = self._system.get().calc_system_evolution()
         cdef list out = []
         cdef size_t i
         for i in range(results.size()):
             out.append(cy_evolution_to_dict(results[i], self._system.get()))
         return out
 
-    def calc_pair_evolution(self, world, use_locks=None, lock_tolerance=None) -> dict:
+    def calc_pair_evolution(self, world) -> dict:
         """Evolve a world together with its tidal host under dual-body tidal dissipation.
 
         Both the world and its tidal host raise a tide on their shared orbit. Each body's tides
@@ -643,18 +601,10 @@ cdef class System:
         body evolves its own spin. A body with no tide model is rigid and contributes nothing (with a
         rigid host this reduces to :meth:`calc_world_evolution`).
 
-        With ``use_locks``, either body's spin can be held at a stable spin-orbit equilibrium (see
-        :meth:`calc_world_evolution`). Each body's hold test uses the orbit's total ``dn_dt``, with the other body's
-        contribution as solved at its own spin.
-
         Parameters
         ----------
         world : int or str or BaseWorld
             The orbiting world, identified by index, name, or the world object.
-        use_locks : bool, optional
-            Hold a spin at a stable spin-orbit equilibrium. None takes ``[dynamics] use_spin_locks``.
-        lock_tolerance : float, optional
-            Width of the hold in spin ratio, in (0, 0.25). None takes ``[dynamics] spin_lock_tolerance``.
 
         Returns
         -------
@@ -670,11 +620,111 @@ cdef class System:
             world. Each body's own flag is in its ``world`` or ``host`` entry.
         """
         cdef size_t index = <size_t>self._resolve_index(world)
-        cdef c_SpinLockConfig lock_config = cy_spin_lock_config(use_locks, lock_tolerance)
         cdef c_PairEvolution pair
         with nogil:
-            pair = self._system.get().calc_pair_evolution(index, lock_config)
+            pair = self._system.get().calc_pair_evolution(index)
         return cy_pair_to_dict(pair, self._system.get())
+
+    def evolve(
+            self,
+            world,
+            time_span,
+            *,
+            evolve_thermal=True,
+            surface_temperature=None,
+            orbit_rtol=1.0e-9,
+            thermal_rtol=1.0e-4,
+            spin_rtol=1.0e-4,
+            atol=1.0e-10,
+            capture_band=1.0e-2,
+            capture_margin=1.0e-3,
+            root_tolerance=1.0e-10,
+            resolution=1.0e-8,
+            max_wall_time=None):
+        """Evolve a world and its tidal host over a time span, the world's spin tracking its spin-orbit equilibria.
+
+        Integrates the shared orbit (a, e), the host's spin, the world's spin, and, with ``evolve_thermal``, the
+        temperature of each of the world's layers, with both bodies raising tides (:meth:`calc_pair_evolution`) and
+        CyRK's LSODA. Near a stable spin-orbit equilibrium the world's spin relaxes onto it within years to kyr while
+        the orbit and the interior change over Myr to Gyr, so the spin is integrated only between equilibria (*free*);
+        on one (*tracked*) it is set to the equilibrium of each state, found by a root search of the spin balance, and
+        the rates are the combination of the two sides of that root that zeroes it. Captures, the windows that hold a
+        tracked spin, and releases (an equilibrium vanishing with its unstable neighbor) are integration events. See
+        :mod:`TidalPy.Structures.system.evolution` and the System documentation.
+
+        The orbit, the spins, and the temperatures start from the system's current state, and the system is left at
+        the final one. With ``evolve_thermal``, every rate evaluation at a new state solves the world's EOS with its
+        temperature profile (``solve_temperature``), its heat sources at the integration time, and its layers warming
+        at :meth:`calc_layer_temperature_rate <TidalPy.Structures.worlds.BaseWorld.calc_layer_temperature_rate>`;
+        without it the world keeps the structure it has (solve its EOS first). The host's spin is always free.
+
+        Parameters
+        ----------
+        world : int or str or BaseWorld
+            The orbiting world; it needs a tidal host and a prograde spin.
+        time_span : tuple of float
+            (start, end) [s]; the start is also the heat sources' clock.
+        evolve_thermal : bool, optional
+            Evolve the layer temperatures and re-solve the EOS at every state. Default True.
+        surface_temperature : float, optional
+            Temperature [K] the world's surface radiates to. None (default) takes the system's insolation equilibrium
+            temperature when it has a star, else leaves no flow through the surface.
+        orbit_rtol : float, optional
+            Relative tolerance on a / a0, e, and the host's spin. The orbit changes by fractions of a percent over Gyr,
+            so it needs a tight one. Default 1e-9.
+        thermal_rtol, spin_rtol : float, optional
+            Relative tolerances on the layer temperatures and on a free spin ratio. Default 1e-4.
+        atol : float, optional
+            Absolute tolerance on every scaled variable. Default 1e-10.
+        capture_band : float, optional
+            Half-width [spin ratio] of the band about each commensurability k/2 that a free spin entering runs a
+            capture test. Default 1e-2.
+        capture_margin : float, optional
+            Distance [spin ratio] from a stable equilibrium within which a free spin is set on it. Default 1e-3.
+        root_tolerance : float, optional
+            Width [spin ratio] to which an equilibrium is bracketed. Default 1e-10.
+        resolution : float, optional
+            Smallest distance [spin ratio] from an equilibrium at which its window is tested. Default 1e-8.
+        max_wall_time : float, optional
+            Wall-clock cap [s]; a run that reaches it returns with ``success`` False. Default None (no cap).
+
+        Returns
+        -------
+        EvolutionResult
+            The state at every integration step (time, semi-major axis, eccentricity, spin ratio and frequency, the
+            host's spin, layer temperatures, the world's tidal heating, and whether the spin was tracked), the
+            segments, and the counts of tide and EOS solves.
+
+        Raises
+        ------
+        ValueError
+            The world has no tidal host or no prograde spin, the span is not increasing, with ``evolve_thermal`` the
+            world has no layers or a layer temperature that is not finite and positive, or the capture settings are out
+            of order (root_tolerance < resolution < capture_margin <= capture_band < 0.25 is required).
+
+        Assumptions
+        -----------
+        * A tracked spin sits exactly on its equilibrium; the neglected lag is its relaxation time over the evolution
+          time.
+        * The world has no permanent (triaxial) figure; its spin follows the tidal torques alone.
+        """
+        if not isinstance(world, BaseWorld):
+            world = self._world_wrappers[self._resolve_index(world)]
+        return evolve_pair(
+            self,
+            world,
+            time_span,
+            evolve_thermal=evolve_thermal,
+            surface_temperature=surface_temperature,
+            orbit_rtol=orbit_rtol,
+            thermal_rtol=thermal_rtol,
+            spin_rtol=spin_rtol,
+            atol=atol,
+            capture_band=capture_band,
+            capture_margin=capture_margin,
+            root_tolerance=root_tolerance,
+            resolution=resolution,
+            max_wall_time=max_wall_time)
 
     @property
     def config(self):

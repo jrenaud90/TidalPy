@@ -26,7 +26,6 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -99,38 +98,11 @@ inline c_OrbitElements c_merge_orbit_elements(
     return conflict ? first : merged;
 }
 
-// The largest spin-lock tolerance, in spin ratio: half the spacing of the half-integer spin-orbit commensurabilities,
-// so a probe never passes the midpoint to the next one.
-inline constexpr double d_SPIN_LOCK_TOLERANCE_MAX = 0.25;
-
-// Spin-orbit resonance locks for the evolution calls (calc_world_evolution, calc_pair_evolution,
-// calc_system_evolution). With use_locks, a dissipating body whose spin ratio s = spin / n sits within lock_tolerance
-// of a stable zero of its spin balance is held there (c_System::p_hold_spin). NaN leaves lock_tolerance unset, which
-// only use_locks off allows. The Python wrappers take both from the [dynamics] table of the TidalPy configuration.
-struct c_SpinLockConfig {
-    bool use_locks = false;
-    double lock_tolerance = TidalPyConstants::d_NAN;  // [dimensionless spin ratio]
-};
-
-// Throws std::invalid_argument for a lock_tolerance that is not finite and in (0, d_SPIN_LOCK_TOLERANCE_MAX), unless
-// locks are off and the tolerance is unset.
-inline void c_validate_spin_lock_config(const c_SpinLockConfig& lock_config) {
-    const double tolerance = lock_config.lock_tolerance;
-    if (!lock_config.use_locks && std::isnan(tolerance)) { return; }
-    if (!(std::isfinite(tolerance) && (tolerance > 0.0) && (tolerance < d_SPIN_LOCK_TOLERANCE_MAX))) {
-        std::ostringstream message;
-        message << "TidalPy: lock_tolerance must be finite and in (0, " << d_SPIN_LOCK_TOLERANCE_MAX
-                << "), in units of the spin ratio (spin / mean motion); got " << tolerance << ".";
-        throw std::invalid_argument(message.str());
-    }
-}
-
 // The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
 // and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
 // tidal host or no usable orbit about it, and the numeric fields are then unset. has_tide_model is false for a
 // rigid world (no tide model attached): it raises no tide, so its rates and energy terms are zero while evolved
-// stays true. A spin held by a spin-orbit resonance lock (c_SpinLockConfig) reports the combined rates of its two sides
-// (c_System::p_hold_spin).
+// stays true.
 struct c_WorldEvolution {
     std::size_t world_index    = 0;
     bool        evolved        = false;
@@ -165,13 +137,6 @@ struct c_WorldEvolution {
     double dE_orbit_dt     = 0.0;
     double dE_spin_dt      = 0.0;
     double energy_residual = 0.0;
-
-    // Set when a spin-orbit resonance lock held the spin. The rates are then w (current spin) + (1 - w) (probe), w
-    // being spin_lock_weight, and spin_lock_bracket is the spin ratio (spin / n) of the probe. Both are NaN for a free
-    // spin.
-    bool spin_locked = false;
-    double spin_lock_weight = TidalPyConstants::d_NAN;   // [dimensionless]
-    double spin_lock_bracket = TidalPyConstants::d_NAN;  // [dimensionless]
 };
 
 // The dual-body tidal evolution of an orbiting world and its tidal host. Both raise a tide on the shared
@@ -595,13 +560,9 @@ public:
     // Single-body tidal dissipation: run one world's global tidal solve in the current system state, then
     // turn the tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
     // tides, its host being a point mass; calc_pair_evolution adds the host's own tide. A rigid world (no tide
-    // model) comes back evolved with zero rates and has_tide_model false, and is warned about once. With locks on
-    // (c_SpinLockConfig), a spin at a stable zero of its spin balance is held there (p_hold_spin).
-    c_WorldEvolution calc_world_evolution(
-            std::size_t index,
-            const c_SpinLockConfig& lock_config = c_SpinLockConfig()) {
+    // model) comes back evolved with zero rates and has_tide_model false, and is warned about once.
+    c_WorldEvolution calc_world_evolution(std::size_t index) {
         this->check_index(index);
-        c_validate_spin_lock_config(lock_config);
         c_WorldEvolution out;
         out.world_index    = index;
         out.has_tide_model = this->p_worlds[index]->get_tide_model_set();
@@ -624,17 +585,16 @@ public:
         if (!out.has_tide_model) {
             this->p_warn_no_tide_model(index);
         }
-        return this->p_hold_spin(out, lock_config, 0.0);
+        return out;
     }
 
     // Single-body dissipation for every world, in index order. The two members of a mutual pair each get a
     // row: their contributions to the orbit they share add.
-    std::vector<c_WorldEvolution> calc_system_evolution(const c_SpinLockConfig& lock_config = c_SpinLockConfig()) {
-        c_validate_spin_lock_config(lock_config);
+    std::vector<c_WorldEvolution> calc_system_evolution() {
         std::vector<c_WorldEvolution> results;
         results.reserve(this->p_worlds.size());
         for (std::size_t i = 0; i < this->p_worlds.size(); ++i) {
-            results.push_back(this->calc_world_evolution(i, lock_config));
+            results.push_back(this->calc_world_evolution(i));
         }
         return results;
     }
@@ -645,14 +605,9 @@ public:
     //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
     // A body with no tide model is rigid and contributes nothing. A rigid host beside a dissipating world is a
     // normal setup (a star treated as a point mass), so only a pair in which neither body can dissipate is warned
-    // about, once per world, and reports has_tide_model false. With locks on (c_SpinLockConfig), either body's spin
-    // can be held (p_hold_spin); each body's hold test takes the orbit's total dn/dt with the other body's
-    // contribution as solved at its own spin, a coupling of second order in the two bodies' rates.
-    c_PairEvolution calc_pair_evolution(
-            std::size_t index,
-            const c_SpinLockConfig& lock_config = c_SpinLockConfig()) {
+    // about, once per world, and reports has_tide_model false.
+    c_PairEvolution calc_pair_evolution(std::size_t index) {
         this->check_index(index);
-        c_validate_spin_lock_config(lock_config);
         c_PairEvolution out;
         out.world_index = index;
         if (!this->has_tidal_host(index)) {
@@ -676,9 +631,6 @@ public:
         // Each body dissipates on the shared orbit with the other body as the tide raiser.
         out.world = this->calc_dissipation(index, host_mass, orbital_frequency, a, e);
         out.host  = this->calc_dissipation(out.host_index, world_mass, orbital_frequency, a, e);
-        const double world_dn_dt_free = out.world.dn_dt;
-        out.world = this->p_hold_spin(out.world, lock_config, out.host.dn_dt);
-        out.host  = this->p_hold_spin(out.host, lock_config, world_dn_dt_free);
 
         // Both are linear in each body's da/dt, so they add.
         out.da_dt = out.world.da_dt + out.host.da_dt;
@@ -962,74 +914,6 @@ protected:
         out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
         out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
         out.evolved         = true;
-    }
-
-    // The spin-orbit resonance lock of one dissipating body. `free_evolution` is its calc_dissipation result at its own
-    // spin, and `dn_dt_other` the other body's mean-motion rate [rad s-2] in a pair (0 for a single body). With the
-    // spin ratio s = spin / n and the spin balance b = dspin/dt - s dn/dt, dn/dt being the orbit's total, one more
-    // tidal solve probes the side the spin moves toward: s + lock_tolerance when b0 = b(s) > 0, s - lock_tolerance
-    // when b0 < 0, giving b1. The spin is held when the two straddle zero the restoring way, b(lower) > 0 > b(upper).
-    // Its balance is then B = b0^2 / (b0 - b1), the free balance b0 times the probe side's Filippov weight
-    // b0 / (b0 - b1): B lies between b1 and b0, equals b0 at the outer edge of the hold (b1 -> 0), so the spin rate is
-    // continuous there, and is 0 with a vanishing slope at the equilibrium (b0 -> 0), so the held spin relaxes onto the
-    // equilibrium with no stiffness. Every rate and the heating are the combination w (current) + (1 - w) (probe) with
-    // w b0 + (1 - w) b1 = B, and dspin/dt is the spin model's from the combined dU/dO, so the spin and the orbit take
-    // one torque and dspin/dt = s dn/dt + B. Both balances are taken at the state's own s (both vector fields at one
-    // point). A body at an exact zero (b0 = 0) is held on its own solve. Otherwise, with locks off, or for a rigid or
-    // unevolved body, `free_evolution` comes back unchanged. The probe commits nothing to the world: its tide result,
-    // layer heating, and tidal heat source stay those of its own spin.
-    c_WorldEvolution p_hold_spin(
-            const c_WorldEvolution& free_evolution,
-            const c_SpinLockConfig& lock_config,
-            double dn_dt_other) {
-        const double orbital_frequency = free_evolution.orbital_frequency;
-        if (!lock_config.use_locks || !free_evolution.evolved || !free_evolution.has_tide_model
-                || !(orbital_frequency > 0.0)) {
-            return free_evolution;
-        }
-        const double spin_ratio = free_evolution.spin_frequency / orbital_frequency;
-        const double balance_free = free_evolution.dspin_dt - spin_ratio * (free_evolution.dn_dt + dn_dt_other);
-        if (!std::isfinite(balance_free)) { return free_evolution; }
-        c_WorldEvolution held = free_evolution;
-        if (balance_free == 0.0) {
-            held.spin_locked       = true;
-            held.spin_lock_weight  = 1.0;
-            held.spin_lock_bracket = spin_ratio;
-            return held;
-        }
-
-        const bool probe_above = balance_free > 0.0;
-        const double probe_offset = probe_above ? lock_config.lock_tolerance : -lock_config.lock_tolerance;
-        const double probe_ratio = spin_ratio + probe_offset;
-        c_BaseWorld* world_ptr = this->p_worlds[free_evolution.world_index].get();
-        const c_WorldCallLock call_lock(world_ptr->get_call_mutex());
-        c_WorldEvolution probe = free_evolution;
-        const c_TideSolveOutcome outcome = world_ptr->calc_tides_probe(
-            this->p_tide_state(free_evolution, world_ptr->get_obliquity(), probe_ratio * orbital_frequency));
-        this->p_fill_rates(probe, outcome.tide_result, world_ptr->get_spin_model());
-        const double balance_probe = probe.dspin_dt - spin_ratio * (probe.dn_dt + dn_dt_other);
-
-        const double balance_lower = probe_above ? balance_free : balance_probe;
-        const double balance_upper = probe_above ? balance_probe : balance_free;
-        if (!((balance_lower > 0.0) && (balance_upper < 0.0))) { return free_evolution; }
-        // The straddle makes b0 - b1 nonzero, and the held balance lies between b1 and b0.
-        const double balance_spread = balance_free - balance_probe;
-        const double balance_held = balance_free * balance_free / balance_spread;
-        const double weight = (balance_held - balance_probe) / balance_spread;
-        const auto combine = [weight](double current_value, double probe_value) {
-            return weight * current_value + (1.0 - weight) * probe_value;
-        };
-        c_GlobalTideResult combined;
-        combined.tidal_heating  = combine(free_evolution.tidal_heating, probe.tidal_heating);
-        combined.dU_dM          = combine(free_evolution.dU_dM, probe.dU_dM);
-        combined.dU_dw          = combine(free_evolution.dU_dw, probe.dU_dw);
-        combined.dU_dO          = combine(free_evolution.dU_dO, probe.dU_dO);
-        combined.dU_dM_minus_dw = combine(free_evolution.dU_dM_minus_dw, probe.dU_dM_minus_dw);
-        this->p_fill_rates(held, combined, world_ptr->get_spin_model());
-        held.spin_locked       = true;
-        held.spin_lock_weight  = weight;
-        held.spin_lock_bracket = probe_ratio;
-        return held;
     }
 
     // Warns, once per world of this system, that a world with no tide model is rigid, so the evolution it enters

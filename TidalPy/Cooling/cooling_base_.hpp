@@ -99,10 +99,8 @@ struct c_LayerThermalContext {
     // pass), the far ends of its conducting stretches.
     double inner_node_temperature = 0.0;
     double outer_node_temperature = 0.0;
-    // From the last pass: the base of this layer's interior [K] (the layer's temperature before any pass) and its
-    // boundary-layer thickness [m] (0 before any pass).
+    // From the last pass: the base of this layer's interior [K] (the layer's temperature before any pass).
     double base_temperature   = 0.0;
-    double boundary_thickness = 0.0;
     // No heat crosses the base (the innermost layer, or one above a layer outside the network), so no boundary layer
     // forms there.
     bool   insulated_base     = false;

@@ -65,6 +65,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <memory>
 #include <string>
 #include <utility>
@@ -417,16 +418,42 @@ inline void c_stretch_heating(
     }
 }
 
-// The shear modulus [Pa] at or below which a material behaves as a liquid: the radial solver's minimum_solid_rigidity
-// times the rigidity scale rho g R = 3 G M^2 / (4 pi R^4) of a planet of mass M [kg] and radius R [m] (bulk density,
-// surface gravity, radius). Zero when the config or the planet gives no scale.
-inline double c_liquid_shear_threshold(double mass, double radius, double G) noexcept {
-    const double rigidity_scale = (radius > TidalPyConstants::d_EPS)
+// The rigidity scale rho g R = 3 G M^2 / (4 pi R^4) [Pa] of a planet of mass M [kg] and radius R [m] (its bulk
+// density, surface gravity, and radius), zero for a radius at or below d_EPS.
+inline double c_rigidity_scale(double mass, double radius, double G) noexcept {
+    return (radius > TidalPyConstants::d_EPS)
         ? 3.0 * G * mass * mass / (4.0 * TidalPyConstants::d_PI * radius * radius * radius * radius) : 0.0;
+}
+
+// The shear modulus [Pa] at or below which a material behaves as a liquid: the radial solver's minimum_solid_rigidity
+// times the planet's rigidity scale (c_rigidity_scale). Zero when the config or the planet gives no scale.
+inline double c_liquid_shear_threshold(double mass, double radius, double G) noexcept {
     const double min_rigidity = (tidalpy_config_ptr != nullptr)
         ? tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY : TidalPyConstants::d_NAN;
-    const double threshold = min_rigidity * rigidity_scale;
+    const double threshold = min_rigidity * c_rigidity_scale(mass, radius, G);
     return (std::isfinite(threshold) && (threshold > 0.0)) ? threshold : 0.0;
+}
+
+// The floor [Pa] of a solid zone's complex shear modulus in a Love solve: the config's minimum_complex_rigidity times
+// the planet's rigidity scale (c_rigidity_scale). Zero (no floor) when the config or the planet gives no scale.
+inline double c_complex_shear_floor(double mass, double radius, double G) noexcept {
+    const double min_rigidity = (tidalpy_config_ptr != nullptr)
+        ? tidalpy_config_ptr->d_MIN_COMPLEX_RIGIDITY : TidalPyConstants::d_NAN;
+    const double floor = min_rigidity * c_rigidity_scale(mass, radius, G);
+    return (std::isfinite(floor) && (floor > 0.0)) ? floor : 0.0;
+}
+
+// A solid's complex shear modulus [Pa] raised to the magnitude `floor` [Pa] through its real (elastic) part when it
+// falls below it, its imaginary (dissipative) part kept. A viscously relaxed solid forced near a static frequency has
+// mu(omega) near i omega eta: the solid equations divide by mu, so the solve fails or crawls without the floor, while
+// the zone's dissipation, which follows the imaginary part, still vanishes with the frequency. A NaN modulus passes
+// through.
+//
+// Assumptions: the real part of a solid's complex modulus is not negative.
+inline std::complex<double> c_floor_complex_shear(std::complex<double> shear, double floor) noexcept {
+    if (!(std::abs(shear) < floor)) { return shear; }
+    const double imaginary = shear.imag();
+    return std::complex<double>(std::sqrt(floor * floor - imaginary * imaginary), imaginary);
 }
 
 // The thermal network's view of one layer for its cooling model: the solved structure at a radius, and the layer's
@@ -635,7 +662,6 @@ inline double c_update_layer_thermal(
         context.radius_outer       = thermal.radius_outer;
         context.temperature        = thermal.temperature;
         context.base_temperature   = thermal.base_temperature;
-        context.boundary_thickness = thermal.boundary_thickness;
         context.insulated_base     = c_base_is_insulated(thermal_vec, layer_i);
         // A neighbor outside the network exchanges no heat, so there is no drop across that boundary layer.
         context.inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)

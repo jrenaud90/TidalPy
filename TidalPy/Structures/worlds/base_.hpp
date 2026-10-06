@@ -421,8 +421,7 @@ struct c_RetainedRadialSolve {
 };
 
 // Everything one global tidal solve gathers (c_BaseWorld::calc_tides), before any of it reaches the world: calc_tides
-// commits it, and calc_tides_probe returns it with the world left as it was. A probe fills only tide_result and
-// tide_love; its layer_heating and heating_record stay empty.
+// commits it only once the whole solve has succeeded.
 struct c_TideSolveOutcome {
     c_GlobalTideResult tide_result;
     // Per-mode Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q); empty for the analytic models.
@@ -451,9 +450,11 @@ struct c_LoveWorkspace {
     bool         solved      = false;
     c_LoveMethod method_last = c_LoveMethod::RadialSolver;
 
-    // The radial methods: the cached solver, and the world layer each of its layers (the world's zones) belongs to.
+    // The radial methods: the cached solver, the world layer each of its layers (the world's zones) belongs to, and
+    // whether that layer takes the solid equations (1) or the liquid ones (0).
     std::unique_ptr<::c_WorldRadialSolver> radial_solver;
     std::vector<std::size_t>               radial_world_layer;
+    std::vector<char>                      radial_solid_layer;
 
     // The quasi-homogeneous methods: the world's Love numbers (the tidal-scale-weighted sum of the layers') and
     // each tidal layer's part.
@@ -1865,6 +1866,10 @@ public:
             is_incomp_arr[solver_layer_i]   = static_cast<bool>(is_incompressible_flags[solver_layer_i]);
         }
         workspace.radial_world_layer = world_layer_of;
+        workspace.radial_solid_layer.assign(n_solver_layers, 0);
+        for (std::size_t solver_layer_i = 0; solver_layer_i < n_solver_layers; ++solver_layer_i) {
+            workspace.radial_solid_layer[solver_layer_i] = (layer_types[solver_layer_i] == 0) ? 1 : 0;
+        }
 
         const std::size_t num_ytypes = cfg.bc_models.empty() ? 1 : cfg.bc_models.size();
         if (solver->cache_matches(
@@ -2115,7 +2120,7 @@ public:
         // the y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported
         // solution reports the complex moduli this solve used.
         solver->set_material_eval(
-            this->make_material_eval(cfg.frequency, workspace.radial_world_layer));
+            this->make_material_eval(cfg.frequency, workspace.radial_world_layer, workspace.radial_solid_layer));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
@@ -2219,14 +2224,18 @@ public:
     }
 
     // The provider the radial solver reads at each integration radius: one dense EOS call for the
-    // frequency-independent state, then the layer's rheology, the only part that knows the frequency.
+    // frequency-independent state, then the layer's rheology, the only part that knows the frequency. In a solid zone
+    // the complex shear modulus is floored at the config's minimum_complex_rigidity times rho g R
+    // (c_floor_complex_shear): a viscously relaxed solid at a near-static frequency would otherwise leave the solid
+    // equations dividing by about omega eta.
     //
     // The callable co-owns the solved EOS (which keeps the layers' materials alive through its input_keepalive) and
     // the rheologies, and resolves the layers here, once, rather than at every radius. It holds nothing of this
     // world, so it stays valid after the world is gone.
     c_EOSSolution::MaterialEval make_material_eval(
             double frequency,
-            const std::vector<std::size_t>& world_layer_of) const {
+            const std::vector<std::size_t>& world_layer_of,
+            const std::vector<char>& solid_of) const {
         const std::size_t n_layers = this->p_layers.size();
         std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
         std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
@@ -2236,7 +2245,8 @@ public:
             bulk_bylayer[layer_i]  = this->p_layers[layer_i]->share_tidal_bulk_rheology();
         }
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
-        return [eos_solution, shear_bylayer, bulk_bylayer, world_layer_of, frequency](
+        const double shear_floor = c_complex_shear_floor(this->p_mass, this->p_radius, c_get_G());
+        return [eos_solution, shear_bylayer, bulk_bylayer, world_layer_of, solid_of, shear_floor, frequency](
                 std::size_t solver_layer_index,
                 double radius_si,
                 double* state_out,
@@ -2253,6 +2263,9 @@ public:
                 ? shear_bylayer[layer_index]->calc_complex_modulus(
                     static_shear, state_out[C_EOS_SHEAR_VISCOSITY_INDEX], frequency)
                 : std::complex<double>(static_shear, 0.0);
+            if ((solver_layer_index < solid_of.size()) && solid_of[solver_layer_index]) {
+                shear_out = c_floor_complex_shear(shear_out, shear_floor);
+            }
             bulk_out = bulk_bylayer[layer_index]
                 ? bulk_bylayer[layer_index]->calc_complex_modulus(
                     static_bulk, state_out[C_EOS_BULK_VISCOSITY_INDEX], frequency)
@@ -2630,12 +2643,6 @@ public:
     // frequency, so it needs a solved EOS. Defined out-of-line in world_tides_.hpp, which carries the heavy
     // global-potential engine.
     void calc_tides(const c_TideSolveConfig& state);
-
-    // The global tidal solve of calc_tides at another state, as a pure computation: the tide result and per-mode Love
-    // numbers come back in the outcome, and the world keeps its last calc_tides result, layer heating, and tidal heat
-    // source. The per-layer split is not computed. A probe gives none of the once-per-world warnings that depend on
-    // the spin (near-synchronous rotation, unstable dynamic liquids), since its spin is not the world's own.
-    c_TideSolveOutcome calc_tides_probe(const c_TideSolveConfig& state);
 
     // On-demand 3D tidal stress, strain, and heating. The tidal potential is built from the world's [tides]
     // truncation config; there is no potential-model object. The orchestration lives on c_RheologyTide,
@@ -3193,16 +3200,15 @@ protected:
     double      p_obliquity  = 0.0;       // [rad]
     double      p_spin_frequency = 0.0;   // [rad/s]
 
-    // The global tidal solve calc_tides and calc_tides_probe share (world_tides_.hpp). A probe skips the per-layer
-    // split and the spin-dependent warnings. Fills `outcome` as it goes, so a failed global potential leaves its error
-    // code in outcome.tide_result when it throws.
-    void p_solve_tides(const c_TideSolveConfig& state, bool is_probe, c_TideSolveOutcome& outcome);
+    // The global tidal solve of calc_tides (world_tides_.hpp). Fills `outcome` as it goes, so a failed global
+    // potential leaves its error code in outcome.tide_result when it throws.
+    void p_solve_tides(const c_TideSolveConfig& state, c_TideSolveOutcome& outcome);
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1), a semi-major axis that is not positive, or an orbital frequency that is not finite, and warns
     // once per world (and truncation level) when the truncations misstate the tides (c_warn_tide_truncations), and
-    // once per world, unless `warn_near_synchronous` is false, for a nearly synchronous spin.
-    void p_check_tide_state(const c_TideSolveConfig& state, bool warn_near_synchronous = true) const {
+    // once per world for a nearly synchronous spin.
+    void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
                 "TidalPy: world '" + this->get_name() + "' tides need an eccentricity in [0, 1); got " +
@@ -3222,7 +3228,7 @@ protected:
             "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
             state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
             this->p_tide_config.max_degree_l, this->p_truncation_warnings_shown);
-        if (warn_near_synchronous) { this->p_warn_if_near_synchronous(state); }
+        this->p_warn_if_near_synchronous(state);
     }
     mutable c_TruncationWarningsShown p_truncation_warnings_shown;
 

@@ -1,6 +1,6 @@
 # System (`Structures.system`)
 
-_Updated: 2026-10-03_
+_Updated: 2026-10-05_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -236,48 +236,61 @@ pair["host"]                                    # the host's single-body contrib
 
 The result names both bodies (`world_name`, and `host_name`, `None` for a world with no tidal host). The `world` and `host` entries are each a full `calc_world_evolution`-style dict (their own solve, spin, heating, and share of the orbital rates and energy). The combined balance is the sum of the two single-body balances, $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A body with no tide model attached is rigid and contributes nothing, so a rigid host reduces `calc_pair_evolution` to the single-body `calc_world_evolution` result. Each body's `has_tide_model` flag is in its `world` or `host` entry. The top-level `has_tide_model` is `True` when at least one body carries a tide model; when neither does, every rate is zero, the flag is `False`, and a warning is logged once per world. A rigid host beside a dissipating world (a star treated as a point mass) is a normal setup and is not warned about.
 
-### Spin-Orbit Resonance Locks
+### Evolving a World About Its Host
 
-Near a spin-orbit commensurability (a spin ratio $s = \dot{\theta}/n$ of 1, 3/2, 2, ...) the tidal torque of the resonant mode changes sign, and the spin can have a stable equilibrium: a zero of its spin balance $b(s) = \ddot{\theta} - s\,dn/dt$ with a restoring torque on both sides. The orbit-averaged spin equation is first order, so a despinning world that reaches such a zero is captured there and stays until the equilibrium vanishes (as the eccentricity falls or the interior warms). The equilibrium sits off the commensurability by an amount that depends on the eccentricity, the obliquity, the interior, and the tide model, and the restoring rate near it is fast compared with the orbital and thermal evolution. An integrator that follows the spin there takes very small steps, and one at an ordinary tolerance can step over a narrow equilibrium.
-
-`calc_world_evolution`, `calc_pair_evolution`, and `calc_system_evolution` take `use_locks` and `lock_tolerance`. With `use_locks=True`, a spin within `lock_tolerance` (in units of $s$) of a stable equilibrium is held there:
-
-1. The tides are solved at the world's own spin, as without locks, giving $b_0 = b(s)$.
-2. One more tidal solve probes the side the spin moves toward: at $s + \delta$ when $b_0 > 0$, at $s - \delta$ when $b_0 < 0$, with $\delta$ the `lock_tolerance`.
-3. The spin is held when the two sides straddle zero the restoring way, $b(\mathrm{lower}) > 0 > b(\mathrm{upper})$. Otherwise the result is step 1's, unchanged.
-4. A held spin's balance is $B = b_0^2 / (b_0 - b_1)$, with $b_1$ the probe's balance. Its rates are the combination $w\,(\mathrm{current}) + (1 - w)\,(\mathrm{probe})$ with $w\,b_0 + (1 - w)\,b_1 = B$. This applies to `da_dt`, `de_dt`, `dn_dt`, `tidal_heating`, and the potential derivatives (`dU_dM`, `dU_dw`, `dU_dO`, `dU_dM_minus_dw`). The spin rate `dspin_dt` is the spin model's from the combined `dU_dO`, so the spin and the orbit take one torque, and it equals $s\,dn/dt + B$.
-
-$B$ is the free balance $b_0$ times the probe side's Filippov weight $b_0 / (b_0 - b_1)$. It lies between $b_1$ and $b_0$. At the outer edge of the hold the probe sits on the equilibrium ($b_1 \to 0$) and $B = b_0$, so the spin rate is continuous where the hold begins. At the equilibrium ($b_0 \to 0$) $B$ is zero with a vanishing slope in $s$. A held spin therefore relaxes smoothly onto the equilibrium and follows it as it drifts, instead of stopping dead at the edge of the hold, and the fast restoring rate of the free spin, which makes an integration stiff, is gone at the equilibrium.
-
-Both balances are taken at the state's own $s$, with $dn/dt$ the orbit's total. A world exactly at a zero ($b_0 = 0$) is held on its own solve. The lock is decided from the state alone on every call, so it needs no events, no memory, and no change to the state an integrator carries. It needs no knowledge of which commensurability is near: the test is on the torque itself, so the eccentricity, the obliquity, the interior, and the tide model all enter, and the jump of a constant-phase-lag torque at $s = k/2$ is held as well as the smooth zero of a viscoelastic interior.
+`System.evolve(world, (t_start, t_end))` integrates the rates of `calc_pair_evolution` through time. It evolves the shared orbit ($a$, $e$), the host's spin, the world's spin, and, with `evolve_thermal=True` (the default), the temperature of each of the world's layers, with CyRK's LSODA, and returns an `EvolutionResult` holding every integration step. The system starts from its current state and is left at the final one.
 
 ```python
-ev = earth_moon_sun.calc_world_evolution(
-    moon,                    # The Moon about the Earth, from the Earth-Moon-Sun system above
-    use_locks=True,          # Hold the spin at a stable spin-orbit equilibrium
-    lock_tolerance=1.0e-5,   # In spin ratio; None takes [dynamics] spin_lock_tolerance
-)
-ev["spin_locked"]        # True when the spin was held
-ev["spin_lock_weight"]   # w, the weight of the solve at the current spin (NaN when free)
-ev["spin_lock_bracket"]  # the spin ratio of the probe (NaN when free)
+from TidalPy.constants import au, year
+
+planet = build_world(
+    "earth_thermal",
+    {"radial_solver": {"rtol": 1.0e-10, "atol": 1.0e-14}})       # A tight radial solve (see below)
+sun = build_world("sol")
+sun.set_spin_frequency(2.0 * np.pi / (25.38 * 86400.0))          # Sidereal rotation [rad s-1]
+system = System("Exoplanet")
+system.add_world(
+    sun,
+    is_star=True)
+system.add_world(
+    planet,
+    tidal_host=sun,
+    semi_major_axis=0.15 * au,
+    eccentricity=0.2)
+system.set_tidal_host(sun, planet)                                 # The Sun raises tides too
+planet.set_spin_frequency(10.0 * system.calc_orbital_frequency(planet))
+
+result = system.evolve(planet, (0.0, 5.0e9 * year))               # 5 Gyr
+result.time, result.semi_major_axis, result.eccentricity          # [s], [m], -
+result.spin_ratio, result.tracked                                  # spin / n, and True where it sat on an equilibrium
+result.temperature, result.tidal_heating                           # [K] (layers by steps), [W]
+result.segments                                                    # The captures, recenterings, and releases
 ```
 
-`use_locks` and `lock_tolerance` left as `None` take `use_spin_locks` (`false`) and `spin_lock_tolerance` (`1e-5`) from the `[dynamics]` table of the [configuration](../../Overview/2_TidalPy_Configurations.md). `lock_tolerance` must be finite and in $(0, 0.25)$, else `ValueError`. In `calc_pair_evolution` either body can be held. Each body's hold test takes the orbit's total $dn/dt$ with the other body's contribution as solved at its own spin, a coupling of second order in the two bodies' rates. A rigid host contributes zero.
+Near a spin-ratio commensurability $s = k/2$ the resonant tidal mode's torque changes sign, and the spin can have a stable equilibrium: a zero of its balance $b(s) = ds/dt = (\ddot{\theta} - s\,\dot{n})/n$ with a restoring torque on both sides. The orbit-averaged spin equation is first order, so a despinning world that reaches one stays. The spin relaxes onto it within years to kyr while the orbit and the interior change over Myr to Gyr, and in a cold mantle the equilibrium is about $10^{-6}$ wide in $s$, narrower than an implicit integrator's usual tolerance on $s$.
 
-What `lock_tolerance` controls:
+`evolve` therefore runs in segments. Between equilibria the spin is *free*, a state variable. On one it is *tracked*:
 
-* The width of the hold: a spin is held when the probe one tolerance away straddles the equilibrium, and the held spin then relaxes onto it. The combined rates mix solves up to one tolerance apart, which changes them by a relative amount of about the tolerance times their slope in $s$: about $10^{-6}$ in the heating for $\delta = 10^{-4}$ in tests on a terrestrial planet at 0.05 au.
-* The narrowest equilibrium that is reliably held. A restoring band (between the stable zero and the unstable zero beside it) narrower than $\delta$ is held only where a probe lands inside it, which is a window as wide as the band itself, so an integration usually steps over a band much narrower than $\delta$. The default of $10^{-5}$ is about the spin's oscillation within one orbit for a close-in planet, below which the orbit-averaged spin equation no longer describes the spin.
+* Only the slow state is integrated.
+* Each rate evaluation finds the equilibrium $s^*$ of that state by a bracketed root search warm-started from the last one (Illinois regula falsi to `root_tolerance`).
+* The rates are the combination of the rates on the root's two sides that zeroes the balance (the Filippov combination), so the spin and the orbit take one torque.
 
-Each call with locks on runs a second tidal solve for every dissipating body whatever its spin, so it costs about twice the tidal solves of a call without locks. The energy residual of a held spin is of the order of the tolerance times the heating: each side conserves energy, but the two sides' spins differ by $\delta n$.
+The neglected term is the spin's drift with its equilibrium, of relative size its relaxation time over the evolution time (Walterova and Behounkova 2020 make the same approximation). The transitions are integration events, each a function of the state alone:
 
-> [!NOTE]
-> The probe is a computation only. After a call the world holds the solve at its own spin: `get_tidal_heating`, `get_layer_tidal_heating`, each layer's `get_tidal_heating`, and the tidal heat source of the next thermal `solve_eos` report that solve, not the combination. The combination's total heating is in the result's `tidal_heating`; its per-layer split differs from the world's by a relative amount of about the tolerance's effect (about $10^{-6}$).
+* A free spin entering the band $|s - k/2| <$ `capture_band` of the next commensurability runs a capture test: from the spin, in the direction its balance points, the balance is probed on a grid refined toward $k/2$, and the first sign change brackets the stable equilibrium the spin reaches. Within `capture_margin` of it the spin is set on it; farther, a free segment runs until it comes within `capture_margin` or enters another band.
+* A tracked spin carries a window: an interval about its equilibrium in which sample points spaced by factors of 4 show no other sign change. When the balance at an edge loses its restoring sign, the equilibrium is solved again and the window rebuilt about it (a recentering), or, when no equilibrium is left nearby (it vanished with its unstable neighbor, as a warming mantle moves them together), the spin is released.
 
-A held spin follows its equilibrium while it drifts (the eccentricity or the interior changing), lagging it by an amount set by the drift rate and the restoring rate, so it stays inside the hold. When the equilibrium vanishes, no probe straddles zero and the spin evolves freely, with no bias: the free rates are the exact orbit-averaged dynamics.
+The net torque near an equilibrium is a small difference of large mode torques, so the balance carries the radial solve's error amplified by about the quality factor (for `earth_thermal` about $10^{-3}$ per Myr at a radial-solver `rtol` of $10^{-8}$, and $6 \times 10^{-6}$ at $10^{-10}$). Windows measure that noise and are tested no closer than `resolution` to the equilibrium. A radial `rtol` of $10^{-10}$, as above, costs about 1.3 times a solve at $10^{-8}$ and keeps a warm equilibrium from being released on noise. The orbit changes by fractions of a percent over Gyr, so it takes its own tight tolerance (`orbit_rtol`, $10^{-9}$); the temperatures and a free spin take `thermal_rtol` and `spin_rtol` ($10^{-4}$).
 
-> [!WARNING]
-> The held balance vanishes smoothly only where the free balance changes over the tolerance. A cold body's equilibrium sits next to the commensurability with a steep zone far narrower than the tolerance (the balance crosses zero over 1e-7 to 1e-9 in $s$, with restoring rates of 1e10 to 1e12 per Myr, for a terrestrial planet at 0.05 au with a mantle near 1400 to 1650 K), and outside that zone it is nearly constant on each side, like a jump. There $B$ is about half the free balance, so the held spin keeps the steep zone's stiffness, and an implicit integrator can stop with repeated convergence failures (SciPy's LSODA reports "Unexpected istate"). Check that the integration reached its end, and compare a short span against an integration without locks at a tight tolerance.
+With `evolve_thermal`, every new state solves the world's EOS with its temperature profile, its surface at the system's insolation temperature (or `surface_temperature`), and its heat sources at the integration time, and each layer warms at `calc_layer_temperature_rate`; without it the world keeps its solved structure. The host's spin is always free. A tracked step costs a root search, about 20 to 30 pair solves, and most of a run's time goes to recentering near a vanishing equilibrium and to steps at a lock whose resonant mode is nearly static (see `minimum_complex_rigidity` in the [configuration](../../Overview/2_TidalPy_Configurations.md)). `Demos/Systems/12_thermal_orbital_evolution.ipynb` evolves the example above for 5 Gyr.
+
+`evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a world with no layers or a layer temperature that is not finite and positive, or capture settings out of order (`root_tolerance` < `resolution` < `capture_margin` <= `capture_band` < 0.25). A run that cannot continue returns with `success` False and its `message`:
+
+* a tide or EOS solve failing at a reached state;
+* `max_wall_time` reached;
+* five segments in a row ending where they began, or ten ending on failed evaluations.
+
+A solve failing at a trial state of the integrator only ends the segment, which restarts from its last step.
 
 ## Serialization
 
@@ -313,12 +326,15 @@ print(system)                                    # System('Sol System', worlds=[
 * `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).
 * `calc_gravitational_parameter(i)`, `calc_orbital_frequency(i)`, `calc_semi_major_axis_from_frequency(i, n)` (host orbit), and the `calc_stellar_gravitational_parameter(i)` / `calc_stellar_orbital_frequency(i)` counterparts.
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
-* `calc_world_evolution(i, lock_config)` and `calc_system_evolution(lock_config)`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (every world runs the same `c_BaseWorld::calc_tides` and carries a spin model). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
-* `calc_pair_evolution(i, lock_config)`: dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution` contributions plus the combined shared-orbit rates and energy balance). Built on the shared `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal solve, rate, and spin contribution at its own spin (a body with no tide model is rigid and contributes zero; the primitive itself does not warn). `c_PairEvolution::has_tide_model` is true when either body carries a tide model.
-* `c_SpinLockConfig {use_locks = false, lock_tolerance = NaN}`: the spin-lock settings, checked by `c_validate_spin_lock_config` (`std::invalid_argument` for a tolerance that is not finite and in $(0, 0.25)$, `d_SPIN_LOCK_TOLERANCE_MAX`; NaN is allowed only with locks off). The protected `p_hold_spin(free_evolution, lock_config, dn_dt_other)` applies the lock to one body's free result, probing through `c_BaseWorld::calc_tides_probe`, which returns a `c_TideSolveOutcome` and commits nothing to the world. `c_WorldEvolution` carries `spin_locked`, `spin_lock_weight`, `spin_lock_bracket`, and `dU_dM_minus_dw`.
+* `calc_world_evolution(i)` and `calc_system_evolution()`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (every world runs the same `c_BaseWorld::calc_tides` and carries a spin model). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
+* `calc_pair_evolution(i)`: dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution` contributions plus the combined shared-orbit rates and energy balance). Built on the shared `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal solve, rate, and spin contribution at its own spin (a body with no tide model is rigid and contributes zero; the primitive itself does not warn). `c_PairEvolution::has_tide_model` is true when either body carries a tide model.
+* `c_WorldEvolution` also carries `dU_dM_minus_dw`. `System.evolve` is Python (`TidalPy/Structures/system/evolution.py`) on CyRK's `pysolve_ivp`.
 * The binary record rebuilds the world list through `c_world_from_binary` (`Structures/worlds/factory_.hpp`), which peeks each record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's concrete type so the Cython layer can pick the matching wrapper. It validates the host and star indices, the world names, and every orbit (`c_check_orbit`) before committing, and throws `std::runtime_error` on corrupt data.
 
 ## References
 
 * Boué, G., and Efroimsky, M. (2019). Tidal evolution of the Keplerian elements. *Celestial Mechanics and Dynamical Astronomy*, 131(7), 30. The orbital rate equations used by the evolution methods on this container.
+* Filippov, A. F. (1988). *Differential Equations with Discontinuous Righthand Sides*. Kluwer Academic Publishers. The combination of the two sides of a tracked equilibrium.
+* Makarov, V. V., and Efroimsky, M. (2013). No pseudosynchronous rotation for terrestrial planets and moons. *The Astrophysical Journal*, 764(1), 27. Spin-orbit equilibria of viscoelastic planets.
 * Méndez, A., and Rivera-Valentín, E. G. (2017). The equilibrium temperature of planets in elliptical orbits. *The Astrophysical Journal Letters*, 837(1), L1. The orbit-averaged insolation.
+* Walterová, M., and Běhounková, M. (2020). Thermal and orbital evolution of low-mass exoplanets. *The Astrophysical Journal*, 900(1), 24. A quasi-static spin in coupled thermal-orbital evolution.

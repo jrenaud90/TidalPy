@@ -47,8 +47,8 @@ def test_config_package_section_has_exactly_its_keys(section, keys):
 
 @pytest.mark.parametrize("section, keys", [
     ("numerical", ("minimum_frequency", "maximum_frequency", "minimum_modulus", "minimum_solid_rigidity",
-                   "minimum_zone_fraction", "minimum_layer_thickness", "numerical_floor", "layer_continuity_rtol",
-                   "max_start_radius_fraction",
+                   "minimum_complex_rigidity", "minimum_zone_fraction", "minimum_layer_thickness", "numerical_floor",
+                   "layer_continuity_rtol", "max_start_radius_fraction",
                    "frequency_match_rtol", "minimum_nusselt", "maximum_eos_mass_ratio", "eos_invert_rtol",
                    "eos_invert_max_iters", "test_constant")),
     ("eos_solver", ("integration_method", "rtol", "atol", "pressure_tol", "max_iters", "nondimensionalize",
@@ -98,6 +98,7 @@ def test_layers_table_names_only_the_default_material():
     ("min_frequency", "minimum_frequency"),
     ("min_modulus", "minimum_modulus"),
     ("minimum_solid_rigidity", "minimum_solid_rigidity"),
+    ("minimum_complex_rigidity", "minimum_complex_rigidity"),
     ("minimum_zone_fraction", "minimum_zone_fraction"),
     ("min_thickness", "minimum_layer_thickness"),
     ("frequency_match_rtol", "frequency_match_rtol"),

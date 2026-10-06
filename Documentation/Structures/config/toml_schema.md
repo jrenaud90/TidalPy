@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-05_
 
 Schema version `0.2.0`.
 
@@ -263,6 +263,7 @@ World-level properties resolve through the `[worlds]` block: a world's `albedo` 
 - `numerical_floor`: the magnitude a guarded denominator is raised to;
 - `layer_continuity_rtol`: how closely a layer's inner radius must match the previous layer's outer radius;
 - `minimum_solid_rigidity` and `minimum_zone_fraction`: where a melting layer turns liquid, and the thinnest zone the radial solver takes as a layer of its own.
+- `minimum_complex_rigidity`: the floor of a solid zone's complex shear modulus at the forcing frequency in a world's Love solve (raised through its real part), for a viscously relaxed solid forced near `minimum_frequency`.
 
 ## Example: Three-Layer Terrestrial World
 

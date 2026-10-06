@@ -5,9 +5,8 @@ user-editable; the packaged defaults are parsed on every load and the user's fil
 ``[pathing]``, ``[logging]``, and ``[configs]`` set up the package when it is imported. ``[numerical]``,
 ``[eos_solver]``, and ``[radial_solver]`` feed the C++ config singleton through
 ``TidalPy.constants.update_constants``. ``[tides]``, ``[worlds]``, and ``[layers]`` supply the world builder's
-defaults, between the user's own configuration and the C++ or Cython constructor default. ``[dynamics]`` holds the
-spin-lock defaults of the ``System`` evolution calls. ``[radiogenics]`` holds the isotope dataset an isotope model
-takes by default and user-defined isotope datasets.
+defaults, between the user's own configuration and the C++ or Cython constructor default. ``[radiogenics]`` holds
+the isotope dataset an isotope model takes by default and user-defined isotope datasets.
 """
 
 from TidalPy import version
@@ -67,6 +66,12 @@ schema_version = "{SCHEMA_VERSION}"
     # a near-fluid solid cannot be integrated, while treating it as liquid changes the Love numbers by about this
     # fraction.
     minimum_solid_rigidity = 1.0e-6
+    # A Love solve raises the complex shear modulus of a solid zone at the forcing frequency to this rigidity
+    # |mu(omega)| / (rho g R) through its real (elastic) part, keeping its imaginary (dissipative) part. A viscously
+    # relaxed solid forced near a static frequency has mu(omega) near i omega eta; the solid equations divide by mu,
+    # so they fail or slow down there without the floor, while the zone's dissipation still vanishes with the
+    # frequency. The floor changes the Love numbers only where it binds, by about this fraction. 0 turns it off.
+    minimum_complex_rigidity = 1.0e-9
     # Thinnest solid or liquid zone, as a fraction of the world radius, that the radial solver integrates as a layer of
     # its own; a thinner zone takes the state of its thicker neighbor (about 0.6 m in an Earth-sized world).
     minimum_zone_fraction = 1.0e-7
@@ -317,23 +322,6 @@ schema_version = "{SCHEMA_VERSION}"
         # An n = 3 polytrope, a Sun-like, centrally condensed star, as the [tides.star] Love numbers assume (a fully
         # convective M dwarf is closer to n = 1.5, 0.205).
         moment_of_inertia_factor = 0.0754
-
-
-# =====================================================================================================================
-# Orbital and spin evolution defaults
-#
-# Used by the System evolution calls (calc_world_evolution, calc_pair_evolution, calc_system_evolution) when a call
-# leaves the argument as None.
-# =====================================================================================================================
-[dynamics]
-    # Hold a spin at a stable spin-orbit equilibrium (a zero of its spin balance with a restoring torque on both
-    # sides): its spin ratio (spin / mean motion) then follows the orbit, and its rates combine the two sides of the
-    # equilibrium. Each call with locks on runs one more tidal solve.
-    use_spin_locks = false
-    # The width of the hold in spin ratio, and the narrowest equilibrium that is held; in (0, 0.25). 1e-5 is about the
-    # spin's oscillation within one orbit for a close-in planet, below which the orbit-averaged spin equation no
-    # longer describes the spin.
-    spin_lock_tolerance = 1.0e-5
 
 
 # =====================================================================================================================

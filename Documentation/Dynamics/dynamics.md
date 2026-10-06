@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`Dynamics`)
 
-_Updated: 2026-10-03_
+_Updated: 2026-10-05_
 
 The module holds two calculators:
 
@@ -98,7 +98,7 @@ all_rates = system.calc_system_evolution()   # every world, in index order
 
 `calc_world_evolution` returns the orbital state it used, the tidal heating, the three potential derivatives, the four rates, the moment of inertia, and the energy-balance diagnostics, all in one dict. `calc_pair_evolution` returns the combined orbital rates plus each body's full single-body contribution under the keys `world` and `host`. Entries that could not be evolved, such as the host's own row or a world with no usable orbit, come back with `evolved` set to `False` rather than raising. See [System](../Structures/system/system.md).
 
-The spin model stays unchanged when a spin-orbit resonance lock holds a spin (`use_locks=True` on the three calls above): deciding a lock needs the torque at a second spin, a second tidal solve, so the `System` evolution calls run it. A held spin's `dspin_dt` is `calc_dspin_dt` applied to the held result's combined `dU_dO`, so the spin and the orbit take one torque; it equals $s\,dn/dt + B$, with $s$ the spin ratio and $B$ the held spin balance, which is zero at the equilibrium. See [Spin-Orbit Resonance Locks](../Structures/system/system.md#spin-orbit-resonance-locks).
+To integrate these rates through time, a world's spin through its spin-orbit equilibria included, use `System.evolve` (see [Evolving a World About Its Host](../Structures/system/system.md#evolving-a-world-about-its-host)).
 
 ## C++ API
 

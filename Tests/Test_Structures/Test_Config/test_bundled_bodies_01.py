@@ -62,6 +62,11 @@ _BODIES = [
          ["inner_core", "outer_core", "mantle"], ["inner_core", "mantle"],
          2.0 * math.pi / 7.292e-5 / 86400.0, moi_factor=0.3307, moi_tolerance=1.0e-3, liquid_layers=["outer_core"],
          love_k=0.30, love_period_days=12.4206 / 24.0, love_tolerance=1.0e-2),
+    # earth_simple's structure with a pressure-dependent mantle viscosity, solved with its temperature profile.
+    Body("earth_thermal", 6371000.0, 5.972e24, 9.820,
+         ["inner_core", "outer_core", "mantle"], ["inner_core", "mantle"],
+         2.0 * math.pi / 7.292e-5 / 86400.0, moi_factor=0.3307, moi_tolerance=1.0e-3, liquid_layers=["outer_core"],
+         love_k=0.30, love_period_days=12.4206 / 24.0, love_tolerance=1.0e-2),
     # Pluto and Charon are mutually synchronous; Triton is synchronous and retrograde about Neptune.
     Body("pluto", 1188300.0, 1.3024587e22, 0.615627,
          ["core", "ocean", "ice_shell"], ["core", "ice_shell"],
@@ -393,6 +398,42 @@ def test_luna_deep_zone_does_most_of_the_dissipating():
     assert shares["lower_mantle"] == pytest.approx(0.852, abs=0.005)
     assert shares["mantle"] == pytest.approx(0.148, abs=0.005)
     assert shares["crust"] < 1.0e-3 and shares["inner_core"] < 1.0e-6
+
+
+# =====================================================================================================================
+# Earth's dissipation with its temperature profile solved
+# =====================================================================================================================
+# The solid Earth's M2 quality factor is about 280 (Ray et al. 2001); earth_thermal's header quotes 315.
+_M2_PERIOD_DAYS = 12.4206 / 24.0
+_EARTH_SURFACE_TEMPERATURE = 288.0
+
+
+def _m2_quality(world_name):
+    world = build_world(world_name)
+    world.solve_eos(solve_temperature=True, surface_temperature=_EARTH_SURFACE_TEMPERATURE)
+    world.solve_love_numbers(2.0 * math.pi / (_M2_PERIOD_DAYS * 86400.0))
+    assert world.love_success, world.love_message
+    return world, world.love_number_k.real / (-world.love_number_k.imag)
+
+
+def test_earth_thermal_quality_factor_at_m2_is_the_solid_earths():
+    """With the profile solved, the pressure-dependent viscosity keeps the deep mantle stiff and Q near Earth's;
+    earth_simple's pressure-independent viscosity, fitted to an isothermal mantle, softens there and dissipates ten
+    times more."""
+    _, quality_thermal = _m2_quality("earth_thermal")
+    _, quality_simple = _m2_quality("earth_simple")
+    assert quality_thermal == pytest.approx(315.0, rel=0.05)
+    assert quality_simple < 0.2 * quality_thermal
+
+
+def test_earth_thermal_mantle_viscosity_rises_with_depth():
+    """Below the conducting lid the adiabat warms the mantle, yet its viscosity rises with depth."""
+    world, _ = _m2_quality("earth_thermal")
+    depths = (400.0e3, 1000.0e3, 2000.0e3)
+    viscosities = [world.get_shear_viscosity(world.radius - depth) for depth in depths]
+    temperatures = [world.get_temperature(world.radius - depth) for depth in depths]
+    assert temperatures[0] < temperatures[1] < temperatures[2]
+    assert viscosities[0] < viscosities[1] < viscosities[2]
 
 
 # =====================================================================================================================

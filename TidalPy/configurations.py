@@ -21,8 +21,8 @@ from TidalPy.exceptions import ConfigurationException, InitializationError
 from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir, write_file_atomically
 from TidalPy.defaultc import default_config_str
 from TidalPy.schema import (
-    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, CONFIG_OPEN_INTERVALS, LOG_LEVEL_CONFIG_KEYS,
-    LOG_LEVEL_RANGE, LOG_LEVELS, SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES)
+    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_CONFIG_KEYS, LOG_LEVEL_RANGE, LOG_LEVELS,
+    SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES)
 
 
 def warning_enabled(name: str) -> bool:
@@ -273,9 +273,8 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
     second type :data:`TidalPy.schema.CONFIG_ALTERNATE_TYPES` allows. The values read while TidalPy is imported are
     also checked for range: the log levels (a name of :data:`TidalPy.schema.LOG_LEVELS` or an integer 0 to 6), the
     ``[eos_solver]`` and ``[radial_solver]`` values (the bounds a world file's pinned settings meet), and the
-    ``[numerical]`` values (finite and positive), and the keys of :data:`TidalPy.schema.CONFIG_OPEN_INTERVALS` (finite
-    and inside their interval). Keys nothing reads are left to :func:`find_unknown_config_keys`. A per-type
-    ``[tides.<type>]`` or ``[worlds.<type>]`` table is checked as its parent table.
+    ``[numerical]`` values (finite and positive). Keys nothing reads are left to :func:`find_unknown_config_keys`. A
+    per-type ``[tides.<type>]`` or ``[worlds.<type>]`` table is checked as its parent table.
 
     Parameters
     ----------
@@ -312,10 +311,6 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
                 return "must not be negative"
             if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
                 return "must be positive"
-        elif (path in CONFIG_OPEN_INTERVALS) and isinstance(value, (int, float)):
-            low, high = CONFIG_OPEN_INTERVALS[path]
-            if not (math.isfinite(value) and (low < value < high)):
-                return f"must be finite and in ({low}, {high})"
         elif path in LOG_LEVEL_CONFIG_KEYS:
             low, high = LOG_LEVEL_RANGE
             if isinstance(value, str) and (value.lower() not in LOG_LEVELS):

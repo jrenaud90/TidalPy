@@ -1,6 +1,6 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-05_
 
 A world file is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `Structures` class system. WorldPack ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
@@ -87,6 +87,7 @@ in `TidalPy_Configs.toml`. `warn_if_stale_copy(path)` runs the same comparison o
 | `jupiter` | gas giant | Heavy-element core, metallic hydrogen, and molecular hydrogen, all fluid, fitted to the mass and C/MR2. |
 | `neptune` | gas giant | Rock core, hot dense ices, and a hydrogen and helium envelope, all fluid, fitted to the mass and C/MR2. |
 | `earth_simple` | terrestrial | Three-layer Earth with a static liquid outer core, reproducing the mass, C/MR2, and k2. |
+| `earth_thermal` | terrestrial | `earth_simple` with a mantle viscosity that follows pressure as well as temperature (dry-olivine creep), for thermal evolution. It solves its temperature profile by default; with it solved the M2 Q is 315, near the solid Earth's 280. Pass `solve_eos` the surface temperature. |
 | `earth_prem` | terrestrial | The PREM seismic profile, read from the companion `PREM.csv`. |
 | `earth_prem_q` | terrestrial | `earth_prem` with PREM's own quality factors setting the loss (`q_provided`, the `seismic_q` rheology), at PREM's 1 s reference period. |
 | `io` | terrestrial | The Segatz et al. (1988) asthenosphere end-member, with its viscosity fitted to Io's measured heat output. |

@@ -44,6 +44,7 @@ cdef extern from "constants_.hpp" nogil:
         double   d_MAX_FREQUENCY
         double   d_MIN_MODULUS
         double   d_MIN_SOLID_RIGIDITY
+        double   d_MIN_COMPLEX_RIGIDITY
         double   d_MIN_ZONE_FRACTION
         double   d_MIN_THICKNESS
         double   d_NUMERICAL_FLOOR

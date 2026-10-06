@@ -1,6 +1,6 @@
 # Dynamics (`Dynamics`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-05_
 
 `TidalPy.Dynamics` contains functionality to couple tidal dissipation with orbit-spin evolution. It takes the tidal-potential derivatives produced by a tidal solve and turns them into the instantaneous rates of change of a body's spin and orbit.
 
@@ -26,7 +26,7 @@ Every world holds a `Spin` model and drives it with its own moment of inertia fr
 
 ## Examples
 
-`Demos/Physics/07_gasgiant_fixedQ_dt.ipynb` reads the orbital rates of a gas giant from `System.calc_world_evolution`, `Demos/Systems/11_multi_world.ipynb` reads them for every world in a system, and `Demos/Systems/12_thermal_orbital_evolution.ipynb` integrates them in time with CyRK.
+`Demos/Physics/07_gasgiant_fixedQ_dt.ipynb` reads the orbital rates of a gas giant from `System.calc_world_evolution`, `Demos/Systems/11_multi_world.ipynb` reads them for every world in a system, and `Demos/Systems/12_thermal_orbital_evolution.ipynb` integrates them in time with `System.evolve`.
 
 ## References
 

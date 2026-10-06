@@ -198,7 +198,8 @@ const FLOWS = {
     name: 'System evolution', color: 'var(--flow-system)',
     text: 'A System holds worlds with their orbital elements. calc_world_evolution builds the tidal state for one ' +
       'world, runs its calc_tides, and converts the potential derivatives into da/dt, de/dt, dn/dt, and dspin/dt ' +
-      'with an energy-balance check. Users integrate these rates with an integrator of their choice.',
+      'with an energy-balance check. System.evolve integrates them in time with CyRK, the world spin tracking ' +
+      'its spin-orbit equilibria, and with the thermal state evolved re-solves the world EOS at every state.',
   },
 };
 
@@ -492,8 +493,15 @@ const NODES = [
     label: 'System.calc_world_evolution(i)', sub: 'calc_pair_evolution, calc_system_evolution',
     file: 'Structures/system/system.pyx',
     purpose: 'Entry point for evolution: the tidal rates of one world (or a host and satellite pair, or every ' +
-      'world) for the current orbit and spin. TidalPy holds no integrator; the caller integrates the rates.',
+      'world) for the current orbit and spin; System.evolve integrates them.',
     inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
+  { id: 'evolve', lane: 'system', kind: 'py', shape: 'func', star: true,
+    label: 'System.evolve(world, span)', sub: 'evolution.py: evolve_pair', file: 'Structures/system/evolution.py',
+    purpose: 'Integrates a world and its tidal host with CyRK LSODA in segments: the spin free between spin-orbit ' +
+      'equilibria, tracked on one (a root search of the spin balance at every state, the Filippov combination of ' +
+      'its two sides), with captures, recenterings, and releases as events.',
+    inputs: 'world, time span, tolerances, capture settings',
+    outputs: 'EvolutionResult: a, e, spins, layer temperatures, heating, segments' },
   { id: 'c_System', lane: 'system', kind: 'cpp', shape: 'class',
     label: 'c_System', sub: 'system_.hpp', file: 'Structures/system/system_.hpp',
     purpose: 'shared_ptr worlds, parallel orbital elements, a tidal host index per world, the star index, and a ' +
@@ -524,6 +532,7 @@ const EDGES = [
   { from: 'c_BaseWorld', to: 'c_calc_tides', kind: 'member' },
   { from: 'tide_models', to: 'c_calc_3d', kind: 'member' },
   { from: 'System', to: 'calc_world_evolution', kind: 'member' },
+  { from: 'System', to: 'evolve', kind: 'member' },
   { from: 'c_System', to: 'c_calc_world_evolution', kind: 'member' },
 
   // World building.
@@ -748,6 +757,18 @@ const EDGES = [
     inputs: 'radius, frequency', outputs: 'complex moduli, layer type' },
 
   // System evolution.
+  { from: 'evolve', to: 'calc_world_evolution', flow: 'system', type: 'call',
+    purpose: 'calc_pair_evolution at each probed spin ratio of the current state: the rates, the spin balance, and ' +
+      'the heating the root search and the integration read.',
+    inputs: 'spin ratio of the probe', outputs: 'pair rates as a dict' },
+  { from: 'evolve', to: 'solve_eos', flow: 'system', type: 'call',
+    purpose: 'With the thermal state evolved, the EOS with its temperature profile at every new state, its surface ' +
+      'at the insolation temperature and its heat sources at the integration time.',
+    inputs: 'layer temperatures, surface temperature, time', outputs: 'the solved structure and heat flows' },
+  { from: 'evolve', to: 'cyrk', flow: 'system', type: 'call',
+    purpose: 'pysolve_ivp LSODA per segment, with terminal events for the capture bands, the approach to an ' +
+      'equilibrium, and a tracked window edges.',
+    inputs: 'right-hand side, events, tolerances', outputs: 'steps, event termination' },
   { from: 'calc_world_evolution', to: 'c_calc_world_evolution', flow: 'system', type: 'call',
     purpose: 'Rates for world i (calc_pair_evolution sums a host and satellite; calc_system_evolution runs every ' +
       'world).',

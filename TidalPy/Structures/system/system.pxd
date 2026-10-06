@@ -48,13 +48,6 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   dE_orbit_dt
         double   dE_spin_dt
         double   energy_residual
-        cpp_bool spin_locked
-        double spin_lock_weight
-        double spin_lock_bracket
-
-    cdef cppclass c_SpinLockConfig:
-        cpp_bool use_locks
-        double lock_tolerance
 
     cdef cppclass c_PairEvolution:
         size_t           world_index
@@ -114,9 +107,9 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_stellar_orbital_frequency(size_t index) except +
         double   calc_insolation_flux(size_t index) except +
         double   calc_equilibrium_temperature(size_t index) except +
-        c_WorldEvolution calc_world_evolution(size_t index, const c_SpinLockConfig& lock_config) except +
-        vector[c_WorldEvolution] calc_system_evolution(const c_SpinLockConfig& lock_config) except +
-        c_PairEvolution calc_pair_evolution(size_t index, const c_SpinLockConfig& lock_config) except +
+        c_WorldEvolution         calc_world_evolution(size_t index) except +
+        vector[c_WorldEvolution] calc_system_evolution() except +
+        c_PairEvolution          calc_pair_evolution(size_t index) except +
         double   calc_orbital_energy_derivative(const c_WorldEvolution& evolution) except +
         double   calc_spin_energy_derivative(const c_WorldEvolution& evolution)
         double   calc_energy_residual(const c_WorldEvolution& evolution) except +
