@@ -301,11 +301,11 @@ def isotope_dataset_parameters(object dataset) -> dict:
     return parameters
 
 
-def _canonical_name(str model_name) -> str:
-    return c_radiogenics_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-_FAMILY = ModelFamily("radiogenics", (OffRadiogenics, IsotopeRadiogenics, FixedRadiogenics), _canonical_name)
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
+_FAMILY = ModelFamily(
+    "radiogenics",
+    (OffRadiogenics, IsotopeRadiogenics, FixedRadiogenics),
+    lambda model_name: c_radiogenics_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any radiogenics model reads.
 RADIOGENICS_CONFIG_KEYS = _FAMILY.config_keys

@@ -42,26 +42,26 @@ Utilities <Utilities/index.md>
 :maxdepth: 2
 :caption: Demos
 
-Demos/Basics/01_config.ipynb
-Demos/Basics/02_world_building.ipynb
-Demos/Basics/03_save_load.ipynb
-Demos/Physics/04_orbits_insolation.ipynb
-Demos/Physics/05_tidal_basics.ipynb
-Demos/Physics/06_rheology_io.ipynb
-Demos/Physics/07_gasgiant_fixedQ_dt.ipynb
-Demos/Physics/08_love_numbers_1d.ipynb
-Demos/Physics/09_tidal_heating_3d.ipynb
-Demos/Physics/10_thermal_eos.ipynb
-Demos/Systems/11_multi_world.ipynb
-Demos/Systems/12_thermal_orbital_evolution.ipynb
-Demos/Physics/13_tidal_maps_3d.ipynb
-Demos/Physics/14_bundled_worlds.ipynb
-Demos/Physics/15_thermal_interior.ipynb
-Demos/Systems/16_earth_moon_sun.ipynb
-Demos/Physics/17_tidal_truncations.ipynb
-Demos/Physics/18_dynamic_liquids.ipynb
-Demos/Physics/19_melt_and_bulk_dissipation.ipynb
-Demos/Physics/20_seismic_q.ipynb
+Demos/Basics/B01_config.ipynb
+Demos/Basics/B02_world_building.ipynb
+Demos/Basics/B03_save_load.ipynb
+Demos/Physics/P01_orbits_insolation.ipynb
+Demos/Physics/P02_tidal_basics.ipynb
+Demos/Physics/P03_rheology_io.ipynb
+Demos/Physics/P04_gasgiant_fixedQ_dt.ipynb
+Demos/Physics/P05_love_numbers_1d.ipynb
+Demos/Physics/P06_tidal_heating_3d.ipynb
+Demos/Physics/P07_thermal_eos.ipynb
+Demos/Physics/P08_tidal_maps_3d.ipynb
+Demos/Physics/P09_bundled_worlds.ipynb
+Demos/Physics/P10_thermal_interior.ipynb
+Demos/Physics/P11_tidal_truncations.ipynb
+Demos/Physics/P12_dynamic_liquids.ipynb
+Demos/Physics/P13_melt_and_bulk_dissipation.ipynb
+Demos/Physics/P14_seismic_q.ipynb
+Demos/Systems/S01_multi_world.ipynb
+Demos/Systems/S02_thermal_orbital_evolution.ipynb
+Demos/Systems/S03_earth_moon_sun.ipynb
 ```
 
 ```{toctree}

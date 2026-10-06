@@ -7,7 +7,26 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
+
+// The spin bands the limits are measured in: |spin rate / mean motion| in [0, 1.5] (synchronous rotation and the 3:2
+// resonance), [1.5, 5], and [5, 30], each including its edges. A table per band, then a table over every measured spin
+// rate, which a ratio past the last edge (not measured) or not finite takes. A band holds both signs of the ratio;
+// retrograde spins were measured at -0.5, -1, -2, -5, and -10 times the mean motion.
+inline constexpr int C_TRUNCATION_NUM_SPIN_BANDS = 3;
+inline constexpr double C_TRUNCATION_SPIN_BAND_EDGES[C_TRUNCATION_NUM_SPIN_BANDS] = {1.5, 5.0, 30.0};
+inline constexpr int C_TRUNCATION_NUM_SPIN_TABLES = C_TRUNCATION_NUM_SPIN_BANDS + 1;
+
+// The table of a spin ratio (spin rate / mean motion, either sign): its band, or the any-spin table
+// (C_TRUNCATION_NUM_SPIN_BANDS) for a ratio past the last edge or NaN.
+inline int c_truncation_spin_table(double spin_ratio) noexcept {
+    const double magnitude = std::abs(spin_ratio);
+    for (int band = 0; band < C_TRUNCATION_NUM_SPIN_BANDS; ++band) {
+        if (magnitude <= C_TRUNCATION_SPIN_BAND_EDGES[band]) { return band; }
+    }
+    return C_TRUNCATION_NUM_SPIN_BANDS;
+}
 
 inline constexpr int C_TRUNCATION_ACCURACY_NUM_TOLERANCES = 6;
 inline constexpr double C_TRUNCATION_ACCURACY_TOLERANCES[C_TRUNCATION_ACCURACY_NUM_TOLERANCES] = {

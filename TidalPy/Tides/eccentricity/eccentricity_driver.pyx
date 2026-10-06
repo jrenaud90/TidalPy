@@ -2,7 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.Tides.mode_func_common cimport (
-    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_validate_truncation)
+    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_spin_ratio,
+    cy_validate_truncation)
 from TidalPy.Tides.eccentricity.eccentricity_common cimport (
     C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS, C_ECCENTRICITY_EXACT, C_ECCENTRICITY_EXACT_TOLERANCE,
     c_eccentricity_accuracy_limit, c_recommend_eccentricity_truncation)
@@ -102,20 +103,30 @@ def eccentricity_truncation_name(int truncation):
     return "exact" if truncation == C_ECCENTRICITY_EXACT else truncation
 
 
-def eccentricity_accuracy_limit(object truncation, double tolerance=0.01, int max_degree_l=2) -> float:
+def eccentricity_accuracy_limit(
+        object truncation,
+        double tolerance=0.01,
+        int max_degree_l=2,
+        object spin_ratio=None) -> float:
     """The largest eccentricity at which a truncation level's heating stays within ``tolerance`` of the exact value.
 
     Measured against the exact heating for each degree on its own, worst case over constant-phase-lag,
-    constant-time-lag, Maxwell (relaxation times of 1e-3 to 1e3 inverse mean motions), and Andrade tides at spin rates
-    of -10 to 30 times the mean motion. A solve through ``max_degree_l`` takes the tightest limit of degrees 2 to
-    ``max_degree_l``. The tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses
-    the next smaller one. NaN for ``"exact"``, which has no such limit.
+    constant-time-lag, Maxwell (relaxation times of 1e-3 to 1e3 inverse mean motions), and Andrade tides at the spin
+    rates of a band of ``spin_ratio`` (the spin rate over the mean motion, either sign; retrograde spins were measured
+    at -0.5, -1, -2, -5, and -10 times the mean motion): |ratio| up to 1.5, 1.5 to 5, and 5 to 30. None, a ratio past
+    30, or NaN takes every measured spin rate (-10 to 30 times the mean motion). A solve through ``max_degree_l``
+    takes the tightest limit of degrees 2 to ``max_degree_l``. The tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3,
+    1e-2, and 1e-1; a tolerance in between uses the next smaller one. NaN for ``"exact"``, which has no such limit.
     """
     cdef int level = validate_eccentricity_truncation(truncation)
-    return c_eccentricity_accuracy_limit(level, tolerance, max_degree_l)
+    return c_eccentricity_accuracy_limit(level, tolerance, max_degree_l, cy_spin_ratio(spin_ratio))
 
 
-def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01, int max_degree_l=2):
+def recommend_eccentricity_truncation(
+        double eccentricity,
+        double tolerance=0.01,
+        int max_degree_l=2,
+        object spin_ratio=None):
     """The lowest eccentricity truncation level that keeps the heating within ``tolerance`` at ``eccentricity``.
 
     Parameters
@@ -127,13 +138,17 @@ def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01
     max_degree_l : int, optional
         Highest tidal degree of the solve; each higher degree loses accuracy at a lower eccentricity, so the level
         must hold at every degree from 2 to ``max_degree_l``.
+    spin_ratio : float, optional
+        The body's spin rate over its orbital mean motion (either sign). The level holds at every spin rate of its band
+        (|ratio| up to 1.5, 1.5 to 5, or 5 to 30). None (default), a ratio past 30, or NaN takes every measured spin
+        rate.
 
     Returns
     -------
     int or str
-        A tabulated level, or ``"exact"`` when no level holds the tolerance there (eccentricities past 0.57 at degree
-        2 and lower at higher degrees, or a tolerance tighter than the tables were measured to). The limits hold for
-        any spin rate measured; a synchronous or slowly rotating body usually holds a level further.
+        A tabulated level, or ``"exact"`` when no level holds the tolerance there (at the default 1% and degree 2,
+        eccentricities past 0.545 for any spin rate, past 0.75 up to 1.5 times the mean motion and 0.73 up to 5
+        times it; lower at higher degrees), or a tolerance tighter than the tables were measured to.
 
     Raises
     ------
@@ -144,7 +159,8 @@ def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01
         raise ValueError(f"The eccentricity must be in [0, 1); got {eccentricity}.")
     if not (tolerance > 0.0):
         raise ValueError(f"The tolerance must be positive; got {tolerance}.")
-    return eccentricity_truncation_name(c_recommend_eccentricity_truncation(eccentricity, tolerance, max_degree_l))
+    return eccentricity_truncation_name(
+        c_recommend_eccentricity_truncation(eccentricity, tolerance, max_degree_l, cy_spin_ratio(spin_ratio)))
 
 
 def eccentricity_func(

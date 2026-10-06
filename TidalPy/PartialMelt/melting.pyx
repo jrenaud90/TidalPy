@@ -115,14 +115,11 @@ cdef class InterpolatedMeltingCurve(MeltingCurveBase):
     MODEL_NAME = "interpolate"
 
 
-def _curve_canonical_name(str model_name) -> str:
-    return c_melting_curve_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _CURVE_FAMILY = ModelFamily(
     "melting curve",
     (ConstantMeltingCurve, SimonGlatzelCurve, SimonGlatzel2Curve, InterpolatedMeltingCurve),
-    _curve_canonical_name)
+    lambda model_name: c_melting_curve_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 
 def melting_curve_model_names() -> tuple:
@@ -238,14 +235,11 @@ cdef class HenningMeltWeakening(MeltWeakeningBase):
     MODEL_NAME = "henning"
 
 
-def _weakening_canonical_name(str model_name) -> str:
-    return c_melt_weakening_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _WEAKENING_FAMILY = ModelFamily(
     "melt weakening",
     (NoMeltWeakening, SpohnMeltWeakening, HenningMeltWeakening),
-    _weakening_canonical_name)
+    lambda model_name: c_melt_weakening_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 
 def melt_weakening_model_names() -> tuple:
@@ -338,17 +332,15 @@ cdef class CompactionViscosity(BulkViscosityMixingBase):
     MODEL_NAME = "compaction"
 
 
-def _bulk_modulus_canonical_name(str model_name) -> str:
-    return c_bulk_modulus_mixing_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-def _bulk_viscosity_canonical_name(str model_name) -> str:
-    return c_bulk_viscosity_mixing_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-_BULK_MODULUS_FAMILY = ModelFamily("bulk-modulus mixing", (HashinShtrikmanMixing,), _bulk_modulus_canonical_name)
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
+_BULK_MODULUS_FAMILY = ModelFamily(
+    "bulk-modulus mixing",
+    (HashinShtrikmanMixing,),
+    lambda model_name: c_bulk_modulus_mixing_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 _BULK_VISCOSITY_FAMILY = ModelFamily(
-    "bulk-viscosity mixing", (CompactionViscosity,), _bulk_viscosity_canonical_name)
+    "bulk-viscosity mixing",
+    (CompactionViscosity,),
+    lambda model_name: c_bulk_viscosity_mixing_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 
 def bulk_modulus_mixing_model_names() -> tuple:

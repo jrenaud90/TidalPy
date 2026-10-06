@@ -1,6 +1,6 @@
 # Rheology (`Rheology`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 `TidalPy.Rheology` utilizes a planet's material static shear (or bulk) modulus and viscosity to determine how it will respond to tidal (or loading) forcing. The result is a complex modulus $\mu^*(\omega)$ whose real part describes the elastic energy stored in the material while the imaginary portion quantifies the energy lost as frictional heat.
 
@@ -32,7 +32,7 @@ In the literature, the term _rheology_ generally includes how viscosity changes 
 
 ## Examples
 
-`Demos/Physics/06_rheology_io.ipynb` maps the tidal heating of a homogeneous Io across shear modulus and viscosity for the Maxwell, Burgers, Andrade, and Sundberg-Cooper rheologies, and plots each rheology's heating against eccentricity. `Demos/Physics/05_tidal_basics.ipynb` uses a fixed-Q tide model, which needs no rheology, for comparison: it computes Io's heating and sweeps it against eccentricity and $Q$.
+`Demos/Physics/P03_rheology_io.ipynb` maps the tidal heating of a homogeneous Io across shear modulus and viscosity for the Maxwell, Burgers, Andrade, and Sundberg-Cooper rheologies, and plots each rheology's heating against eccentricity. `Demos/Physics/P02_tidal_basics.ipynb` uses a fixed-Q tide model, which needs no rheology, for comparison: it computes Io's heating and sweeps it against eccentricity and $Q$.
 
 ## References
 

@@ -65,6 +65,13 @@ def test_bundled_stars_state_their_tides(name, k2):
     pytest.param({"tides": {"star": {"fixed_k": [0.03], "fixed_q": [2.0e4]}}}, [], id="star-table"),
     pytest.param({"tides": {"gasgiant": {"fixed_dt_s": [10.0]}}}, [], id="gasgiant-table"),
     pytest.param({"tides": {"star": {"fixed_kk": [0.03]}}}, ["tides.star.fixed_kk"], id="misspelled-key"),
+    # A world's [tides] keys with no packaged default, and the truncation aliases, are read from the config too.
+    pytest.param({"tides": {"love_method": "homogeneous", "global_tidal_model": "rheology",
+                            "love_fixed_q": 100.0, "love_fixed_dt_s": 600.0, "eccentricity_truncation": 20}},
+                 [], id="world-tides-keys"),
+    pytest.param({"tides": {"gasgiant": {"global_tidal_model": "fixed_q"}}}, [], id="family-model"),
+    pytest.param({"tides": {"love_metod": "cpl", "star": {"star": {}}}},
+                 ["tides.love_metod", "tides.star.star"], id="misspelled-and-nested"),
 ])
 def test_the_star_table_is_a_known_config_key(config, unknown):
     assert find_unknown_config_keys(config, get_packaged_config()) == unknown

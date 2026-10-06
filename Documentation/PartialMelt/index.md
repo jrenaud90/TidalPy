@@ -1,6 +1,6 @@
 # Partial Melting (`PartialMelt`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-06_
 
 `TidalPy.PartialMelt` contains the melting laws a [material](../Material/materials.md) uses once it begins to melt. Melting curves map a pressure \[Pa\] onto a solidus or liquidus temperature \[K\]. Melt-weakening laws map the melt fraction, the temperature, and both phases' shear moduli \[Pa\] and viscosities \[Pa s\] onto those of the partially molten aggregate. Bulk-mixing laws do the same for the bulk modulus and the bulk viscosity. A material combines two melting curves, one weakening law, and optionally the mixing laws with its solid and liquid phases, and its melt fraction runs linearly between the curves.
 
@@ -26,7 +26,7 @@ Like viscosity, melt weakening is frequency-independent and therefore resolved o
 
 ## Examples
 
-`Demos/Physics/10_thermal_eos.ipynb` sweeps a melting mantle's temperature through its melting range, and `Demos/Systems/12_thermal_orbital_evolution.ipynb` follows a melting mantle through a coupled thermal-orbital evolution.
+`Demos/Physics/P07_thermal_eos.ipynb` sweeps a melting mantle's temperature through its melting range, and `Demos/Systems/S02_thermal_orbital_evolution.ipynb` follows a melting mantle through a coupled thermal-orbital evolution.
 
 ## References
 

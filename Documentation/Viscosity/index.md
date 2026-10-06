@@ -1,6 +1,6 @@
 # Viscosity (`Viscosity`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-06_
 
 `TidalPy.Viscosity` contains viscosity models which map a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\].
 
@@ -26,7 +26,7 @@ A phase with no viscosity model reports a NaN viscosity, so a layer that tides t
 
 ## Examples
 
-`Demos/Systems/12_thermal_orbital_evolution.ipynb` builds a temperature-dependent viscosity with `make_viscosity` and feeds it through a Maxwell rheology and the radial solver.
+`Demos/Systems/S02_thermal_orbital_evolution.ipynb` builds a temperature-dependent viscosity with `make_viscosity` and feeds it through a Maxwell rheology and the radial solver.
 
 ## References
 

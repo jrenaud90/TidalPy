@@ -191,6 +191,12 @@ def test_convective_parameters(use_factory, params):
 ])
 def test_make_cooling_aliases(alias, canonical):
     assert Cooling.make_cooling(alias).model_name == canonical
+    assert Cooling.canonical_cooling_name(alias) == canonical
+
+
+def test_canonical_cooling_name_suggests_the_closest_name():
+    with pytest.raises(ValueError, match="convection"):
+        Cooling.canonical_cooling_name("convecton")
 
 
 def test_make_cooling_adopted_object_is_usable(tmp_path):

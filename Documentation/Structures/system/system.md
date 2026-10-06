@@ -1,6 +1,6 @@
 # System (`Structures.system`)
 
-_Updated: 2026-10-05_
+_Updated: 2026-10-06_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -88,9 +88,7 @@ is_star = true
 world = "earth_simple"
 tidal_host = "sun"                  # the world that raises this one's tides
 semi_major_axis_m = 1.495978707e11  # orbit about the tidal host
-eccentricity      = 0.0167
-stellar_semi_major_axis_m = 1.495978707e11  # orbit about the star (for insolation)
-stellar_eccentricity      = 0.0167
+eccentricity      = 0.0167  # the star is the host, so this is also the orbit about the star (insolation)
 ```
 
 ```python
@@ -282,7 +280,7 @@ The neglected term is the spin's drift with its equilibrium, of relative size it
 
 The net torque near an equilibrium is a small difference of large mode torques, so the balance carries the radial solve's error amplified by about the quality factor (for `earth_thermal` about $10^{-3}$ per Myr at a radial-solver `rtol` of $10^{-8}$, and $6 \times 10^{-6}$ at $10^{-10}$). Windows measure that noise and are tested no closer than `resolution` to the equilibrium. A radial `rtol` of $10^{-10}$, as above, costs about 1.3 times a solve at $10^{-8}$ and keeps a warm equilibrium from being released on noise. The orbit changes by fractions of a percent over Gyr, so it takes its own tight tolerance (`orbit_rtol`, $10^{-9}$); the temperatures and a free spin take `thermal_rtol` and `spin_rtol` ($10^{-4}$).
 
-With `evolve_thermal`, every new state solves the world's EOS with its temperature profile, its surface at the system's insolation temperature (or `surface_temperature`), and its heat sources at the integration time, and each layer warms at `calc_layer_temperature_rate`; without it the world keeps its solved structure. The host's spin is always free. A tracked step costs a root search, about 20 to 30 pair solves, and most of a run's time goes to recentering near a vanishing equilibrium and to steps at a lock whose resonant mode is nearly static (see `minimum_complex_rigidity` in the [configuration](../../Overview/2_TidalPy_Configurations.md)). `Demos/Systems/12_thermal_orbital_evolution.ipynb` evolves the example above for 5 Gyr.
+With `evolve_thermal`, every new state solves the world's EOS with its temperature profile, its surface at the system's insolation temperature (or `surface_temperature`), and its heat sources at the integration time, and each layer warms at `calc_layer_temperature_rate`; without it the world keeps its solved structure. The host's spin is always free. A tracked step costs a root search, about 20 to 30 pair solves, and most of a run's time goes to recentering near a vanishing equilibrium and to steps at a lock whose resonant mode is nearly static (see `minimum_complex_rigidity` in the [configuration](../../Overview/2_TidalPy_Configurations.md)). `Demos/Systems/S02_thermal_orbital_evolution.ipynb` evolves the example above for 5 Gyr.
 
 `evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a world with no layers or a layer temperature that is not finite and positive, or capture settings out of order (`root_tolerance` < `resolution` < `capture_margin` <= `capture_band` < 0.25). A run that cannot continue returns with `success` False and its `message`:
 

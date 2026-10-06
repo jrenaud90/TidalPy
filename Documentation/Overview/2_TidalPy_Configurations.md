@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-05_
+_Updated: 2026-10-06_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -153,8 +153,11 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 - `min_degree_l = 2` and `max_degree_l = 2`: the harmonic degrees of the mode sum (2 to 10 are supported).
 - `eccentricity_trunc_lvl = 10`: the eccentricity truncation level, one of 2, 4, 6, 8, 10, 20, 50, or `"exact"`; `eccentricity_exact_tolerance = 1.0e-4` sets the mode range of `"exact"` (see [Eccentricity Functions](../Tides/Eccentricity.md)).
 - `obliquity_trunc_lvl = "off"`: the obliquity truncation level, one of `"off"` (0), 2, 4, or `"gen"` (see [Obliquity Functions](../Tides/Obliquity.md)).
+- `love_method = "radial_solver"`: where the rheology tide model takes its Love numbers, the world's interior (`"radial_solver"`) or a quasi-homogeneous method (`"homogeneous"`, `"cpl"`, `"ctl"`).
 - `layer_tidal_heating = true`: whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver.
 - `fixed_k`, `fixed_q`, `fixed_dt_s`: per-degree Love numbers, quality factors, and time lags \[s\] of the analytic tide models, lists indexed from $l = 2$.
+
+Three keys of a world's `[tides]` table have no packaged default but are read here when set: `global_tidal_model` (the tide model of every world type, in place of `[tides.default_model]`), and `love_fixed_q` and `love_fixed_dt_s` (the quality factor and time lag \[s\] of the `cpl` and `ctl` Love methods).
 
 `[tides.default_model]` names the default tide model per world family: `fixed_q` for stars, `fixed_dt` for gas giants, and `rheology` for terrestrial and layered worlds. A `[tides.<world type>]` table replaces the per-degree lists for that family; the packaged `[tides.star]` holds the fluid Love numbers of an $n = 3$ polytrope with a modified quality factor $Q' = 10^6$.
 

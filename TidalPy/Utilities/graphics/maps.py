@@ -323,8 +323,8 @@ def plot_map(
             shading="flat")
         axis.set_xlim(-180.0, 180.0)
         axis.set_ylim(-90.0, 90.0)
-        axis.set_xlabel("Longitude [deg]", fontsize=style["label_fontsize"])
-        axis.set_ylabel("Latitude [deg]", fontsize=style["label_fontsize"])
+        axis.set_xlabel("longitude (deg)", fontsize=style["label_fontsize"])
+        axis.set_ylabel("latitude (deg)", fontsize=style["label_fontsize"])
         axis.grid(grid_lines, **grid_style)
 
     if colorbar:

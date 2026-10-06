@@ -1,6 +1,6 @@
 # Shared by the eccentricity and obliquity drivers: the lookup maps their C++ builders return and the Python objects
-# made from them, the builders' error codes, the TidalPy configuration reads, and the truncation parsing. Every
-# function here is inline, so no extension module backs this file.
+# made from them, the builders' error codes, the TidalPy configuration reads, the truncation parsing, and the spin
+# ratio of the accuracy lookups. Every function here is inline, so no extension module backs this file.
 
 from libcpp.pair cimport pair
 from libcpp.utility cimport move
@@ -47,6 +47,12 @@ cdef inline object cy_config_value(str section, str key, object fallback):
     """A ``[section]`` value of the TidalPy configuration, or `fallback` when it (or the configuration) is absent."""
     import TidalPy
     return ((getattr(TidalPy, "config", None) or {}).get(section, {}) or {}).get(key, fallback)
+
+
+cdef inline double cy_spin_ratio(object spin_ratio):
+    """The spin ratio (spin rate / mean motion) an accuracy lookup takes: NaN, which selects the limits for any spin
+    rate, for None."""
+    return float("nan") if spin_ratio is None else float(spin_ratio)
 
 
 cdef inline object cy_validate_truncation(object truncation, str kind, tuple levels, dict names, str names_hint):

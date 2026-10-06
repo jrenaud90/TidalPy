@@ -136,11 +136,11 @@ cdef class CTLQTide(TideBase):
     MODEL_NAME = "fixed_dt_q"
 
 
-def _canonical_name(str model_name) -> str:
-    return c_tide_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-_FAMILY = ModelFamily("tide", (RheologyTide, FixedQTide, FixedLagTide, CTLQTide), _canonical_name)
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
+_FAMILY = ModelFamily(
+    "tide",
+    (RheologyTide, FixedQTide, FixedLagTide, CTLQTide),
+    lambda model_name: c_tide_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any tide model reads.
 TIDE_CONFIG_KEYS = _FAMILY.config_keys

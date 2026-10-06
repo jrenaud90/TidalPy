@@ -19,10 +19,8 @@ is_star = true                      # at most one member; the insolation source 
 [worlds.planet]
 world = "example_world.toml"        # a path: relative to this file's folder (then the working directory), or absolute
 tidal_host = "star"                 # the key of the member that raises this world's tides
-semi_major_axis_m = 1.5e11          # orbit about the tidal host
+semi_major_axis_m = 1.5e11          # orbit about the tidal host, which is also its orbit about the star
 eccentricity = 0.02
-stellar_semi_major_axis_m = 1.5e11  # orbit about the star (the same orbit when the star is the host)
-stellar_eccentricity = 0.02
 
 # A moon of the planet, given inline. Its tides are raised by the planet, and its orbit about the star is the
 # planet's, for insolation.
@@ -30,7 +28,7 @@ stellar_eccentricity = 0.02
 tidal_host = "planet"
 semi_major_axis_m = 4.0e8
 eccentricity = 0.005
-stellar_semi_major_axis_m = 1.5e11
+stellar_semi_major_axis_m = 1.5e11  # orbit about the star, given when the star is not the tidal host
 stellar_eccentricity = 0.02
 
 [worlds.moon.world]

@@ -1,7 +1,8 @@
 """A tidal solve at an eccentricity past the range of the world's eccentricity truncation logs one warning per world
 and truncation level.
 
-Each level's limit is where its heating can be 10% or more below the exact value (Documentation/Tides/eccentricity.md).
+Each level's limit is where its heating can be 10% or more below the exact value at the spin band of the world's spin
+rate (Documentation/Tides/Eccentricity.md). The worlds here rotate synchronously.
 """
 import re
 
@@ -24,7 +25,7 @@ def _world(name, truncation):
     return world
 
 
-@pytest.mark.parametrize("truncation, inside, outside", [(6, 0.2, 0.35), (20, 0.45, 0.65), (50, 0.5, 0.65)])
+@pytest.mark.parametrize("truncation, inside, outside", [(6, 0.2, 0.35), (20, 0.45, 0.65), (50, 0.75, 0.85)])
 def test_warns_once_past_the_truncation_range(spdlog_text, truncation, inside, outside):
     world = _world("inside_then_outside", truncation)
     world.calc_tides(eccentricity=inside, **_ORBIT)
@@ -60,7 +61,7 @@ def test_a_new_truncation_level_warns_again(spdlog_text):
 
 def test_the_warning_tells_the_eccentricity_from_the_limit(spdlog_text):
     """Just past the limit, the two numbers print with enough digits to differ (three decimals would round both)."""
-    limit = eccentricity_accuracy_limit(2, 0.1, 2)
+    limit = eccentricity_accuracy_limit(2, 0.1, 2, spin_ratio=1.0)
     eccentricity = limit + 2.0e-4
     assert f"{eccentricity:.3f}" == f"{limit:.3f}"
     _world("close", 2).calc_tides(eccentricity=eccentricity, **_ORBIT)

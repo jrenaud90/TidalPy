@@ -1,6 +1,6 @@
 # Tides (`Tides`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-10-06_
 
 `TidalPy.Tides` contains functionality to calculate tidal dissipation from an orbital state: the eccentricity and obliquity functions that drive the tidal potential, the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
 
@@ -49,7 +49,7 @@ A world's tide model is attached with `set_tide_model` and configured with `set_
 
 ## Examples
 
-`Demos/Physics/05_tidal_basics.ipynb` attaches a fixed-Q tide model and computes heating, `06_rheology_io.ipynb` and `07_gasgiant_fixedQ_dt.ipynb` compare tide models, and `09_tidal_heating_3d.ipynb` and `13_tidal_maps_3d.ipynb` map the three-dimensional heating, stress, and displacement.
+`Demos/Physics/P02_tidal_basics.ipynb` attaches a fixed-Q tide model and computes heating, `P03_rheology_io.ipynb` and `P04_gasgiant_fixedQ_dt.ipynb` compare tide models, and `P06_tidal_heating_3d.ipynb` and `P08_tidal_maps_3d.ipynb` map the three-dimensional heating, stress, and displacement.
 
 ## References
 

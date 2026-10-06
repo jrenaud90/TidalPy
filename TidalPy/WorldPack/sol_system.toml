@@ -1,7 +1,8 @@
 # A miniature Solar System for the Structures system builder: the Sun as the star, with Earth and Jupiter
 # orbiting it. Each planet references a bundled world by name and names the world that raises its tides with
-# `tidal_host`. Because the star is also each planet's tidal host here, a planet's orbit about its host and about
-# the star coincide (the exoplanet case); for a moon orbiting a planet under a distant star the two orbits differ.
+# `tidal_host`. Because the star is also each planet's tidal host here, a planet's orbit about its host is also its
+# orbit about the star (the exoplanet case), so no stellar orbit is given; a moon orbiting a planet under a distant
+# star states its orbit about the star with `stellar_semi_major_axis_m` and `stellar_eccentricity`.
 # A world with no `tidal_host` (the Sun here) is not tidally forced.
 schema_version = "0.2.0"
 name = "Sol System"
@@ -15,13 +16,9 @@ world = "earth_simple"
 tidal_host = "sun"
 semi_major_axis_m = 1.495978707e11
 eccentricity = 0.0167
-stellar_semi_major_axis_m = 1.495978707e11
-stellar_eccentricity = 0.0167
 
 [worlds.jupiter]
 world = "jupiter_simple"
 tidal_host = "sun"
 semi_major_axis_m = 7.785472e11
 eccentricity = 0.0489
-stellar_semi_major_axis_m = 7.785472e11
-stellar_eccentricity = 0.0489

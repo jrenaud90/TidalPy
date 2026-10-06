@@ -22,7 +22,7 @@ cnp.import_array()
 
 from libcpp.vector cimport vector
 
-from TidalPy.constants cimport cy_resolve_G, set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport cy_resolve_G, d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.logging.logger cimport set_tidalpy_logger_ptr_void, get_tidalpy_logger_address
 from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 from TidalPy.Tides.potential.potential_3d cimport (
@@ -76,7 +76,7 @@ def tidal_potential_3d_modes(
     # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session (and level).
     c_warn_standalone_tide_truncations(
         b"tidal_potential_3d_modes", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
-        max_degree_l)
+        max_degree_l, spin_frequency / orbital_frequency if orbital_frequency != 0.0 else d_NAN)
 
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(

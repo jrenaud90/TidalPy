@@ -192,14 +192,11 @@ cdef class SeismicQ(RheologyBase):
     MODEL_NAME = "seismic_q"
 
 
-def _canonical_name(str model_name) -> str:
-    return c_rheology_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _FAMILY = ModelFamily(
     "rheology",
     (Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener, SeismicQ),
-    _canonical_name)
+    lambda model_name: c_rheology_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any rheology model reads.
 RHEOLOGY_CONFIG_KEYS = _FAMILY.config_keys
@@ -230,11 +227,6 @@ def rheology_config_keys(str model_name) -> frozenset:
         Unknown model name.
     """
     return _FAMILY.config_keys_of(model_name)
-
-
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return _FAMILY.same_model(table_name, model_name)
 
 
 def make_rheology(str model_name, dict config=None):

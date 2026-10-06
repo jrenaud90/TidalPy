@@ -187,9 +187,11 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     """The keys of a ``TidalPy_Configs.toml`` (or an override dict) that nothing in TidalPy reads.
 
     A key is known when the packaged defaults hold it at the same place, with these exceptions: the per-type
-    ``[worlds.<type>]`` tables are checked against the world schema;
-    ``[tides.default_model]`` names world types, as do the per-type ``[tides.<type>]`` tables, which take the
-    ``[tides]`` keys; and the datasets in ``[radiogenics.known_isotope_data]`` are named by the user.
+    ``[worlds.<type>]`` tables are checked against the world schema; ``[tides]`` and the per-type
+    ``[tides.<type>]`` tables also take the keys a world's own ``[tides]`` table takes
+    (:data:`TidalPy.schema.ALLOWED_TIDES_KEYS`; ``global_tidal_model``, ``love_fixed_q``, and ``love_fixed_dt_s``
+    have no packaged default); ``[tides.default_model]`` names world types, as do the per-type tables; and the
+    datasets in ``[radiogenics.known_isotope_data]`` are named by the user.
 
     Parameters
     ----------
@@ -203,7 +205,7 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     list of str
         The unknown keys as dotted paths (``numerical.min_viscosty``), in file order; empty when every key is known.
     """
-    from TidalPy.schema import ALLOWED_WORLD_SCALAR_KEYS, WORLD_TYPES
+    from TidalPy.schema import ALLOWED_TIDES_KEYS, ALLOWED_WORLD_SCALAR_KEYS, WORLD_TYPES
 
     unknown = []
 
@@ -233,13 +235,14 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
                 elif key not in packaged["worlds"]:
                     unknown.append(f"worlds.{key}")
         elif section == "tides":
+            # A world's [tides] keys, including those with no packaged default.
+            tides_keys = (set(packaged["tides"]) | ALLOWED_TIDES_KEYS) - {"default_model"} - set(WORLD_TYPES)
             for key, value in table.items():
                 if key == "default_model" and isinstance(value, dict):
                     unknown.extend(f"tides.default_model.{name}" for name in value if name not in WORLD_TYPES)
                 elif key in WORLD_TYPES and isinstance(value, dict):
-                    unknown.extend(f"tides.{key}.{name}" for name in value
-                                   if name not in packaged["tides"] or name == "default_model" or name in WORLD_TYPES)
-                elif key not in packaged["tides"]:
+                    unknown.extend(f"tides.{key}.{name}" for name in value if name not in tides_keys)
+                elif key not in tides_keys:
                     unknown.append(f"tides.{key}")
         elif section == "radiogenics":
             unknown.extend(f"radiogenics.{key}" for key in table if key not in packaged["radiogenics"])

@@ -1,6 +1,6 @@
 # Obliquity Functions
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 The obliquity functions $F_{l,m,p}(I)$ are the other forcing component of the tidal potential, alongside the [eccentricity functions](Eccentricity.md). See $F_{lmp}(I)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). The potential built from them gives tidal strain, heating, and spin-orbit evolution.
 
@@ -37,7 +37,7 @@ The series coefficients are exact rationals, from the Taylor series of $\cos(I/2
 
 Unlike the eccentricity series, these series converge at every obliquity, and the computational cost of the general functions is only slightly higher than a truncated table. They need at most two extra modes at degree 2. The truncated levels exist to drop modes, and with them Love number solves, at small obliquity, where the dropped modes are negligible.
 
-The accuracy columns give the largest obliquity up to which the degree-2 heating stays within the stated relative error of the general functions' heating. They are the worst case over constant-phase-lag, constant-time-lag, Maxwell (relaxation times of $10^{-3}$ to $10^{3}$ inverse mean motions), and Andrade tides at spin rates from $-10$ to 30 times the mean motion, and eccentricities from 0 to 0.2. Every limit is set by synchronous rotation at low eccentricity, where the obliquity tide carries the heating, with a long relaxation time, so that $-\mathrm{Im}\,k$ falls as one over the frequency (a stiff Maxwell body such as the Io of the truncation demo). Level 2 errs high there and level 4 low. The mode counts are those used in the heating at degree 2.
+The accuracy columns give the largest obliquity up to which the degree-2 heating stays within the stated relative error of the general functions' heating, for any spin rate. They are the worst case over constant-phase-lag, constant-time-lag, Maxwell (relaxation times of $10^{-3}$ to $10^{3}$ inverse mean motions), and Andrade tides at spin rates from $-10$ to 30 times the mean motion, and eccentricities from 0 to 0.2. Every limit is set by synchronous rotation at low eccentricity, where the obliquity tide carries the heating, with a long relaxation time, so that $-\mathrm{Im}\,k$ falls as one over the frequency (a stiff Maxwell body such as the Io of the truncation demo). Level 2 errs high there and level 4 low. The mode counts are those used in the heating at degree 2.
 
 | Truncation | Aliases | Heating modes at $l=2$ | Error below $10^{-4}$ to | Error below 1% to | Warning above (max $l$ = 2 / 3 / 10) |
 |---|---|---|---|---|---|
@@ -48,7 +48,9 @@ The accuracy columns give the largest obliquity up to which the degree-2 heating
 
 At zero obliquity with truncation `0`, the two surviving degree-2 terms are $F_{2,0,1} = -1/2$ and $F_{2,2,0} = 3$.
 
-`recommend_obliquity_truncation(obliquity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an obliquity (0 at zero obliquity), or `"gen"` when no level does, and `obliquity_accuracy_limit(level, tolerance, max_degree_l)` returns the largest obliquity a level holds a tolerance to. Both read the measurements behind the table, made for each degree from 2 to 10 at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$. A tolerance in between uses the next smaller one. A level must hold at every degree a solve includes, so both take the tightest limit of degrees 2 to `max_degree_l`.
+The limits are also measured on their own for the three spin bands of the eccentricity truncations (see [By Spin Rate](Eccentricity.md#by-spin-rate)). The near-synchronous band holds synchronous rotation, so its limits are those in the table. A body spinning faster holds both levels further: at degree 2, level 2 holds 10% to 0.58 rad (33°) between 1.5 and 5 times its mean motion and to 0.565 rad (32°) between 5 and 30 times it, and level 4 to 0.795 rad (46°) and 0.76 rad (44°).
+
+`recommend_obliquity_truncation(obliquity, tolerance=0.01, max_degree_l=2, spin_ratio=None)` returns the lowest level that holds a tolerance at an obliquity (0 at zero obliquity), or `"gen"` when no level does, and `obliquity_accuracy_limit(level, tolerance, max_degree_l, spin_ratio=None)` returns the largest obliquity a level holds a tolerance to. Both read the measurements behind the table, made for each degree from 2 to 10 at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$. A tolerance in between uses the next smaller one. A level must hold at every degree a solve includes, so both take the tightest limit of degrees 2 to `max_degree_l`. `spin_ratio` (the spin rate over the mean motion) picks the spin band; left as None, both use the limits for any spin rate.
 
 ```python
 import numpy as np
@@ -59,9 +61,10 @@ recommend_obliquity_truncation(np.radians(5.0), max_degree_l=3)    # 4: degree 3
 recommend_obliquity_truncation(np.radians(8.0))                    # 4
 recommend_obliquity_truncation(np.radians(8.0), max_degree_l=10)   # 'gen': degrees up to 10 need more still
 recommend_obliquity_truncation(np.radians(23.4))                   # 'gen'
+recommend_obliquity_truncation(np.radians(23.4), spin_ratio=10.0)  # 4: a fast rotator holds level 4 further
 ```
 
-The default everywhere is `"off"`, set by the `[tides]` `obliquity_trunc_lvl` of the TidalPy configuration, which a built world, a directly constructed world, and the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`) all take when no truncation is given. A world that runs `calc_tides` with a nonzero obliquity while its truncation is off logs a warning once, since its obliquity tides are then ignored. With level 2 or 4, `calc_tides` logs a warning, once per world and truncation level, when the obliquity is past the level's last column, the point where its heating at some included degree can be off by 10% or more. A world whose tides reach degree 3 uses the second value and one whose tides reach degree 10 the third; other degree ranges use the tightest limit of the degrees included (`obliquity_accuracy_limit(level, 0.1, max_degree_l)`).
+The default everywhere is `"off"`, set by the `[tides]` `obliquity_trunc_lvl` of the TidalPy configuration, which a built world, a directly constructed world, and the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`) all take when no truncation is given. A world that runs `calc_tides` with a nonzero obliquity while its truncation is off logs a warning once, since its obliquity tides are then ignored. With level 2 or 4, `calc_tides` logs a warning, once per world and truncation level, when the obliquity is past the level's 10% limit for the band of its spin rate, the point where its heating at some included degree can be off by 10% or more. A world whose tides reach a higher degree warns sooner (the last column gives degrees 2, 3, and 10 near synchronous rotation); every degree range uses the tightest limit of the degrees included (`obliquity_accuracy_limit(level, 0.1, max_degree_l, spin_ratio)`).
 
 A level passed directly must be tabulated. A level read from a configuration that is not tabulated (e.g., the earlier levels 1 and 10) is promoted to the next one with a once-per-session warning: 1 to 2, and anything past 4 to `"gen"`.
 

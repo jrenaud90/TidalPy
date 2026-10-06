@@ -1,7 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport cy_resolve_G, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants cimport (
+    cy_resolve_G, d_NAN, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr)
 from TidalPy.Utilities.logging.logger cimport set_tidalpy_logger_ptr_void, get_tidalpy_logger_address
 from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -57,7 +58,8 @@ def global_potential(
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
     # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session (and level).
     c_warn_standalone_tide_truncations(
-        b"global_potential", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation, max_degree_l)
+        b"global_potential", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation, max_degree_l,
+        spin_frequency / orbital_frequency if orbital_frequency != 0.0 else d_NAN)
 
     cdef c_GlobalPotentialStorage c_result = c_global_potential(
         planet_radius,

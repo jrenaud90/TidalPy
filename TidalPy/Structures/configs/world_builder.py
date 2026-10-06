@@ -30,8 +30,8 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import _WARNED_PROMOTIONS as
 from TidalPy.Tides.obliquity.obliquity_driver import (
     OBLIQUITY_TRUNCATIONS, promote_obliquity_truncation, _WARNED_PROMOTIONS as _WARNED_OBLIQUITY_PROMOTIONS)
 
-from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model
-from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_model
+from TidalPy.Rheology.rheology import canonical_rheology_name, make_rheology
+from TidalPy.Cooling.cooling import canonical_cooling_name, make_cooling
 from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import load_material, merge_material_tables
 from TidalPy.Material.matpack import PRESET_KEY
@@ -668,7 +668,7 @@ def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name, is_solid: 
             f"{where}: sets 'use_melting = true', whose melt weakening would lower the layer's viscosity, but with "
             "'q_provided = true' a solid layer's viscosity holds its quality factor Q_mu.")
     cooling_model = (user_cfg.get("cooling", {}) or {}).get("model")
-    if cooling_model is not None and _same_cooling_model(str(cooling_model), "convection"):
+    if cooling_model is not None and canonical_cooling_name(str(cooling_model)) == "convection":
         raise ValueError(
             f"{where}: names the '{cooling_model}' cooling model, whose Rayleigh number would read the layer's "
             "viscosity, but with 'q_provided = true' a solid layer's viscosity holds its quality factor Q_mu. "
@@ -686,9 +686,9 @@ def _seismic_q_table(table, settings: dict, where: str, allow_elastic: bool):
     if table is None:
         return {"model": _SEISMIC_Q_MODEL, **settings}
     model = str(table.get("model", _SEISMIC_Q_MODEL))
-    if _same_rheology_model(model, _SEISMIC_Q_MODEL):
+    if canonical_rheology_name(model) == canonical_rheology_name(_SEISMIC_Q_MODEL):
         return {**settings, **table, "model": model}
-    if allow_elastic and _same_rheology_model(model, "elastic"):
+    if allow_elastic and canonical_rheology_name(model) == "elastic":
         return None
     raise ValueError(
         f"{where} names the '{model}' rheology, but with 'q_provided = true' the layer's loss arrays hold quality "

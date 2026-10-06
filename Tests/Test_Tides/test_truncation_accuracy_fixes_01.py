@@ -20,7 +20,7 @@ _BODY = dict(planet_radius=1.8215e6, orbital_frequency=4.11e-5, semi_major_axis=
 _TIDES = (("cpl", {"fixed_k": [0.3] * 9, "fixed_q": [100.0] * 9}),
           ("ctl", {"fixed_k": [0.3] * 9, "fixed_dt_s": [100.0] * 9}))
 
-# Demo 17's homogeneous Maxwell Io on Io's orbit about Jupiter. Its rigidity stretches its relaxation time to about 50
+# Demo P11's homogeneous Maxwell Io on Io's orbit about Jupiter. Its rigidity stretches its relaxation time to about 50
 # orbital periods, so -Im k falls as 1 / frequency across the tidal modes: the case that sets the obliquity limits at
 # synchronous rotation and the high eccentricity levels' limits for a fast rotator.
 _IO_RADIUS, _IO_MASS = 1.8216e6, 8.9319e22
@@ -167,7 +167,7 @@ def test_level_two_is_recommended_for_tight_tolerances_at_small_eccentricity():
 
 @pytest.fixture(scope="module")
 def maxwell_io():
-    """Demo 17's Maxwell Io and its Jupiter system; each test sets the spin rate it needs."""
+    """Demo P11's Maxwell Io and its Jupiter system; each test sets the spin rate it needs."""
     density = _IO_MASS / (4.0 / 3.0 * np.pi * _IO_RADIUS**3)
     io = build_world({
         "schema_version": "0.2.0", "name": "Io", "type": "terrestrial", "radius_m": _IO_RADIUS, "mass_kg": _IO_MASS,
@@ -203,7 +203,7 @@ def _io_heating(maxwell_io, spin_ratio, eccentricity, eccentricity_truncation, o
 
 @pytest.mark.parametrize("degrees, expected, lower", [(8.0, 4, 2), (23.4, "gen", 4)])
 def test_recommended_obliquity_level_holds_for_the_synchronous_maxwell_io(maxwell_io, degrees, expected, lower):
-    """Demo 17's synchronous Io at e = 0.001 needs the recommended level for 1%; the level below it misses.
+    """Demo P11's synchronous Io at e = 0.001 needs the recommended level for 1%; the level below it misses.
 
     The earlier table recommended level 2 at 8 degrees (1.5% off here) and level 4 at 23.4 degrees (1.02% off).
     """

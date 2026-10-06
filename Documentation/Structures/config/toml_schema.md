@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-10-05_
+_Updated: 2026-10-06_
 
 Schema version `0.2.0`.
 
@@ -469,9 +469,7 @@ is_star = true
 world = "earth_simple"
 tidal_host = "sun"     # the world that raises this one's tides
 semi_major_axis_m = 1.495978707e11
-eccentricity = 0.0167
-stellar_semi_major_axis_m = 1.495978707e11
-stellar_eccentricity = 0.0167
+eccentricity = 0.0167  # the star is the host, so this is also the orbit about the star
 ```
 
 ```python

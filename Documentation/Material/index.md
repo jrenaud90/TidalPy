@@ -1,6 +1,6 @@
 # Materials (`Material`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-06_
 
 `TidalPy.Material` contains functionality to calculate the state of planet-relevant materials. A material maps a pressure \[Pa\], temperature \[K\], and radius \[m\] onto its density \[kg m$^{-3}$\], isothermal and adiabatic bulk moduli \[Pa\], static shear modulus \[Pa\], shear and bulk viscosities \[Pa s\], thermal expansivity \[K$^{-1}$\], heat capacity \[J kg$^{-1}$ K$^{-1}$\], thermal conductivity \[W m$^{-1}$ K$^{-1}$\], and melt fraction. The whole-planet solve integrates the density from the center outward to find the body's radial structure (gravity, pressure, mass, and moment of inertia), and every later calculation reads the material's other properties from the same evaluation.
 
@@ -28,7 +28,7 @@ A layer holds one material: `Layer(..., material=...)` or `layer.material = ...`
 
 ## Examples
 
-`Demos/Physics/10_thermal_eos.ipynb` compares a constant-density interior with a compressible one and sweeps a melting mantle through its melting range, `Demos/Physics/15_thermal_interior.ipynb` solves a world's temperature profile, and `Benchmarks/EOS/EOS_vs_BurnMan.ipynb` checks the Birch-Murnaghan solve against BurnMan.
+`Demos/Physics/P07_thermal_eos.ipynb` compares a constant-density interior with a compressible one and sweeps a melting mantle through its melting range, `Demos/Physics/P10_thermal_interior.ipynb` solves a world's temperature profile, and `Benchmarks/EOS/EOS_vs_BurnMan.ipynb` checks the Birch-Murnaghan solve against BurnMan.
 
 ## References
 

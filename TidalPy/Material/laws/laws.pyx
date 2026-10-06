@@ -153,14 +153,11 @@ cdef class InterpolatedEOS(EOSBase):
     MODEL_NAME = "interpolate"
 
 
-def _eos_canonical_name(str model_name) -> str:
-    return c_eos_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _EOS_FAMILY = ModelFamily(
     "equation of state",
     (ConstantEOS, BirchMurnaghanEOS, VinetEOS, MurnaghanEOS, PolytropeEOS, ModifiedPolytropeEOS, InterpolatedEOS),
-    _eos_canonical_name)
+    lambda model_name: c_eos_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any equation-of-state law reads.
 EOS_CONFIG_KEYS = _EOS_FAMILY.config_keys
@@ -267,14 +264,11 @@ cdef class InterpolatedShearModulus(ShearModulusBase):
     MODEL_NAME = "interpolate"
 
 
-def _shear_canonical_name(str model_name) -> str:
-    return c_shear_modulus_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _SHEAR_FAMILY = ModelFamily(
     "shear modulus",
     (ConstantShearModulus, LinearShearModulus, InterpolatedShearModulus),
-    _shear_canonical_name)
+    lambda model_name: c_shear_modulus_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any shear-modulus law reads.
 SHEAR_MODULUS_CONFIG_KEYS = _SHEAR_FAMILY.config_keys

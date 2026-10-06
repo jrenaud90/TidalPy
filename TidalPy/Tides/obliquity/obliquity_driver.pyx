@@ -2,7 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.Tides.mode_func_common cimport (
-    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_validate_truncation)
+    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_spin_ratio,
+    cy_validate_truncation)
 from TidalPy.Tides.obliquity.obliquity_common cimport (
     C_OBLIQUITY_TRUNCATIONS, C_NUM_OBLIQUITY_TRUNCATIONS, C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL,
     c_obliquity_accuracy_limit, c_recommend_obliquity_truncation)
@@ -86,21 +87,31 @@ def obliquity_truncation_name(int truncation):
     return "gen" if truncation == C_OBLIQUITY_GENERAL else truncation
 
 
-def obliquity_accuracy_limit(object truncation, double tolerance=0.01, int max_degree_l=2) -> float:
+def obliquity_accuracy_limit(
+        object truncation,
+        double tolerance=0.01,
+        int max_degree_l=2,
+        object spin_ratio=None) -> float:
     """The largest obliquity [rad] at which a level's heating stays within ``tolerance`` of the general value.
 
     Measured against the general functions for each degree on its own, worst case over constant-phase-lag,
-    constant-time-lag, Maxwell (relaxation times of 1e-3 to 1e3 inverse mean motions), and Andrade tides at spin rates
-    of -10 to 30 times the mean motion and eccentricities of 0 to 0.2; synchronous rotation at low eccentricity sets
-    every limit. A solve through ``max_degree_l`` takes the tightest limit of degrees 2 to ``max_degree_l``. The
-    tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses the next smaller one.
-    Zero for ``"off"``, which holds only at zero obliquity, and NaN for ``"gen"``, which has no such limit.
+    constant-time-lag, Maxwell (relaxation times of 1e-3 to 1e3 inverse mean motions), and Andrade tides at
+    eccentricities of 0 to 0.2 and the spin rates of a band of ``spin_ratio`` (the spin rate over the mean motion,
+    either sign): |ratio| up to 1.5, 1.5 to 5, and 5 to 30. None, a ratio past 30, or NaN takes every measured spin
+    rate (-10 to 30 times the mean motion). Synchronous rotation at low eccentricity sets every limit of the bands that
+    hold it. A solve through ``max_degree_l`` takes the tightest limit of degrees 2 to ``max_degree_l``. The tabulated
+    tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses the next smaller one. Zero for
+    ``"off"``, which holds only at zero obliquity, and NaN for ``"gen"``, which has no such limit.
     """
     cdef int level = validate_obliquity_truncation(truncation)
-    return c_obliquity_accuracy_limit(level, tolerance, max_degree_l)
+    return c_obliquity_accuracy_limit(level, tolerance, max_degree_l, cy_spin_ratio(spin_ratio))
 
 
-def recommend_obliquity_truncation(double obliquity, double tolerance=0.01, int max_degree_l=2):
+def recommend_obliquity_truncation(
+        double obliquity,
+        double tolerance=0.01,
+        int max_degree_l=2,
+        object spin_ratio=None):
     """The lowest obliquity truncation level that keeps the heating within ``tolerance`` at ``obliquity``.
 
     Parameters
@@ -112,13 +123,17 @@ def recommend_obliquity_truncation(double obliquity, double tolerance=0.01, int 
     max_degree_l : int, optional
         Highest tidal degree of the solve; each higher degree loses accuracy at a lower obliquity, so the level must
         hold at every degree from 2 to ``max_degree_l``.
+    spin_ratio : float, optional
+        The body's spin rate over its orbital mean motion (either sign). The level holds at every spin rate of its band
+        (|ratio| up to 1.5, 1.5 to 5, or 5 to 30). None (default), a ratio past 30, or NaN takes every measured spin
+        rate.
 
     Returns
     -------
     int or str
         0 (off) at zero obliquity, a tabulated level, or ``"gen"`` when no level holds the tolerance there (past 0.405
-        rad, 23.2 degrees, at the default 1% and degree 2, and lower at higher degrees). The limits are set by
-        synchronous rotation at low eccentricity; other spin rates and eccentricities usually hold a level further.
+        rad, 23.2 degrees, at the default 1% and degree 2 near synchronous rotation, and lower at higher degrees). The
+        limits near synchronous rotation are set by it at low eccentricity; faster spin rates hold a level further.
 
     Raises
     ------
@@ -127,7 +142,8 @@ def recommend_obliquity_truncation(double obliquity, double tolerance=0.01, int 
     """
     if not (tolerance > 0.0):
         raise ValueError(f"The tolerance must be positive; got {tolerance}.")
-    return obliquity_truncation_name(c_recommend_obliquity_truncation(obliquity, tolerance, max_degree_l))
+    return obliquity_truncation_name(
+        c_recommend_obliquity_truncation(obliquity, tolerance, max_degree_l, cy_spin_ratio(spin_ratio)))
 
 
 def obliquity_func(

@@ -127,18 +127,11 @@ _LOVE_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.love
 _SOLID_CORE_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.name in _SOLID_CORE_LOVE_K]
 
 
-# The solid laws a liquid layer takes when the counterfactuals below freeze it: an outer core freezes to iron and
-# Pluto's ocean to ice, each with the shear modulus and viscosity law the quoted counterfactual k2 was solved with.
+# The solid laws an outer core takes when the counterfactual below freezes it to iron, with the shear modulus and
+# viscosity law the quoted counterfactual k2 was solved with.
 _IRON_SOLID_LAWS = {
     "shear_modulus":   {"model": "constant", "shear_modulus_pa": 5.25e10},
     "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e20},
-}
-_ICE_SOLID_LAWS = {
-    "shear_modulus":   {"model": "constant", "shear_modulus_pa": 3.3e9},
-    "shear_viscosity": {
-        "model": "arrhenius", "arrhenius_coeff": 1.1037527593819e7, "additional_temp_dependence": True,
-        "stress_pa": 1.0, "stress_expo": 1.0, "grain_size_m": 5.0e-4, "grain_size_expo": 2.0,
-        "molar_activation_energy_j_mol": 59.4e3, "molar_activation_volume_m3_mol": 0.0},
 }
 
 
@@ -633,7 +626,7 @@ def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia_or_lov
 _PLUTO_SHELL_THICKNESS = 165.0e3
 _PLUTO_OCEAN_THICKNESS = 112.4e3
 _PLUTO_OCEAN_K = 0.145781
-_PLUTO_FROZEN_K = 0.004682
+_PLUTO_FROZEN_K = 0.004574
 
 
 def test_pluto_ocean_thickness_follows_from_the_observed_shell():
@@ -656,8 +649,14 @@ def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
     ocean_k = world.love_number_k.real
     assert ocean_k == pytest.approx(_PLUTO_OCEAN_K, rel=1e-3)
 
-    _freeze(world.ocean, _ICE_SOLID_LAWS)
+    # Frozen into the shell, as demo P09 freezes it: the shell's ice, rheology, and temperature, viscoelastic like the
+    # shell rather than held at its static moduli.
+    world.ocean.material = world.ice_shell.material
+    world.ocean.shear_rheology = world.ice_shell.shear_rheology
+    world.ocean.temperature = world.ice_shell.temperature
+    world.ocean.use_tides = True
     world.solve_eos()
+    assert not world.ocean.is_liquid
     world.solve_love_numbers(frequency)
     frozen_k = world.love_number_k.real
     assert frozen_k == pytest.approx(_PLUTO_FROZEN_K, rel=1e-3)

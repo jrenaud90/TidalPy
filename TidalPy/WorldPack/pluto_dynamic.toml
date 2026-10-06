@@ -10,7 +10,7 @@
 # liquid with a finite bulk modulus has N^2 = -rho g^2 / K < 0, and its solutions grow as exp(E), with E rising
 # with the forcing period, until the integration fails. A pressure-dependent law keeps the density on
 # d rho / dr = -rho^2 g / K, which is neutral (N^2 = 0), so a dynamic liquid stays well behaved at tidal periods.
-# The dynamic liquids demo (Demos/Physics/18_dynamic_liquids.ipynb) works through the difference.
+# The dynamic liquids demo (Demos/Physics/P12_dynamic_liquids.ipynb) works through the difference.
 #
 # Ocean
 # Birch-Murnaghan for liquid water at 273.15 K, fitted to the IAPWS-95 equation of state from 0 to 0.2 GPa:

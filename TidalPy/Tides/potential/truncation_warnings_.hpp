@@ -5,8 +5,9 @@
  * Three cases: an obliquity that the 'off' obliquity truncation ignores (shown once per owner), an obliquity past the
  * range of its truncation (c_obliquity_truncation_limit), and an eccentricity past the range of its truncation
  * (c_eccentricity_truncation_limit), where a low level can misstate the heating by 10% or more, or even make it
- * negative near e = 1. The two range warnings are shown once per owner and truncation level, so an owner that moves to
- * another level is warned again when that level is out of its range.
+ * negative near e = 1. The ranges are those of the spin band of the solve's spin rate / mean motion
+ * (truncation_accuracy_.hpp). The two range warnings are shown once per owner and truncation level, so an owner that
+ * moves to another level is warned again when that level is out of its range.
  */
 
 #include <cmath>
@@ -53,7 +54,8 @@ inline int c_distinct_digits(double value, double limit) noexcept {
 // Warn when the truncations misstate the tides at this orbital state: an ignored obliquity once per owner, and each
 // range case once per owner and truncation level. `owner` names who is warned about ("world 'io'", or the standalone
 // function's name) and `remedy` says where the truncation levels are set ("its [tides] table or set_tide_config", or
-// "the eccentricity_truncation and obliquity_truncation arguments").
+// "the eccentricity_truncation and obliquity_truncation arguments"). `spin_ratio` (spin rate / mean motion) picks the
+// spin band whose ranges apply; NaN takes the ranges for any spin rate.
 inline void c_warn_tide_truncations(
         const std::string& owner,
         const std::string& remedy,
@@ -62,6 +64,7 @@ inline void c_warn_tide_truncations(
         int eccentricity_truncation,
         int obliquity_truncation,
         int max_degree_l,
+        double spin_ratio,
         c_TruncationWarningsShown& shown) {
     if ((obliquity != 0.0) && (obliquity_truncation == C_OBLIQUITY_OFF) && !shown.obliquity_off) {
         shown.obliquity_off = true;
@@ -71,7 +74,7 @@ inline void c_warn_tide_truncations(
             owner, obliquity, remedy);
     }
     if (obliquity_truncation != C_OBLIQUITY_OFF) {
-        const double obliquity_limit = c_obliquity_truncation_limit(obliquity_truncation, max_degree_l);
+        const double obliquity_limit = c_obliquity_truncation_limit(obliquity_truncation, max_degree_l, spin_ratio);
         // insert reports whether the level is new, so the warning is shown on its first occurrence only.
         const bool past_limit = std::abs(obliquity) > obliquity_limit;
         if (past_limit && shown.obliquity_range_levels.insert(obliquity_truncation).second) {
@@ -83,7 +86,8 @@ inline void c_warn_tide_truncations(
                 owner, obliquity, digits, obliquity_limit, digits, obliquity_truncation, remedy);
         }
     }
-    const double eccentricity_limit = c_eccentricity_truncation_limit(eccentricity_truncation, max_degree_l);
+    const double eccentricity_limit =
+        c_eccentricity_truncation_limit(eccentricity_truncation, max_degree_l, spin_ratio);
     if ((eccentricity > eccentricity_limit) && shown.eccentricity_range_levels.insert(eccentricity_truncation).second) {
         const int digits = c_distinct_digits(eccentricity, eccentricity_limit);
         TIDALPY_LOG_WARN(
@@ -92,7 +96,7 @@ inline void c_warn_tide_truncations(
             "eccentricity truncation in {} (recommend_eccentricity_truncation picks a level for a tolerance); past "
             "about {:.2f} use 'exact'. Shown once per level.",
             owner, eccentricity, digits, eccentricity_limit, digits, eccentricity_truncation, remedy,
-            c_eccentricity_truncation_limit(C_HIGHEST_ECCENTRICITY_TRUNCATION, max_degree_l));
+            c_eccentricity_truncation_limit(C_HIGHEST_ECCENTRICITY_TRUNCATION, max_degree_l, spin_ratio));
     }
 }
 
@@ -105,11 +109,12 @@ inline void c_warn_standalone_tide_truncations(
         double obliquity,
         int eccentricity_truncation,
         int obliquity_truncation,
-        int max_degree_l) {
+        int max_degree_l,
+        double spin_ratio) {
     static std::mutex shown_mutex;
     static c_TruncationWarningsShown shown;
     const std::lock_guard<std::mutex> guard(shown_mutex);
     c_warn_tide_truncations(
         function_name, "the eccentricity_truncation and obliquity_truncation arguments", eccentricity, obliquity,
-        eccentricity_truncation, obliquity_truncation, max_degree_l, shown);
+        eccentricity_truncation, obliquity_truncation, max_degree_l, spin_ratio, shown);
 }

@@ -125,11 +125,11 @@ cdef class PowerLawLuminosity(LuminosityBase):
     MODEL_NAME = "power_law"
 
 
-def _canonical_name(str model_name) -> str:
-    return c_luminosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-_FAMILY = ModelFamily("luminosity", (FixedLuminosity, MassToLuminosity, PowerLawLuminosity), _canonical_name)
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
+_FAMILY = ModelFamily(
+    "luminosity",
+    (FixedLuminosity, MassToLuminosity, PowerLawLuminosity),
+    lambda model_name: c_luminosity_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any luminosity model reads.
 LUMINOSITY_CONFIG_KEYS = _FAMILY.config_keys

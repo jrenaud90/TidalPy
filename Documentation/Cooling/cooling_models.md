@@ -1,6 +1,6 @@
 # Cooling Models (`Cooling`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 A cooling model says how heat moves through a layer. Its flux law maps the layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. In a world's thermal solve the same model builds its layer's temperature profile from that law. The boundary-layer thickness is what makes convective transport so much more effective than conduction: the same temperature drop is squeezed across a thin layer at the top instead of the whole interior.
 
@@ -134,7 +134,7 @@ Constructors take the model's parameters by argument name or config key, as keyw
 | `liquid_convection_beta` | `liquid_convection_beta` | 1/3 | Convection, liquid interior |
 | `viscosity_depth_fraction` | `viscosity_depth_fraction` | 0.05 | Convection: the top fraction of the layer the interior viscosity is averaged over |
 
-The parameters read as attributes, and every model has `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, and `save_config(path)`. `off` and `conduction` have no parameters. `cooling_model_names()` lists the canonical names and `cooling_config_keys(name)` the keys one model reads.
+The parameters read as attributes, and every model has `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, and `save_config(path)`. `off` and `conduction` have no parameters. `cooling_model_names()` lists the canonical names, `canonical_cooling_name(name)` gives the canonical name of any name or alias, and `cooling_config_keys(name)` the keys one model reads.
 
 ### Factory Internals
 

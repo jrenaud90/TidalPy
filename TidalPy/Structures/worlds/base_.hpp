@@ -3227,7 +3227,8 @@ protected:
         c_warn_tide_truncations(
             "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
             state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
-            this->p_tide_config.max_degree_l, this->p_truncation_warnings_shown);
+            this->p_tide_config.max_degree_l, state.spin_frequency / state.orbital_frequency,
+            this->p_truncation_warnings_shown);
         this->p_warn_if_near_synchronous(state);
     }
     mutable c_TruncationWarningsShown p_truncation_warnings_shown;

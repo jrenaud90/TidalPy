@@ -8,6 +8,7 @@ from TidalPy.Cooling.cooling import (
     ConductiveCooling,
     make_cooling,
     cooling_model_names,
+    canonical_cooling_name,
     cooling_config_keys,
     cooling_off,
     convective,
@@ -22,6 +23,7 @@ __all__ = [
     "ConductiveCooling",
     "make_cooling",
     "cooling_model_names",
+    "canonical_cooling_name",
     "cooling_config_keys",
     # Direct functions; each accepts floats or ndarrays.
     "cooling_off",

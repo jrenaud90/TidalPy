@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 `TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world: the complex strain and stress tensors and the volumetric heating. The response is evaluated point by point.
 
@@ -106,7 +106,7 @@ which `calc_3d_tides` evaluates with its summed arguments, one axis at a time:
   They are tabulated for equal degrees and computed with 32-node Gauss-Legendre quadrature in $\cos\theta$ for different degrees, which is exact because the integrands are polynomials in $\cos\theta$ of degree at most $l_{a} + l_{b} + 2 \le 22$.
 - Radius: Gauss-Legendre quadrature inside each layer with `radial_slices` nodes (default 16) and weight $r^{2}$. No node sits on a layer boundary. A node below the radial solver's starting radius, where no degree has a solution, is left out. The automatic starting radius keeps that region small, and the integral logs a warning when the nodes left out hold more of the body's volume than the radial solver's `rtol`.
 
-At zero obliquity the volume integral equals the 1D global tidal heating (`get_tidal_heating`) to the radial quadrature error at every eccentricity and spin rate, including synchronous rotation. For the homogeneous Io of demo notebook 09 that error is below 1e-7 with the default 16 nodes per layer. With both $e$ and $I$ nonzero the two differ by the same-frequency cross terms of [Coherent Waves](#coherent-waves). The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
+At zero obliquity the volume integral equals the 1D global tidal heating (`get_tidal_heating`) to the radial quadrature error at every eccentricity and spin rate, including synchronous rotation. For the homogeneous Io of demo notebook P06 that error is below 1e-7 with the default 16 nodes per layer. With both $e$ and $I$ nonzero the two differ by the same-frequency cross terms of [Coherent Waves](#coherent-waves). The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
 
 ## Python API
 
@@ -336,7 +336,7 @@ Every grid method (`get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displ
 
 The result is identical for any thread count.
 
-Inside a process or thread pool whose workers already occupy the machine, pass `num_threads=1`. Demo notebook 13 compares the run time of three grids on one thread and on every core.
+Inside a process or thread pool whose workers already occupy the machine, pass `num_threads=1`. Demo notebook P08 compares the run time of three grids on one thread and on every core.
 
 ```python
 import os

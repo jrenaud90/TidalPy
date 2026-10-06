@@ -36,7 +36,7 @@ def interp(x, xp, fp):
     if n == 0:
         raise ValueError("xp must have at least one element.")
     if np.iscomplexobj(fp):
-        return _interp_complex(x, xp_v, np.ascontiguousarray(fp, dtype=np.complex128), n)
+        return cy_interp_complex(x, xp_v, np.ascontiguousarray(fp, dtype=np.complex128), n)
     cdef const double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
     if <size_t>fp_v.shape[0] != n:
         raise ValueError("xp and fp must have the same length.")
@@ -58,7 +58,7 @@ def interp(x, xp, fp):
     return out.reshape(np.shape(x))
 
 
-cdef object _interp_complex(object x, const double[::1] xp_v, object fp, size_t n):
+cdef object cy_interp_complex(object x, const double[::1] xp_v, object fp, size_t n):
     """interp for complex sample values, through c_interp_complex."""
     cdef const double complex[::1] fp_v = fp
     if <size_t>fp_v.shape[0] != n:

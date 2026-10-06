@@ -1,6 +1,6 @@
 # Dense Radial Solutions
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-06_
 
 `TidalPy.RadialSolver` computes the viscoelastic-gravitational radial functions `y1..y6` with either a shooting method or a propagation matrix, and from them the one-dimensional tidal or loading Love numbers. This page describes how the shooting method retains its solution which can be reevaluated at any radius.
 
@@ -82,4 +82,4 @@ Guidance:
 * Use a static liquid layer for long-period forcing. It is stable and accurate at every period for any density profile.
 * To keep a constant-density liquid dynamic, make it incompressible (`is_incompressible = True`). An incompressible liquid of constant density is neutral: in the bundled worlds its dynamic solve stays within 1e-3 of the static one out to 100 days, except Earth-Simple's large core, which drifts to 6% there.
 * To keep it dynamic and compressible, give it a pressure-dependent law (Birch-Murnaghan or Vinet), which keeps it neutral. The `luna_dynamic`, `mercury_dynamic`, `pluto_dynamic`, and `europa_dynamic` bundled worlds are built this way. A neutral compressible liquid still loses some accuracy at long periods in a large core (`luna_dynamic`'s yearly $k_2$ is 0.8% off at the default `rtol = 1e-6`, 3e-4 at `1e-8`), since the equations recover its tangential displacement through a division by $\omega^2$. Thin oceans are unaffected.
-* The dynamic liquids demo (`Demos/Physics/18_dynamic_liquids.ipynb`) works through each case.
+* The dynamic liquids demo (`Demos/Physics/P12_dynamic_liquids.ipynb`) works through each case.

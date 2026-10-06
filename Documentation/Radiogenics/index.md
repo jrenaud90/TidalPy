@@ -1,6 +1,6 @@
 # Radiogenics (`Radiogenics`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 `TidalPy.Radiogenics` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ \[W\] released inside that layer.
 
@@ -22,7 +22,7 @@ When a world is built from a TOML file or a config dict, the `[layers.<name>.rad
 
 ## Examples
 
-`Demos/Physics/15_thermal_interior.ipynb` compares the radiogenic models over the age of the Solar System and attaches an isotope dataset to a layer of the bundled Io.
+`Demos/Physics/P10_thermal_interior.ipynb` compares the radiogenic models over the age of the Solar System and attaches an isotope dataset to a layer of the bundled Io.
 
 ## References
 

@@ -40,8 +40,9 @@ BENCHMARK_ALIASES = {"t05": "tobie2005", "tobie": "tobie2005", "rn08": "roberts_
 TOBIE2005_X_LIMITS: Tuple[Optional[Tuple[float, float]], ...] = (
     (0.0, 0.15), (-2100.0, 4500.0), (-0.04, 0.04), (0.0, 2000.0), None, None)
 
-Y_TITLES = ("Radial Disp.", "Radial Stress", "Tang. Disp.", "Tang. Stress", "Grav. Potential Perturb.", "Potential Stress")
-Y_UNITS = ("s$^{2}$ / m", "kg / m$^{3}$", "s$^{2}$ / m", "kg / m$^{3}$", "unitless", "1 / m")
+Y_TITLES = ("radial displacement", "radial stress", "tangential displacement", "tangential stress",
+            "potential perturbation", "potential stress")
+Y_UNITS = ("s$^{2}$ m$^{-1}$", "kg m$^{-3}$", "s$^{2}$ m$^{-1}$", "kg m$^{-3}$", "dimensionless", "m$^{-1}$")
 
 ArrayLike = Union[np.ndarray, Sequence[float]]
 
@@ -208,15 +209,15 @@ def plot_ys(
     panels: List[Axes] = list(axes.ravel())
     imaginary_panels: List[Axes] = [panel.twiny() for panel in panels] if plot_imaginary else []
 
-    vertical_label = "Depth [km]" if depth_plot else "Radius [km]"
+    vertical_label = "depth (km)" if depth_plot else "radius (km)"
     for y_index, panel in enumerate(panels):
-        panel.set(xlabel=f"$y_{{{y_index + 1}}}$ [{Y_UNITS[y_index]}]", title=Y_TITLES[y_index])
+        panel.set(xlabel=f"$y_{{{y_index + 1}}}$ ({Y_UNITS[y_index]})", title=Y_TITLES[y_index])
         if y_index % 3 == 0:
             panel.set_ylabel(vertical_label)
         else:
             panel.yaxis.set_ticklabels([])
     for panel in imaginary_panels:
-        panel.set_xlabel("Imaginary part (dotted)", fontsize="small")
+        panel.set_xlabel("imaginary part (dotted)", fontsize="small")
 
     for index, (solution, radius_array) in enumerate(zip(solutions, radii)):
         vertical = (planet_radius - radius_array) if depth_plot else radius_array

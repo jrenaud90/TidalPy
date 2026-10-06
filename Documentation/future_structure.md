@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each.
 
@@ -241,7 +241,7 @@ mantle = Layer(
 
 ## Systems
 
-`System` replaces `Orbit` (`PhysicsOrbit`). The system returns the rates for the current state and holds no integrator: a time evolution integrates these rates with an integrator of your choice (demo 12 uses CyRK).
+`System` replaces `Orbit` (`PhysicsOrbit`). The system returns the rates for the current state, and `System.evolve` integrates a world's orbit, spin, and layer temperatures about its host over time (demo S02); any other time evolution integrates the rates with an integrator of your choice.
 
 | 0.7.X | 0.8.0 |
 |---|---|

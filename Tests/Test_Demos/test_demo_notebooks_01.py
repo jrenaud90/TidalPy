@@ -29,8 +29,8 @@ CELL_TIMEOUT = 900  # [s]
 # Notebooks that cannot finish inside CELL_TIMEOUT, each with the reason, so a plain `pytest Tests/` passes without a
 # command-line filter and the skip shows in the report.
 TOO_SLOW = {
-    "12_thermal_orbital_evolution.ipynb": "integrates 5 Gyr of a coupled thermal-orbital system with System.evolve, "
-                                          "about five minutes, longer than the rest of the suite together",
+    "S02_thermal_orbital_evolution.ipynb": "integrates 5 Gyr of a coupled thermal-orbital system with System.evolve, "
+                                           "about five minutes, longer than the rest of the suite together",
 }
 
 SETUP_TEMPLATE = """\

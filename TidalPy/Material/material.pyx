@@ -489,7 +489,7 @@ cdef class Material(PhysicsBase):
         return result
 
 
-def _single_model_name(str model_name, str family) -> str:
+cdef str cy_single_model_name(str model_name, str family):
     """The one model name a composite family has, or a ValueError naming it."""
     if model_name.lower() != family:
         raise ValueError(
@@ -498,16 +498,9 @@ def _single_model_name(str model_name, str family) -> str:
     return family
 
 
-def _phase_canonical_name(str model_name) -> str:
-    return _single_model_name(model_name, "phase")
-
-
-def _material_canonical_name(str model_name) -> str:
-    return _single_model_name(model_name, "material")
-
-
-_PHASE_FAMILY = ModelFamily("phase", (Phase,), _phase_canonical_name)
-_MATERIAL_FAMILY = ModelFamily("material", (Material,), _material_canonical_name)
+_PHASE_FAMILY = ModelFamily("phase", (Phase,), lambda model_name: cy_single_model_name(model_name, "phase"))
+_MATERIAL_FAMILY = ModelFamily(
+    "material", (Material,), lambda model_name: cy_single_model_name(model_name, "material"))
 
 
 def make_phase(dict config) -> Phase:

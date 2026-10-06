@@ -7,4 +7,5 @@ cdef extern from "truncation_warnings_.hpp" nogil:
         double obliquity,
         int eccentricity_truncation,
         int obliquity_truncation,
-        int max_degree_l) except +
+        int max_degree_l,
+        double spin_ratio) except +

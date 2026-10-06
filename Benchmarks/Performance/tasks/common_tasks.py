@@ -63,7 +63,7 @@ def _build_sol():
     build_world("sol")
 
 
-# The 2-layer Io dict used by the tidal heating task below, as demos 05 and 11 build their worlds.
+# The 2-layer Io dict used by the tidal heating task below, as demos P02 and S01 build their worlds.
 _IO_DICT = {
     "schema_version": "0.2.0", "name": "Io", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22,
@@ -206,7 +206,7 @@ def _tidal_heating_fixed_q():
     _io.calc_tides(_N_IO, _N_IO, 0.0041, 0.0, _A_IO, _M_JUP)
 
 
-# The bundled 3-layer Io with its rheology tide, as demos 14, 15, and 19 use it. Both Love methods at the bundled
+# The bundled 3-layer Io with its rheology tide, as demos P09, P10, and P13 use it. Both Love methods at the bundled
 # tide settings (degree 2, the default eccentricity truncation).
 _bundled_io = build_world("io")
 _bundled_io.solve_eos()
@@ -307,7 +307,7 @@ def _viscosity_reference():
     _reference_viscosity.calc_viscosity(1500.0, 1.0e9)
 
 
-# Demo 15's silicate mantle: delta T, thickness, gravity, density, viscosity, conductivity, diffusivity, expansivity.
+# Demo P10's silicate mantle: delta T, thickness, gravity, density, viscosity, conductivity, diffusivity, expansivity.
 _convection = make_cooling("convection")
 _VISCOSITY_SWEEP = np.logspace(16.0, 26.0, 200)
 _COOLING_ARGS = (1000.0, 9.1e5, 1.5, 3300.0, _VISCOSITY_SWEEP, 3.75, 3.75 / (3300.0 * 1200.0), 5.2e-5)
@@ -368,7 +368,7 @@ def _system_evolution_io_rheology():
     _jovian.calc_world_evolution(_jovian_io)
 
 
-# Demo 16: the bundled Sun, Earth, and Moon, with the Earth and Moon raising tides on each other.
+# Demo S03: the bundled Sun, Earth, and Moon, with the Earth and Moon raising tides on each other.
 _ems = System("Earth-Moon-Sun")
 _ems_earth = build_world("earth_simple")
 _ems_moon = build_world("luna")
@@ -396,7 +396,7 @@ def _system_insolation():
     _ems.calc_equilibrium_temperature(_ems_moon)
 
 
-# Demo 11: a star with a terrestrial planet and a gas giant, both fixed-Q, evolved together.
+# Demo S01: a star with a terrestrial planet and a gas giant, both fixed-Q, evolved together.
 def _fixed_q_planet(config):
     world = build_world(config)
     world.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
@@ -488,7 +488,7 @@ def _tides_3d_collapse_total():
                            latitude_summed=True, longitude_summed=True, radial_summed=True)
 
 
-# Demo 09: secular heating along one line of points (120 colatitudes just below the surface).
+# Demo P06: secular heating along one line of points (120 colatitudes just below the surface).
 _HEATING_COLATITUDES = np.linspace(0.02, np.pi - 0.02, 120)
 _HEATING_RADII = np.full(_HEATING_COLATITUDES.size, 0.99 * _R)
 

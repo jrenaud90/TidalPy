@@ -230,6 +230,12 @@ schema_version = "{SCHEMA_VERSION}"
     # (Documentation/Tides/Obliquity.md).
     obliquity_trunc_lvl = "off"
 
+    # The Love numbers of the rheology tide model: "radial_solver" (the world's interior), or the quasi-homogeneous
+    # "homogeneous", "cpl", or "ctl". Three more keys are read here when set, with no default: global_tidal_model
+    # (the tide model of every world type, in place of [tides.default_model]), and love_fixed_q and love_fixed_dt_s
+    # (the Q and time lag [s] of the cpl and ctl Love methods).
+    love_method = "radial_solver"
+
     # Whether calc_tides also resolves each layer's tidal heating when the Love numbers come from the radial
     # solver: a volume integral of the radial solution that costs about as much as the global solve again. The
     # quasi-homogeneous Love methods and the analytic tide models share out the heating whatever this says.

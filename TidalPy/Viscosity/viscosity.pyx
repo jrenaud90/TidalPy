@@ -173,14 +173,11 @@ cdef class CompositeViscosity(ViscosityBase):
         return tuple(cy_wrap_model(models[model_i]) for model_i in range(models.size()))
 
 
-def _canonical_name(str model_name) -> str:
-    return c_viscosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
 _FAMILY = ModelFamily(
     "viscosity",
     (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity, CompositeViscosity),
-    _canonical_name)
+    lambda model_name: c_viscosity_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any viscosity model reads.
 VISCOSITY_CONFIG_KEYS = _FAMILY.config_keys

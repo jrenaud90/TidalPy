@@ -1,6 +1,6 @@
 # Cooling (`Cooling`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-06_
 
 `TidalPy.Cooling` contains cooling models which quantify how heat moves through a layer. Each model maps a layer's physical state onto a surface heat flux [W m$^{-2}$], the thickness of the thermal boundary layer that carries it, and the Rayleigh and Nusselt numbers that describe the transport regime. In a world's thermal solve each model also builds its layer's temperature profile: one temperature throughout (`off`), two conducting halves (`conduction`), or conducting boundary layers around an adiabatic interior whose top is at the layer's temperature (`convection`), with a magma-ocean scaling when that interior is liquid.
 
@@ -24,7 +24,7 @@ The models are parameterized. They reduce the whole of mantle convection to a bo
 
 ## Examples
 
-`Demos/Physics/15_thermal_interior.ipynb` compares the models' flux laws and solves the temperature and heat flow profile of a layered world, and `Demos/Systems/12_thermal_orbital_evolution.ipynb` evolves a convecting, melting mantle.
+`Demos/Physics/P10_thermal_interior.ipynb` compares the models' flux laws and solves the temperature and heat flow profile of a layered world, and `Demos/Systems/S02_thermal_orbital_evolution.ipynb` evolves a convecting, melting mantle.
 
 ## References
 

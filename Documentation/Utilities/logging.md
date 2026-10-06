@@ -1,6 +1,6 @@
 # Logging (`Utilities.logging`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 TidalPy's compiled code logs through [spdlog](https://github.com/gabime/spdlog), with a thin Cython wrapper so Python can configure and write to the same logger. A single named logger, `"TidalPy"`, is created at package startup and shared by every compiled extension.
 
@@ -54,7 +54,7 @@ with TidalPy.capture_log() as records:           # Warnings and above, by defaul
     io.calc_tides(
         4.11e-5,
         4.11e-5,
-        0.5,                                     # Past the range of the default eccentricity truncation (0.395)
+        0.5,                                     # Past the range of the default eccentricity truncation (0.4 for a synchronous spin)
         0.0,
         4.217e8,
         1.898e27)

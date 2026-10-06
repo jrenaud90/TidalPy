@@ -43,7 +43,7 @@ def test_plot_ys_single_solution():
     assert all(len(axis.get_lines()) == 1 for axis in axes.ravel())
     assert len(figure.axes) == 6
     assert figure.legends == []
-    assert axes[0, 0].get_ylabel() == "Radius [km]"
+    assert axes[0, 0].get_ylabel() == "radius (km)"
     assert axes[0, 0].get_lines()[0].get_ydata()[-1] == pytest.approx(PLANET_RADIUS / 1000.0)
 
 
@@ -69,7 +69,7 @@ def test_plot_ys_options():
         y_limits=(0.0, 1600.0),
         figure_size=(6.0, 6.0))
     assert len(figure.axes) == 12
-    assert axes[0, 0].get_ylabel() == "Depth [km]"
+    assert axes[0, 0].get_ylabel() == "depth (km)"
     assert axes[0, 0].get_xlim() == TOBIE2005_X_LIMITS[0]
     assert axes[0, 1].get_xlim() == TOBIE2005_X_LIMITS[1]
     assert axes[0, 0].get_ylim() == (0.0, 1600.0)

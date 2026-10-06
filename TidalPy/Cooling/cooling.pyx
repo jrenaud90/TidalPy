@@ -301,24 +301,30 @@ cdef class ConvectiveCooling(CoolingBase):
     MODEL_NAME = "convection"
 
 
-def _canonical_name(str model_name) -> str:
-    return c_cooling_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-_FAMILY = ModelFamily("cooling", (OffCooling, ConvectiveCooling, ConductiveCooling), _canonical_name)
+# The family's name lookup: the C++ registry's alias-aware, case-insensitive canonical name.
+_FAMILY = ModelFamily(
+    "cooling",
+    (OffCooling, ConvectiveCooling, ConductiveCooling),
+    lambda model_name: c_cooling_canonical_name(model_name.encode("utf-8")).decode("utf-8"))
 
 # Every config key any cooling model reads.
 COOLING_CONFIG_KEYS = _FAMILY.config_keys
 
 
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return _FAMILY.same_model(table_name, model_name)
-
-
 def cooling_model_names() -> tuple:
     """The canonical names of the cooling models."""
     return _FAMILY.model_names()
+
+
+def canonical_cooling_name(str model_name) -> str:
+    """A cooling model's canonical name from any of its names or aliases (case-insensitive).
+
+    Raises
+    ------
+    ValueError
+        Unknown model name; the message names the closest one.
+    """
+    return _FAMILY.canonical_name(model_name)
 
 
 def cooling_config_keys(str model_name) -> frozenset:

@@ -1,6 +1,6 @@
 # Stellar (`Stellar`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-06_
 
 `TidalPy.Stellar` contains the stellar physics used to calculate stellar heating on a planet in long-term thermal-orbital evolution models. Its luminosity models map a star's mass \[kg\] onto its luminosity \[W\] using published relationships, which is helpful for exoplanet hosts whose stellar properties are not fully published.
 
@@ -28,7 +28,7 @@ This module covers luminosity and the temperature conversions tied to it. Stella
 
 ## Examples
 
-`Demos/Basics/02_world_building.ipynb` builds a star and reads its luminosity and effective temperature, and `Demos/Physics/04_orbits_insolation.ipynb` uses the luminosity for insolation and equilibrium temperatures across stellar types.
+`Demos/Basics/B02_world_building.ipynb` builds a star and reads its luminosity and effective temperature, and `Demos/Physics/P01_orbits_insolation.ipynb` uses the luminosity for insolation and equilibrium temperatures across stellar types.
 
 ## References
 

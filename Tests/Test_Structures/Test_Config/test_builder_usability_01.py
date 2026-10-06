@@ -97,10 +97,10 @@ def test_build_world_overrides_merge_table_by_table():
 
 
 def test_build_system_overrides():
-    # The bundled file gives the Earth's one orbit about the Sun in both element sets, so both change.
-    system = build_system(
-        "sol_system", overrides={"worlds": {"earth": {"eccentricity": 0.05, "stellar_eccentricity": 0.05}}})
+    # The Sun is the Earth's tidal host, so its one orbit is also the orbit about the star.
+    system = build_system("sol_system", overrides={"worlds": {"earth": {"eccentricity": 0.05}}})
     assert system.get_eccentricity("earth") == 0.05
+    assert system.get_stellar_eccentricity("earth") == 0.05
     assert system.get_eccentricity("jupiter") == 0.0489
 
 
