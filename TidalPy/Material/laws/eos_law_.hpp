@@ -81,6 +81,10 @@ public:
     // with no such limit.
     virtual c_PressureLawRange get_pressure_law_range() const noexcept { return c_PressureLawRange{}; }
 
+    // Whether the density can change with pressure. A law whose density is set by its temperature and radius alone
+    // says no, which lets the structure solve expect its surface pressure to follow the central pressure one for one.
+    virtual bool get_density_depends_on_pressure() const noexcept { return true; }
+
     // The thermal pressure [Pa] the law subtracts from the pressure before it inverts for the density at a temperature
     // [K], so the pressure less this is what get_pressure_law_range bounds. Zero with `thermal` off, at a non-finite
     // temperature, and for a law that scales its density instead.
@@ -192,6 +196,8 @@ public:
 
     c_ConstantEOS() : c_ConstantEOS(c_ParamMap{}) {}
     explicit c_ConstantEOS(const c_ParamMap& params) : c_SpecModel("constant") { this->p_initialize(params); }
+
+    bool get_density_depends_on_pressure() const noexcept override { return false; }
 
 protected:
     void p_calc_law(
@@ -499,6 +505,8 @@ public:
 
     c_InterpolatedEOS() : c_InterpolatedEOS(c_ParamMap{}) {}
     explicit c_InterpolatedEOS(const c_ParamMap& params) : c_SpecModel("interpolate") { this->p_initialize(params); }
+
+    bool get_density_depends_on_pressure() const noexcept override { return false; }
 
 protected:
     void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {

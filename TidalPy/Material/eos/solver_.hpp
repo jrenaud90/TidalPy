@@ -69,6 +69,10 @@ struct c_EOSSolverSettings
     // Radial samples per layer of the reported profile (>= 2), and the length [m] of one solve unit.
     size_t slices_per_layer = 100;
     double length_scale = 1.0;
+    // Every layer's density is set by its radius and temperature alone (c_Material::get_density_depends_on_pressure
+    // false) and the temperatures are fixed, so the surface pressure falls one for one with the central pressure and
+    // the first unit-slope step should land on the root.
+    bool density_independent_of_pressure = false;
 };
 
 
@@ -446,10 +450,11 @@ inline void c_commit_eos_pass(
 /// safeguard), so a mismatch with a near-jump cannot stall the iteration.
 ///
 /// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a
-/// pass, so it is switched on for the first pass of a warm start (which usually converges there) and for
-/// any pass the secant's own error model expects to converge. A pass that converges without it is repeated. The same
-/// passes alone stop at state changes: the zones are reported from the kept pass, and the others only steer the
-/// central pressure.
+/// pass, so it is switched on for the first pass of a warm start (which usually converges there), for
+/// any pass the secant's own error model expects to converge, and, when the densities do not depend on pressure
+/// (settings.density_independent_of_pressure), for the pass after the first unit-slope step, which that makes exact.
+/// A pass that converges without it is repeated. The same passes alone stop at state changes: the zones are reported
+/// from the kept pass, and the others only steer the central pressure.
 ///
 /// The converged pass sets the solution's layer tops, its pieces, and its reported radius grid (slices_per_layer per
 /// layer); a layer the solve did not move keeps the grid the caller's SI geometry gives.
@@ -584,6 +589,7 @@ inline void c_solve_eos(
         }
 
         integrator.integrate(y0, capture_dense, pass);
+        eos_solution_ptr->structure_integrations++;
         if (pass.failed)
         {
             failed = true;
@@ -684,11 +690,13 @@ inline void c_solve_eos(
                 // The secant error model e[k+1] = M e[k] e[k-1], with M measured from the residuals in
                 // hand, says whether the next pass should converge and so whether to capture its dense
                 // output. With one residual there is no model yet, and a wrong guess costs more than a
-                // repeated pass saves, so that pass runs without it.
+                // repeated pass saves, so that pass runs without it, unless densities that do not depend on pressure
+                // make the first step, at unit slope, exact.
                 const double reference_diff = std::isfinite(oldest_diff) ? oldest_diff : previous_diff;
                 const double predicted_diff = std::isfinite(reference_diff)
                     ? pressure_diff * pressure_diff / std::fabs(reference_diff) : TidalPyConstants::d_INF;
-                capture_dense = (predicted_diff <= pressure_tol_abs);
+                capture_dense = (predicted_diff <= pressure_tol_abs)
+                    || (settings.density_independent_of_pressure && !std::isfinite(previous_central));
 
                 oldest_diff      = previous_diff;
                 previous_central = y0[1];

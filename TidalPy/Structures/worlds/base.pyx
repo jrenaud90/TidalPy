@@ -290,6 +290,7 @@ cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_nam
         'success':          bool(report.success),
         'message':          report.message.decode('utf-8'),
         'iterations':       report.iterations,
+        'structure_integrations': report.structure_integrations,
         'max_iters_hit':    bool(report.max_iters_hit),
         'pressure_error':   report.pressure_error,
         'radius':           cy_vec_to_ndarray(report.radius),
@@ -1723,7 +1724,9 @@ cdef class BaseWorld(StructureBase):
         -------
         EOSResult
             A ``dict`` whose ``repr`` is a short summary (:class:`EOSResult`) holding ``success``, ``message``,
-            ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
+            ``iterations`` (central-pressure steps), ``structure_integrations`` (integrations of the whole
+            structure over every thermal pass, the repeats that keep a converged pass's dense output
+            included, the measure of the solve's cost), ``max_iters_hit``, ``pressure_error`` [Pa], the radial
             profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
             ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
             ``central_pressure``, ``planet_mass``, ``planet_moi``), the iteration report (``thermal_passes``,

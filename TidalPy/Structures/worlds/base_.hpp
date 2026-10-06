@@ -373,6 +373,8 @@ struct c_WorldEOSReport {
     bool        success            = false;
     std::string message;
     int         iterations         = 0;
+    // Integrations of the whole structure over every thermal pass, the repeats that keep a converged pass included.
+    int         structure_integrations = 0;
     bool        max_iters_hit      = false;
     double      pressure_error     = TidalPyConstants::d_NAN;  // [Pa]
     double      surface_gravity    = TidalPyConstants::d_NAN;  // [m s-2]
@@ -1186,11 +1188,18 @@ public:
         ode_input.thermal_state = false;
         ode_input.length_scale  = length_scale;
         ode_input.gravity_scale = gravity_scale;
+        // Whether every layer's density is set by its radius and temperature alone, which makes the surface pressure
+        // of a solve at fixed temperatures fall one for one with the central pressure.
+        bool density_independent_of_pressure = true;
         for (std::size_t i = 0; i < n_layers; ++i) {
             solve_state->materials.push_back(this->p_layers[i]->share_material());
             c_MaterialPreevalInput& material_input = solve_state->inputs[i];
             material_input.material_ptr  = solve_state->materials[i].get();
             material_input.switches      = this->p_layers[i]->get_switches();
+            if ((material_input.material_ptr == nullptr)
+                    || material_input.material_ptr->get_density_depends_on_pressure(material_input.switches)) {
+                density_independent_of_pressure = false;
+            }
             material_input.length_scale  = length_scale;
             material_input.pascal_scale  = pascal_scale;
             material_input.density_scale = density_scale;
@@ -1261,6 +1270,7 @@ public:
         const std::size_t last_pass = thermal_contrast ? cfg.max_thermal_passes : 0;
         std::size_t thermal_passes = 0;
         bool thermal_converged     = !thermal_contrast;
+        int structure_integrations = 0;
         // The first layer that holds its mass in the last pass, which moved itself and every layer above it.
         std::size_t first_moved = n_layers;
         try {
@@ -1295,11 +1305,14 @@ public:
                 settings.central_pressure_guess = central_pressure_guess;
                 settings.slices_per_layer       = slices;
                 settings.length_scale           = length_scale;
+                // An integrated temperature profile could carry a pressure dependence into the density.
+                settings.density_independent_of_pressure = density_independent_of_pressure && !integrate_temperature;
 
                 solution = std::make_shared<c_EOSSolution>(n_layers);
                 solution->input_keepalive        = solve_state;
                 solution->liquid_shear_threshold = liquid_shear;
                 c_solve_eos(solution.get(), eos_function_vec, eos_input_vec, layer_bounds, segment_vec, settings);
+                structure_integrations += solution->structure_integrations;
 
                 // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and
                 // every later evaluation of the retained integrators (call_si) converts on the way in and out.
@@ -1390,6 +1403,7 @@ public:
         this->p_eos_success          = solution->success;
         this->p_eos_message          = solution->message;
         this->p_eos_iterations       = solution->iterations;
+        this->p_eos_structure_integrations = structure_integrations;
         this->p_eos_max_iters_hit    = solution->max_iters_hit;
         this->p_eos_pressure_error   = solution->pressure_error;
         this->p_surface_gravity_eos  = solution->surface_gravity;
@@ -1706,6 +1720,7 @@ public:
         report.success            = this->p_eos_success;
         report.message            = this->p_eos_message;
         report.iterations         = this->p_eos_iterations;
+        report.structure_integrations = this->p_eos_structure_integrations;
         report.max_iters_hit      = this->p_eos_max_iters_hit;
         report.pressure_error     = this->p_eos_pressure_error;
         report.surface_gravity    = this->p_surface_gravity_eos;
@@ -3309,6 +3324,7 @@ protected:
     bool        p_eos_solved           = false;
     std::string p_eos_message          = "EOS not yet solved.";
     int         p_eos_iterations       = -1;
+    int         p_eos_structure_integrations = 0;
     bool        p_eos_max_iters_hit    = false;
     double      p_eos_pressure_error   = std::numeric_limits<double>::quiet_NaN();
     double      p_surface_gravity_eos  = std::numeric_limits<double>::quiet_NaN();

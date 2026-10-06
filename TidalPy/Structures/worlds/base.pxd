@@ -123,6 +123,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_bool success
         string message
         int iterations
+        int structure_integrations
         cpp_bool max_iters_hit
         double pressure_error
         double surface_gravity

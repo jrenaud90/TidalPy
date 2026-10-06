@@ -112,6 +112,8 @@ protected:
 
 public:
     int iterations             = -1;
+    // Integrations of the whole structure, the repeat of a pass that converged without its dense output included.
+    int structure_integrations = 0;
     int error_code             = -100;
     int nondim_status          = 0;
     int solution_nondim_status = 0;
