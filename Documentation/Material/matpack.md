@@ -67,7 +67,7 @@ Each material is one phase assemblage at one composition:
 - Materials whose melt composition changes with temperature (`iron_sulfide`, `ammonia_water`) fix the bulk composition, and their melt is one composition.
 - `serpentinite` and `methane_clathrate` decompose rather than melt, so they ship without melting.
 - The two hydrogen-helium materials share one polytrope, so there is no density step between them.
-- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step, and its latent heat does not enter the effective heat capacity: there is no melting range to spread it over. In a layer that can change state, the boundary between its solid and liquid zones carries the latent heat instead (the world's `layer_latent_capacity`).
+- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step, and its latent heat does not enter the effective heat capacity: there is no melting range to spread it over. In a layer that can change state, the boundary between its solid and liquid zones carries the latent heat instead (the world's `calc_layer_latent_capacity`).
 
 ## Python API
 

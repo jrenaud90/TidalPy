@@ -283,13 +283,6 @@ struct c_LayerThermal {
     double conductivity      = TidalPyConstants::d_NAN;   // k     [W m-1 K-1]
     double thermal_expansion = TidalPyConstants::d_NAN;   // alpha [K-1]
     double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1], latent heat included
-
-    // The latent heat the boundaries between the layer's solid and liquid zones absorb per kelvin of the layer's
-    // temperature [J K-1], where its material melts at one temperature (c_zone_boundary_latent_capacity).
-    double latent_capacity = 0.0;
-    // The heat the layer's profile stores per kelvin of the layer's temperature [J K-1], latent heat of a melting range
-    // included (c_layer_thermal_capacity); NaN before a solve.
-    double thermal_capacity = TidalPyConstants::d_NAN;
 };
 
 // True when no heat crosses a layer's base: the innermost layer (the center carries no flow) or one above a layer

@@ -96,8 +96,6 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         double heating
         # One entry per heat source, in c_HeatSourceKind order (radiogenic, tidal, prescribed).
         double heating_by_source[3]
-        double latent_capacity
-        double thermal_capacity
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
@@ -143,7 +141,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         vector[double] temperature
         vector[double] heat_flow
         vector[c_LayerThermal] layer_thermal
-        vector[double] layer_temperature_rate
         vector[double] layer_radius_outer
         vector[c_EOSZone] zones
 
@@ -264,7 +261,9 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double get_heat_flow(double radius)
         size_t get_thermal_passes()
         cpp_bool get_thermal_converged()
-        double calc_layer_temperature_rate(size_t layer_index)
+        double calc_layer_temperature_rate(size_t layer_index) except +
+        double calc_layer_thermal_capacity(size_t layer_index) except +
+        double calc_layer_latent_capacity(size_t layer_index) except +
         const vector[c_LayerThermal]& get_layer_thermal()
         double get_density(double radius) const
         double get_gravity(double radius) const

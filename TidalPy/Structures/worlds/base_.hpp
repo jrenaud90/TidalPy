@@ -395,7 +395,6 @@ struct c_WorldEOSReport {
 
     // One entry per layer.
     std::vector<c_LayerThermal> layer_thermal;
-    std::vector<double>         layer_temperature_rate;  // [K s-1]
     std::vector<double>         layer_radius_outer;      // [m]
 
     // The solid and liquid zones the solve found (c_BaseWorld::get_zones).
@@ -901,20 +900,22 @@ public:
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   (C + C_latent) dT/dt = L_in - L_out + H,
     // with L_in and L_out the heat flows of the last solve, H every heat source of a layer with use_heating, C the heat
-    // its profile stores per kelvin of its temperature (the integral of rho c_p over the layer, weighted by how far
-    // each point moves with the layer's temperature; c_LayerThermal::thermal_capacity), and C_latent the latent heat
+    // its profile stores per kelvin of its temperature (calc_layer_thermal_capacity), and C_latent the latent heat
     // the boundaries between its solid and liquid zones absorb per kelvin where its material melts at one temperature
-    // (a Stefan condition; c_LayerThermal::latent_capacity). The radiogenic and prescribed heat are the last solve's;
+    // (a Stefan condition; calc_layer_latent_capacity). The radiogenic and prescribed heat are the last solve's;
     // the tidal heat is the latest calc_tides (the tidal heat source), so a step of an evolution is solve_eos,
     // calc_tides, then this rate, with no second solve. NaN for a layer with no heat capacity (one without a
     // material). Read under the call lock, since solve_eos replaces the thermal state.
-    double calc_layer_temperature_rate(std::size_t layer_index) const noexcept {
+    double calc_layer_temperature_rate(std::size_t layer_index) const {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
         const c_LayerThermal& thermal = this->p_layer_thermal[layer_index];
         const c_Layer* layer = this->p_layers[layer_index].get();
         const double mass = layer->get_mass();
-        if (!(thermal.thermal_capacity > TidalPyConstants::d_EPS)) { return TidalPyConstants::d_NAN; }
+        this->p_ensure_capacities();
+        const double thermal_capacity = this->p_layer_thermal_capacity[layer_index];
+        const double latent_capacity  = this->p_layer_latent_capacity[layer_index];
+        if (!(thermal_capacity > TidalPyConstants::d_EPS)) { return TidalPyConstants::d_NAN; }
         double heating = 0.0;
         if (this->p_solve_state) {
             const c_Heating& sources = this->p_solve_state->heating;
@@ -925,8 +926,29 @@ public:
         if (layer->get_use_heating() && (layer_index < tidal_power.size()) && std::isfinite(tidal_power[layer_index])) {
             heating += tidal_power[layer_index];
         }
-        return (thermal.heat_flow_in - thermal.heat_flow_out + heating)
-            / (thermal.thermal_capacity + thermal.latent_capacity);
+        return (thermal.heat_flow_in - thermal.heat_flow_out + heating) / (thermal_capacity + latent_capacity);
+    }
+
+    // The heat a layer's profile stores per kelvin of its temperature [J K-1] (c_layer_thermal_capacity): the integral
+    // of rho c_p over the layer, weighted by how far each point moves with the layer's temperature, with the latent heat
+    // of a melting range included. Computed from the last solve on the first call after it, then cached. NaN before a
+    // successful solve or for a layer index past the last layer.
+    double calc_layer_thermal_capacity(std::size_t layer_index) const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
+        this->p_ensure_capacities();
+        return this->p_layer_thermal_capacity[layer_index];
+    }
+
+    // The latent heat [J K-1] the boundaries between a layer's solid and liquid zones absorb per kelvin of its
+    // temperature, where its material melts at one temperature (c_zone_boundary_latent_capacity); zero for a layer
+    // without such a boundary. Computed and cached as calc_layer_thermal_capacity is. NaN before a successful solve or
+    // for a layer index past the last layer.
+    double calc_layer_latent_capacity(std::size_t layer_index) const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
+        this->p_ensure_capacities();
+        return this->p_layer_latent_capacity[layer_index];
     }
 
     // Heat sources (heating_.hpp). Every source acts in the layers with use_heating, through a solve that carries
@@ -1463,8 +1485,9 @@ public:
 
         this->p_eos_solution = std::move(solution);
         this->p_update_zones();
-        this->p_update_latent_capacity();
-        this->p_update_thermal_capacity();
+        // The heat capacities wait for their first reader (p_ensure_capacities): their quadratures cost more than an
+        // isothermal solve, and only a temperature rate or a capacity getter needs them.
+        this->p_capacities_current = false;
     }
 
     // The solid and liquid zones of the last successful EOS solve, inner to outer: each layer is one zone unless its
@@ -1548,6 +1571,7 @@ public:
             layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
         }
         this->p_zones.clear();
+        this->p_capacities_current = false;
     }
 
     // A layer this world owns changed something its EOS solve reads: its radii (moved through a view), its material
@@ -1713,10 +1737,8 @@ public:
         const std::size_t num_layers = std::min(this->p_layers.size(), this->p_layer_thermal.size());
         report.layer_thermal.assign(this->p_layer_thermal.begin(),
                                     this->p_layer_thermal.begin() + static_cast<std::ptrdiff_t>(num_layers));
-        report.layer_temperature_rate.reserve(num_layers);
         report.layer_radius_outer.reserve(num_layers);
         for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
-            report.layer_temperature_rate.push_back(this->calc_layer_temperature_rate(layer_i));
             report.layer_radius_outer.push_back(this->p_layers[layer_i]->get_radius_outer());
         }
         return report;
@@ -3037,12 +3059,22 @@ protected:
         }
     }
 
-    // The latent heat each layer's zone boundaries absorb per kelvin of its temperature (c_LayerThermal::
-    // latent_capacity, c_zone_boundary_latent_capacity), from the zones and thermal state of the last solve. The
-    // central difference across a boundary spans C_LATENT_DIFFERENCE_FRACTION of the world's radius, or a quarter of
-    // the thinner zone beside it, so both of its points lie inside the two zones.
-    void p_update_latent_capacity() {
-        for (c_LayerThermal& thermal : this->p_layer_thermal) { thermal.latent_capacity = 0.0; }
+    // Fills the per-layer heat capacities of the last solve (calc_layer_thermal_capacity, calc_layer_latent_capacity)
+    // on the first read after it. Every change to the solved state (mark_structure_dirty, a new solve) marks them stale.
+    // The caller holds the call lock, so the cache is filled once even when several threads read it.
+    void p_ensure_capacities() const {
+        if (this->p_capacities_current) { return; }
+        this->p_update_latent_capacity();
+        this->p_update_thermal_capacity();
+        this->p_capacities_current = true;
+    }
+
+    // The latent heat each layer's zone boundaries absorb per kelvin of its temperature (c_zone_boundary_latent_
+    // capacity), from the zones and thermal state of the last solve. The central difference across a boundary spans
+    // C_LATENT_DIFFERENCE_FRACTION of the world's radius, or a quarter of the thinner zone beside it, so both of its
+    // points lie inside the two zones.
+    void p_update_latent_capacity() const {
+        this->p_layer_latent_capacity.assign(this->p_layer_thermal.size(), 0.0);
         const c_EOSSolution* solution = this->p_eos_solution.get();
         if ((solution == nullptr) || !this->p_solve_state) { return; }
         for (std::size_t zone_i = 1; zone_i < this->p_zones.size(); ++zone_i) {
@@ -3060,7 +3092,7 @@ protected:
                 C_LATENT_DIFFERENCE_FRACTION * this->p_radius,
                 0.25 * std::min(below.radius_outer - below.radius_inner, above.radius_outer - above.radius_inner));
             boundary.solid_below = !below.liquid;
-            this->p_layer_thermal[layer_i].latent_capacity += c_zone_boundary_latent_capacity(
+            this->p_layer_latent_capacity[layer_i] += c_zone_boundary_latent_capacity(
                 *solution,
                 *this->p_solve_state->materials[layer_i],
                 this->p_solve_state->inputs[layer_i].switches,
@@ -3069,13 +3101,14 @@ protected:
         }
     }
 
-    // The heat each layer's profile stores per kelvin of its temperature (c_LayerThermal::thermal_capacity,
-    // c_layer_thermal_capacity), from the profile of the last solve.
-    void p_update_thermal_capacity() {
+    // The heat each layer's profile stores per kelvin of its temperature (c_layer_thermal_capacity), from the profile
+    // of the last solve.
+    void p_update_thermal_capacity() const {
+        this->p_layer_thermal_capacity.assign(this->p_layer_thermal.size(), TidalPyConstants::d_NAN);
         const c_EOSSolution* solution = this->p_eos_solution.get();
         const std::size_t num_layers = std::min(this->p_layers.size(), this->p_layer_thermal.size());
         for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
-            this->p_layer_thermal[layer_i].thermal_capacity = (solution == nullptr) ? TidalPyConstants::d_NAN
+            this->p_layer_thermal_capacity[layer_i] = (solution == nullptr) ? TidalPyConstants::d_NAN
                 : c_layer_thermal_capacity(*solution, *this->p_layers[layer_i], this->p_layer_thermal, layer_i);
         }
     }
@@ -3291,6 +3324,11 @@ protected:
     std::shared_ptr<c_EOSSolveState> p_solve_state;
     // Thermal description of every layer from the last successful solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
+    // Each layer's heat capacities from the last successful solve [J K-1], filled on first read (p_ensure_capacities)
+    // under the call lock; p_capacities_current is false until then and after anything replaces the solved state.
+    mutable std::vector<double> p_layer_thermal_capacity;
+    mutable std::vector<double> p_layer_latent_capacity;
+    mutable bool                p_capacities_current = false;
     // The mass each layer holding its mass holds on to [kg]; NaN for a layer that holds its volume instead.
     std::vector<double> p_reference_mass;
     size_t p_thermal_passes    = 0;

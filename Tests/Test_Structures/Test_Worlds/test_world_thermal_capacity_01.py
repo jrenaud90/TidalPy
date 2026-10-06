@@ -1,5 +1,5 @@
-"""The heat a layer's profile stores per kelvin of its temperature (layer_thermal_capacity), and the temperature rate
-it divides.
+"""The heat a layer's profile stores per kelvin of its temperature (calc_layer_thermal_capacity), and the temperature
+rate it divides.
 
 The capacity is the integral of rho c_p S over the layer: S is one through an isothermal layer, T(r) / T along a
 convecting interior, and the share a conducting stretch moves with the layer's temperature. Inside a melting range c_p
@@ -72,14 +72,37 @@ def test_an_isothermal_layer_stores_its_mass_times_its_heat_capacity():
     result = world.solve_eos()
     assert result["success"], result["message"]
     heat_capacity = world.core.calc_state(0.0, 1200.0)["heat_capacity"]
-    assert result["layer_thermal_capacity"][0] == pytest.approx(world.core.mass * heat_capacity, rel=1e-9)
+    assert world.calc_layer_thermal_capacity(0) == pytest.approx(world.core.mass * heat_capacity, rel=1e-9)
+
+
+def test_the_capacities_follow_the_last_solve():
+    """The capacities are computed on the first request after a solve and kept until the solved state changes: NaN
+    before a solve and after a layer change forgets it, and a new solve gives the new layer's values."""
+    core = Layer("core", 0, 0.0, 1.0e6, material="simple_rock", temperature=1200.0)
+    world = BaseWorld("rock", 1.0e6, 4.0 / 3.0 * math.pi * 3300.0 * 1.0e18)
+    world.add_layer(core)
+    for method in (world.calc_layer_thermal_capacity, world.calc_layer_latent_capacity,
+                   world.calc_layer_temperature_rate):
+        assert math.isnan(method(0))
+
+    assert world.solve_eos()["success"]
+    first = world.calc_layer_thermal_capacity("core")
+    assert world.calc_layer_thermal_capacity(0) == first
+    assert world.calc_layer_latent_capacity(0) == 0.0
+
+    world.core.material = "simple_ice"
+    assert math.isnan(world.calc_layer_thermal_capacity(0))
+    assert world.solve_eos()["success"]
+    heat_capacity = world.core.calc_state(0.0, 1200.0)["heat_capacity"]
+    assert world.calc_layer_thermal_capacity(0) == pytest.approx(world.core.mass * heat_capacity, rel=1e-9)
+    assert world.calc_layer_thermal_capacity(0) != pytest.approx(first, rel=1e-3)
 
 
 def test_a_convecting_mantle_weights_its_adiabat():
     """Along a convecting interior the profile scales with the temperature at its top, so the capacity there is the
     integral of rho c_p T(r) / T; it exceeds M c_p by the adiabat's warming (Stevenson et al. 1983)."""
     world, result, mantle_i = _thermal_earth()
-    capacity = result["layer_thermal_capacity"][mantle_i]
+    capacity = world.calc_layer_thermal_capacity(mantle_i)
     assert capacity == pytest.approx(_mantle_capacity(world, result, mantle_i), rel=1e-5)
     sensible = world.mantle.mass * world.mantle.calc_state(0.0, world.mantle.temperature)["heat_capacity"]
     assert capacity > 1.2 * sensible
@@ -89,7 +112,7 @@ def test_the_latent_heat_counts_only_where_the_profile_melts():
     """With the mantle partially molten through much of its interior, the capacity integrates the effective heat
     capacity (latent heat included) over the solved profile, well above its sensible part."""
     world, result, mantle_i = _thermal_earth(_HOT_MANTLE_TEMPERATURE)
-    capacity = result["layer_thermal_capacity"][mantle_i]
+    capacity = world.calc_layer_thermal_capacity(mantle_i)
     assert capacity == pytest.approx(_mantle_capacity(world, result, mantle_i), rel=1e-5)
     assert capacity > 1.1 * _mantle_capacity(world, result, mantle_i, sensible_only=True)
 
@@ -99,5 +122,5 @@ def test_the_temperature_rate_divides_the_heat_budget_by_the_capacity():
     for layer_i in range(len(world)):
         budget = (result["layer_heat_flow_in"][layer_i] - result["layer_heat_flow_out"][layer_i]
                   + result["layer_heating"][layer_i])
-        capacity = result["layer_thermal_capacity"][layer_i] + result["layer_latent_capacity"][layer_i]
-        assert result["layer_temperature_rate"][layer_i] == pytest.approx(budget / capacity, rel=1e-12, abs=1e-30)
+        capacity = world.calc_layer_thermal_capacity(layer_i) + world.calc_layer_latent_capacity(layer_i)
+        assert world.calc_layer_temperature_rate(layer_i) == pytest.approx(budget / capacity, rel=1e-12, abs=1e-30)

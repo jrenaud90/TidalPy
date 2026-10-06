@@ -125,7 +125,7 @@ def test_an_isothermal_surface_layer_passes_its_heat_out_of_the_world():
     assert world.get_temperature(_RADIUS) == 1000.0
     # Nothing holds a contrast across the surface, so the mantle stores nothing.
     stored_scale = result["layer_heating"][1] / (_HEAT_CAPACITY * world.mantle.mass)
-    assert abs(result["layer_temperature_rate"][1]) < 1.0e-9 * stored_scale
+    assert abs(world.calc_layer_temperature_rate(1)) < 1.0e-9 * stored_scale
 
 
 def test_stacked_isothermal_layers_pass_their_heat_outward():

@@ -260,8 +260,6 @@ cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_nam
     cdef list layer_ref_viscosity      = []
     cdef list layer_ref_melt_fraction  = []
     cdef list layer_in_thermal_network = []
-    cdef list layer_latent_capacity    = []
-    cdef list layer_thermal_capacity = []
     cdef list layer_heating_radiogenic = []
     cdef list layer_heating_tidal = []
     cdef list layer_heating_prescribed = []
@@ -282,8 +280,6 @@ cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_nam
         layer_ref_viscosity.append(report.layer_thermal[j].reference_viscosity)
         layer_ref_melt_fraction.append(report.layer_thermal[j].reference_melt_fraction)
         layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
-        layer_latent_capacity.append(report.layer_thermal[j].latent_capacity)
-        layer_thermal_capacity.append(report.layer_thermal[j].thermal_capacity)
         layer_heating_radiogenic.append(
             report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Radiogenic])
         layer_heating_tidal.append(report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Tidal])
@@ -320,7 +316,6 @@ cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_nam
         'layer_heating_radiogenic': layer_heating_radiogenic,
         'layer_heating_tidal':      layer_heating_tidal,
         'layer_heating_prescribed': layer_heating_prescribed,
-        'layer_temperature_rate': list(report.layer_temperature_rate),
         'layer_node_temperature':   layer_node_temperature,
         'layer_top_temperature':    layer_top_temperature,
         'layer_base_temperature':   layer_base_temperature,
@@ -333,8 +328,6 @@ cdef object cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_nam
         'layer_reference_viscosity':     layer_ref_viscosity,
         'layer_reference_melt_fraction': layer_ref_melt_fraction,
         'layer_in_thermal_network': layer_in_thermal_network,
-        'layer_latent_capacity':    layer_latent_capacity,
-        'layer_thermal_capacity': layer_thermal_capacity,
     })
 
 
@@ -1739,19 +1732,18 @@ cdef class BaseWorld(StructureBase):
             [m], ``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
             ``layer_heating`` [W] (every heat source of the layers with ``use_heating``, with each source's part in
             ``layer_heating_radiogenic``, ``layer_heating_tidal``, and ``layer_heating_prescribed``; zero in a solve
-            that carries no temperature), ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
+            that carries no temperature), ``layer_node_temperature``,
             ``layer_top_temperature``, and ``layer_base_temperature`` [K] (the two ends of a convecting interior,
             whose top is the layer's own temperature), ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
             ``layer_nusselt_number``, where a convecting layer evaluated its viscosity (``layer_reference_pressure``
             [Pa], ``layer_reference_viscosity`` [Pa s], and ``layer_reference_melt_fraction``, at the top of its
             interior and its own temperature; NaN for the other layers), ``layer_magma_ocean`` (a convecting
             interior liquid there, which takes the liquid scaling), ``layer_boundary_fallback`` (a convecting layer
-            whose cooling model gave no boundary-layer thickness, so each took the largest share it may),
-            ``layer_in_thermal_network``, ``layer_thermal_capacity`` [J K-1] (the heat a layer's profile stores per
-            kelvin of its temperature: rho c_p over the layer, weighted by how far each point moves with the layer's
-            temperature, with the latent heat of a melting range), and ``layer_latent_capacity`` [J K-1] (the latent
-            heat the boundaries between a layer's solid and liquid zones absorb per kelvin of its temperature, where
-            its material melts at one temperature); the two divide the heat budget in ``layer_temperature_rate``).
+            whose cooling model gave no boundary-layer thickness, so each took the largest share it may), and
+            ``layer_in_thermal_network``). A layer's temperature rate and heat capacities are not part of the result:
+            :meth:`calc_layer_temperature_rate`, :meth:`calc_layer_thermal_capacity`, and
+            :meth:`calc_layer_latent_capacity` compute them from this solve when asked, since their quadratures cost
+            more than an isothermal solve.
 
         Raises
         ------
@@ -2783,10 +2775,11 @@ cdef class BaseWorld(StructureBase):
     def calc_layer_temperature_rate(self, layer) -> float:
         """Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it.
 
-        (M c_p + C_latent) dT/dt = L_in - L_out + H, with the heat flows of the last :meth:`solve_eos`, H every heat
+        (C + C_latent) dT/dt = L_in - L_out + H, with the heat flows of the last :meth:`solve_eos`, H every heat
         source of a layer with ``use_heating`` (the last solve's radiogenic and prescribed heat, and the tidal heat
-        of the latest ``calc_tides``; see :attr:`tidal_heat_source`), and C_latent the latent heat its zone
-        boundaries absorb per kelvin. A step of an evolution is ``solve_eos``, ``calc_tides``, then this rate.
+        of the latest ``calc_tides``; see :attr:`tidal_heat_source`), C the heat its profile stores per kelvin
+        (:meth:`calc_layer_thermal_capacity`), and C_latent the latent heat its zone boundaries absorb per kelvin
+        (:meth:`calc_layer_latent_capacity`). A step of an evolution is ``solve_eos``, ``calc_tides``, then this rate.
 
         Parameters
         ----------
@@ -2800,6 +2793,58 @@ cdef class BaseWorld(StructureBase):
         """
         cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
         return self._world_ptr.get().calc_layer_temperature_rate(layer_index)
+
+    def calc_layer_thermal_capacity(self, layer) -> float:
+        """The heat a layer's profile stores per kelvin of its temperature [J K-1], from the last :meth:`solve_eos`.
+
+        C = integral of rho c_p S 4 pi r^2 dr over the layer, with rho the solved density, c_p the material's effective
+        heat capacity at the solved pressure and temperature (the latent heat of a melting range included), and S how
+        far each point moves with the layer's temperature: one through an isothermal layer, T(r) / T along an
+        adiabatic interior, and the share of a conducting stretch the layer's temperature moves. Computed on the first
+        call after a solve (an adaptive quadrature over the solved profile) and cached until the next.
+
+        Parameters
+        ----------
+        layer : str or int
+            The layer's name or index.
+
+        Returns
+        -------
+        float
+            The capacity [J K-1]; NaN before a successful solve, zero for a layer without a material.
+
+        Assumptions
+        -----------
+        - The neighbors' interface temperatures hold while the layer's own temperature changes, and a change of the
+          layer's temperature moves its profile without moving its boundary layers.
+        """
+        cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
+        return self._world_ptr.get().calc_layer_thermal_capacity(layer_index)
+
+    def calc_layer_latent_capacity(self, layer) -> float:
+        """The latent heat [J K-1] the boundaries between a layer's solid and liquid zones absorb per kelvin of its
+        temperature, from the last :meth:`solve_eos` (a Stefan condition).
+
+        Only a material that melts at one temperature has such a boundary; one that melts over a range carries its
+        latent heat in :meth:`calc_layer_thermal_capacity` instead. Computed and cached as that method is.
+
+        Parameters
+        ----------
+        layer : str or int
+            The layer's name or index.
+
+        Returns
+        -------
+        float
+            The capacity [J K-1]; zero for a layer without such a boundary, NaN before a successful solve.
+
+        Assumptions
+        -----------
+        - The neighbors' interface temperatures hold while the layer's own temperature changes, and the melt that
+          forms takes the solid's density at the boundary.
+        """
+        cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
+        return self._world_ptr.get().calc_layer_latent_capacity(layer_index)
 
     def get_heating(self, radius):
         """Volumetric heating the last solve's heat sources give at a radius, every source summed (radiogenic,

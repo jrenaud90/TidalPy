@@ -273,8 +273,8 @@ def test_layer_temperature_rate_is_the_heat_imbalance():
     mantle_mass = world.mantle.mass
     expected = ((result["layer_heat_flow_in"][1] - result["layer_heat_flow_out"][1])
                 / (mantle_mass * _HEAT_CAPACITY))
-    assert result["layer_temperature_rate"][1] == pytest.approx(expected, rel=1e-12)
-    assert result["layer_temperature_rate"][1] < 0.0
+    assert world.calc_layer_temperature_rate(1) == pytest.approx(expected, rel=1e-12)
+    assert world.calc_layer_temperature_rate(1) < 0.0
 
 
 def test_viscosity_follows_the_solved_profile():

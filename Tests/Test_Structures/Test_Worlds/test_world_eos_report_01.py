@@ -43,7 +43,8 @@ def _check(result, slices):
     assert math.isclose(result["mass"][-1], result["planet_mass"], rel_tol=1.0e-8)
     assert result["layer_radius_outer"] == [_R_CORE, _R]
     assert len(result["layer_temperature"]) == 2
-    assert len(result["layer_temperature_rate"]) == 2
+    # The temperature rate and the heat capacities are world methods computed on request, not solve results.
+    assert "layer_temperature_rate" not in result
     assert n == 2 * slices
 
 

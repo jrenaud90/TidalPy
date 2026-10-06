@@ -165,10 +165,10 @@ def test_layer_temperature_rate_counts_the_heating(conducting_shell):
     volume = 4.0 / 3.0 * math.pi * radius_mid**3 \
         + 4.0 * math.pi * (upper(_RADIUS) - upper(radius_mid)) / (1.0 / radius_mid - 1.0 / _RADIUS)
     capacity = _DENSITY * _HEAT_CAPACITY * volume
-    assert result["layer_thermal_capacity"][0] == pytest.approx(capacity, rel=1.0e-9)
+    assert world.calc_layer_thermal_capacity(0) == pytest.approx(capacity, rel=1.0e-9)
     expected = (result["layer_heat_flow_in"][0] - result["layer_heat_flow_out"][0] + result["layer_heating"][0]) \
         / capacity
-    assert result["layer_temperature_rate"][0] == pytest.approx(expected, rel=1.0e-9)
+    assert world.calc_layer_temperature_rate(0) == pytest.approx(expected, rel=1.0e-9)
     assert result["layer_heating"][0] > 0.0
 
 

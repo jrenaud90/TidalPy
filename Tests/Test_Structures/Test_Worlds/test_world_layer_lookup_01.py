@@ -77,7 +77,8 @@ def test_get_layer_and_indexing_take_an_index_or_a_name(key, name):
 
 
 @pytest.mark.parametrize("method", ["get_layer", "get_layer_tidal_heating", "get_layer_tidal_scale",
-                                    "calc_layer_temperature_rate"])
+                                    "calc_layer_temperature_rate", "calc_layer_thermal_capacity",
+                                    "calc_layer_latent_capacity"])
 def test_lookup_errors_are_consistent(method):
     world = three_layer_world()
     with pytest.raises(IndexError, match="out of range"):

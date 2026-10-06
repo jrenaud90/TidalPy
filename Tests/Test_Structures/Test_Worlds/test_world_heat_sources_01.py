@@ -90,9 +90,9 @@ def test_a_prescribed_power_is_what_the_layer_receives():
     result = _thermal_solve(world)
     assert result["layer_heating_prescribed"] == pytest.approx([0.0, power], rel=1.0e-8)
     mantle_mass = world.mantle.mass
-    rate = result["layer_temperature_rate"][1]
+    rate = world.calc_layer_temperature_rate(1)
     expected = ((result["layer_heat_flow_in"][1] - result["layer_heat_flow_out"][1] + result["layer_heating"][1])
-                / (mantle_mass * _HEAT_CAPACITY + result["layer_latent_capacity"][1]))
+                / (mantle_mass * _HEAT_CAPACITY + world.calc_layer_latent_capacity(1)))
     assert rate == pytest.approx(expected, rel=1.0e-12)
 
 
@@ -180,9 +180,9 @@ def test_the_temperature_rate_takes_the_latest_tides():
     mantle_heating = world.get_layer_tidal_heating(1)
     assert result["layer_heating_tidal"] == [0.0, 0.0]
     expected = ((result["layer_heat_flow_in"][1] - result["layer_heat_flow_out"][1] + mantle_heating)
-                / (world.mantle.mass * _HEAT_CAPACITY + result["layer_latent_capacity"][1]))
+                / (world.mantle.mass * _HEAT_CAPACITY + world.calc_layer_latent_capacity(1)))
     assert world.calc_layer_temperature_rate("mantle") == pytest.approx(expected, rel=1.0e-12)
-    assert result["layer_temperature_rate"][1] == pytest.approx(expected, rel=1.0e-12)
+    assert world.calc_layer_temperature_rate(1) == pytest.approx(expected, rel=1.0e-12)
 
 
 def test_a_failed_calc_tides_forgets_the_tidal_heat_source():

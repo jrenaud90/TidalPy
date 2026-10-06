@@ -47,7 +47,7 @@ def test_the_repr_is_a_short_summary(result):
     assert f"planet_mass = {result['planet_mass']:.6g} kg" in text
     assert f"radius = {result['radius'][-1]:.6g} m" in text
     assert f"central_pressure = {result['central_pressure']:.6g} Pa" in text
-    assert "layer_thermal_capacity" in text
+    assert "layer_in_thermal_network" in text
     # A few lines, not the profile arrays.
     assert len(text.splitlines()) < 15
     assert "array(" not in text

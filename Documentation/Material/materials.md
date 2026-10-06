@@ -1,6 +1,6 @@
 # Phases and Materials (`Material`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 A `Phase` is one phase of a material, a solid or its melt: an [equation-of-state law](material_eos.md), an optional shear-modulus law, optional shear and bulk [viscosity laws](../Viscosity/viscosity_models.md), optional default [rheologies](../Rheology/rheology_models.md), and its thermal conductivity and heat capacity. A `Material` is a solid phase, a liquid phase, or both. With both it melts between a solidus and a liquidus, through a melt-weakening law and optional bulk-mixing laws ([`PartialMelt`](../PartialMelt/partial_melt_models.md)), and with one it is that phase everywhere. `Material.calc_state(pressure, temperature, radius)` maps a point onto every property of the material, as a layer with a given set of physics switches sees it.
 
@@ -111,7 +111,7 @@ $$\alpha_L = \frac{\rho L \left[ (1 - \phi) \, dT_\mathrm{sol}/dP + \phi \, dT_\
 
 This is the reported `latent_expansion`. Adiabats (in the thermal integration and in a convecting layer's profile) run at $dT/dr = -(\alpha + \alpha_L) g T / c_p$. Without it, an adiabat inside the range would be shallower than the melting curve it nears while one outside is steeper, and the two would meet on the curve. $\alpha_L$ is zero outside the range and when `use_pressure_melting` is off.
 
-A material that melts as a step has no range to spread its latent heat over. The boundary between a layer's solid and liquid zones carries it instead (a Stefan condition): the world's thermal network adds the latent heat that boundary absorbs per kelvin of the layer's temperature to the layer's heat capacity, and the solve reports it as `layer_latent_capacity` (see [Worlds](../Structures/worlds/worlds.md)).
+A material that melts as a step has no range to spread its latent heat over. The boundary between a layer's solid and liquid zones carries it instead (a Stefan condition): the world's thermal network adds the latent heat that boundary absorbs per kelvin of the layer's temperature to the layer's heat capacity, and the world reports it through `calc_layer_latent_capacity` (see [Worlds](../Structures/worlds/worlds.md)).
 
 ## Physics Switches
 

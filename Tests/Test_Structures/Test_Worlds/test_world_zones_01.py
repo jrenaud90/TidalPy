@@ -115,7 +115,7 @@ def test_the_latent_heat_of_the_moving_boundary():
     core_top = result["zones"][0]["radius_outer"]
     boundary_gravity = (4.0 / 3.0) * math.pi * G * _DENSITY * core_top
     expected = _LATENT_HEAT * 4.0 * math.pi * core_top**2 * _MELT_A / (_MELT_T0 * boundary_gravity)
-    assert result["layer_latent_capacity"][0] == pytest.approx(expected, rel=1.0e-5)
+    assert world.calc_layer_latent_capacity(0) == pytest.approx(expected, rel=1.0e-5)
 
     delta = 0.5
     liquid_mass = []
@@ -123,7 +123,7 @@ def test_the_latent_heat_of_the_moving_boundary():
         zones = _uniform_planet(shifted)[1]["zones"]
         liquid_mass.append(zones[1]["mass_outer"] - zones[1]["mass_inner"])
     finite_difference = _LATENT_HEAT * (liquid_mass[1] - liquid_mass[0]) / (2.0 * delta)
-    assert result["layer_latent_capacity"][0] == pytest.approx(finite_difference, rel=1.0e-5)
+    assert world.calc_layer_latent_capacity(0) == pytest.approx(finite_difference, rel=1.0e-5)
 
 
 @pytest.mark.parametrize("is_static", [True, False])
@@ -163,7 +163,7 @@ def test_a_layer_that_cannot_change_state_is_one_zone():
     world.add_layer(layer)
     result = world.solve_eos(G_to_use=G)
     assert [zone["state"] for zone in result["zones"]] == ["solid"]
-    assert result["layer_latent_capacity"] == [0.0]
+    assert world.calc_layer_latent_capacity(0) == 0.0
     # A layer forced liquid after the solve is one liquid zone to the Love solve, without a new EOS solve.
     world.body.state = "liquid"
     assert world.molten_regions == []

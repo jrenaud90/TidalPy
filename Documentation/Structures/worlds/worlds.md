@@ -1,6 +1,6 @@
 # Worlds (`Structures.worlds`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, bulk geometry, spin model, and tide model, and an ordered stack of [layers](../layers/layer.md), which may be empty. It runs the whole-planet equation-of-state (EOS), thermal, radial (Love number), and tidal solves, and holds the heat sources that act inside its layers.
 
@@ -112,7 +112,7 @@ Python reaches a world's layers through non-owning views:
 | `world.<layer_name>` | the layer with that name (e.g. `world.mantle`) |
 | `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count (a world is always true, even with no layers) |
 
-Every world method that takes a layer (`get_layer`, `world[...]`, `get_layer_tidal_heating`, `get_layer_tidal_scale`, `set_prescribed_heating`, `calc_layer_temperature_rate`) takes its index or its name the same way: an index out of range raises `IndexError`, a name the world does not have raises `KeyError` listing the layer names (with the closest one), and anything else raises `TypeError`.
+Every world method that takes a layer (`get_layer`, `world[...]`, `get_layer_tidal_heating`, `get_layer_tidal_scale`, `set_prescribed_heating`, `calc_layer_temperature_rate`, `calc_layer_thermal_capacity`, `calc_layer_latent_capacity`) takes its index or its name the same way: an index out of range raises `IndexError`, a name the world does not have raises `KeyError` listing the layer names (with the closest one), and anything else raises `TypeError`.
 
 Each view is a `Layer` with the layer's full API (`world.mantle.temperature = 1700.0`, `world.mantle.get_tidal_heating()`, `world.core.calc_complex_shear_modulus(r, ω)`). A setting changed through a view reaches the world, which forgets its solved structure when the solve reads that setting (see [Changes That Clear a Solve](../layers/layer.md#changes-that-clear-a-solve)). The view keeps the world alive, so it is safe to hold. Views are built once and cached (rebuilt only when a layer is added), so repeated access returns the same object (`world.mantle is world.mantle`). Access by layer name runs only after normal attribute lookup, so defined members win, and it ignores names starting with `_`.
 
@@ -165,9 +165,10 @@ The result is an `EOSResult` (`TidalPy.Structures.worlds.EOSResult`), a `dict` s
   - `layer_radius_outer` \[m\]: where each layer ended (it moves for a layer that holds its mass).
   - `layer_temperature`, `layer_node_temperature` (at the interface above the layer), `layer_top_temperature` and `layer_base_temperature` (the two ends of a convecting interior, whose top is the layer's own temperature) \[K\].
   - `layer_heat_flow_in`, `layer_heat_flow_out`, and `layer_heating` \[W\], with each heat source's part of the heating in `layer_heating_radiogenic`, `layer_heating_tidal`, and `layer_heating_prescribed`.
-  - `layer_temperature_rate` \[K s$^{-1}$\] and `layer_latent_capacity` \[J K$^{-1}$\].
   - `layer_boundary_thickness` \[m\], `layer_rayleigh_number`, `layer_nusselt_number`, `layer_boundary_fallback`, `layer_magma_ocean`, `layer_reference_pressure` \[Pa\], `layer_reference_viscosity` \[Pa s\], and `layer_reference_melt_fraction`: the cooling model's profile (see [Temperature and Heat Flow](#temperature-and-heat-flow)).
   - `layer_in_thermal_network`: whether the layer has a temperature of its own.
+
+A layer's temperature rate and heat capacities are world methods rather than result entries: `calc_layer_temperature_rate`, `calc_layer_thermal_capacity`, and `calc_layer_latent_capacity` compute them from the last solve on the first call after it, since their quadratures cost more than an isothermal solve (see [Temperature and Heat Flow](#temperature-and-heat-flow)).
 
 ### Pieces and Zones
 
@@ -262,11 +263,11 @@ The layers form a chain of thermal resistances. A conducting spherical shell bet
 
 $$R = \frac{1}{4 \pi k} \left( \frac{1}{r_a} - \frac{1}{r_b} \right)$$
 
-and the heat flow through an interface is $L = \Delta T / R$ across the two resistances facing it. Both layer temperatures are inputs, so the flow entering a layer generally differs from the flow leaving it. The difference is the heat the layer stores or releases, reported by `layer_temperature_rate`:
+and the heat flow through an interface is $L = \Delta T / R$ across the two resistances facing it. Both layer temperatures are inputs, so the flow entering a layer generally differs from the flow leaving it. The difference is the heat the layer stores or releases, reported by `calc_layer_temperature_rate(layer)`:
 
 $$\left(C + C_\mathrm{latent}\right) \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out} + H$$
 
-with $H$ \[W\] the heat generated inside the layer (`layer_heating`, see [Heat Sources](#heat-sources)), $C$ \[J K$^{-1}$\] the heat the layer's profile stores per kelvin of its temperature (`layer_thermal_capacity`), and $C_\mathrm{latent}$ \[J K$^{-1}$\] the latent heat of its zone boundaries (`layer_latent_capacity`). With the neighbors' interface temperatures and the heating held, a change $\delta T$ of the layer's temperature moves its profile by $S(r)\,\delta T$, so
+with $H$ \[W\] the heat generated inside the layer (`layer_heating`, see [Heat Sources](#heat-sources)), $C$ \[J K$^{-1}$\] the heat the layer's profile stores per kelvin of its temperature (`calc_layer_thermal_capacity(layer)`), and $C_\mathrm{latent}$ \[J K$^{-1}$\] the latent heat of its zone boundaries (`calc_layer_latent_capacity(layer)`). With the neighbors' interface temperatures and the heating held, a change $\delta T$ of the layer's temperature moves its profile by $S(r)\,\delta T$, so
 
 $$C = \int \rho\, c_p\, S \, 4 \pi r^2 \, dr$$
 
@@ -276,7 +277,7 @@ $$C_\mathrm{latent} = \frac{L\, 4 \pi r_b^2\, \rho_\mathrm{solid}\, S}{\left| dG
 
 with $L$ the material's latent heat \[J kg$^{-1}$\] and $S$ the sensitivity of the temperature at the boundary to the layer's temperature (one in an isothermal layer, $T(r)/T$ on an adiabat). It assumes the neighbors' interface temperatures hold while the layer's temperature changes, and that the melt that forms takes the solid's density at the boundary. It is zero for a layer without such a boundary.
 
-Where neither side of an interface has a resistance (an `off` layer under another `off` layer, or an `off` outermost layer under the surface), nothing holds a temperature contrast across it. The lower layer then stores no heat, instead it passes on the heat entering it plus the heat it generates, and the interface keeps its temperature. An `off` outermost layer therefore loses all of that heat through the surface, its `layer_temperature_rate` is zero, and its profile ends at its own temperature rather than at `surface_temperature`.
+Where neither side of an interface has a resistance (an `off` layer under another `off` layer, or an `off` outermost layer under the surface), nothing holds a temperature contrast across it. The lower layer then stores no heat, instead it passes on the heat entering it plus the heat it generates, and the interface keeps its temperature. An `off` outermost layer therefore loses all of that heat through the surface, its temperature rate is zero, and its profile ends at its own temperature rather than at `surface_temperature`.
 
 A world whose layers are all at one temperature and generate no heat has no profile to integrate. The solve then keeps its four structure variables and returns what it would with `solve_temperature=False`, at the same cost. The profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and iterates. The first pass is isothermal. Each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts the passes and `thermal_converged` reports whether they settled: the largest relative change in the interface temperatures and heat flows between two passes fell below `thermal_tol`. `max_thermal_passes` caps the passes. Both are `[eos_solver]` settings that a call or the world may override. A solve that uses every pass without settling logs a warning and keeps the last pass. Layers that hold their mass move in the same passes and end on the grid of the last pass, so every reported slice and interface lies in its own layer.
 
@@ -303,7 +304,7 @@ result = world.solve_eos(
 print(world.get_temperature(0.9 * world.radius))   # [K] on the solved profile
 print(world.get_heat_flow(world.radius))           # [W] leaving the world
 print(result["layer_nusselt_number"])              # The mantle convects: Nu of about 7
-print(result["layer_temperature_rate"])            # [K/s] per layer, from its heat imbalance
+print(world.calc_layer_temperature_rate("mantle"))  # [K/s] from the mantle's heat imbalance
 ```
 
 ### Heat Sources
@@ -330,6 +331,8 @@ The report gives each layer's heating from each source (`layer_heating_radiogeni
 | `clear_tidal_heating()` | Forget the tidal source, so later solves heat no layer tidally. |
 | `get_heating(radius)` | The volumetric heating \[W m$^{-3}$\] the last solve's sources give at a radius (float or array), every source summed: zero in a layer without `use_heating`, NaN before a successful solve or outside the world. |
 | `calc_layer_temperature_rate(layer)` | A layer's temperature rate \[K s$^{-1}$\] by its name or index: $(C + C_\mathrm{latent})\,dT/dt = L_\mathrm{in} - L_\mathrm{out} + H$ with the heat flows, radiogenic heat, and prescribed heat of the last solve, and the tidal heat of the latest `calc_tides`. NaN before a solve. |
+| `calc_layer_thermal_capacity(layer)` | The heat $C$ \[J K$^{-1}$\] a layer's profile stores per kelvin of its temperature, by its name or index. Computed from the last solve on the first call after it and kept until the next; NaN before a solve. |
+| `calc_layer_latent_capacity(layer)` | The latent heat $C_\mathrm{latent}$ \[J K$^{-1}$\] the layer's zone boundaries absorb per kelvin of its temperature; zero without such a boundary, NaN before a solve. |
 
 The tidal source depends on the solved interior through the tides, so it is kept across solves: a later `solve_eos` keeps it, while a failed `calc_tides`, `clear_tidal_heating`, `add_layer`, and `load_binary` forget it. A layer with `use_tides` off dissipates nothing (the radial solver treats it as elastic), so it takes no tidal heating and its heat is in neither the total nor any other layer. A radial-solver tide with `layer_tidal_heating` off gives no per-layer split, so the source spreads the total over the tidal layers by mass. A step of an evolution is `solve_eos`, then `calc_tides`, then the temperature rates: `calc_layer_temperature_rate` takes the tides just computed, with no second solve, so the first step already has them and no tidal term is added by hand. Neither the tidal source nor the prescribed heating is saved with the world.
 
@@ -397,7 +400,7 @@ double rho = world.get_density(5.0e6);
 
 `c_BaseWorld::solve_eos(const c_WorldEOSSolveConfig&)` lays out each layer's segments (its cooling model's profile in a thermal solve), estimates the bulk density, converts to the non-dimensional solve units, and calls `Material/eos`'s `c_solve_eos` (`solver_.hpp`: CyRK ODE integration inside the central-pressure iteration). Each layer is described by a `c_EOSLayerBounds` (its radii, the mass it holds, and the rigidity-margin event of a layer that can change state), and `c_EOSPassIntegrator` integrates one pass in pieces with CyRK terminal events: `c_eos_mass_event` (`ode_.hpp`) for an enclosed mass and `c_preeval_rigidity_margin` for a change of state. The material is read through `c_preeval_material` (`Material/eos/methods/material_preeval_.hpp`): the density alone while iterating, the thermal properties in a thermal solve, and the full state for dense output. The converged pass is committed (`c_commit_eos_pass`) into a `c_EOSSolution` (`eos_solution_.hpp`) that holds the pieces (`c_EOSPiece`), reads each piece only inside its own span, and builds the zones (`c_EOSZone`). The solve throws `std::invalid_argument` on bad input (`ValueError` in Cython via `except +`).
 
-`c_BaseWorld` exposes `get_density/get_gravity/get_pressure(double) const` (delegating to the containing layer via `find_layer_for_radius`), the vectorized `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out) const` (entries of the `eos_layout_.hpp` evaluation layout at every radius, field-major, under one hold of the call lock) and `calc_complex_moduli(is_shear, radii, num_radii, frequency, moduli_out) const`, the result accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/` `get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/` `get_planet_mass_eos/get_planet_moi_eos`, the zones (`get_zones()` as solved, `get_radial_zones()` under the layers' current flags, `get_molten_regions()`, `get_is_liquid_at(radius)`), the heat sources (`set_prescribed_heating`, `get_tidal_heat_source`, `clear_tidal_heating`, `get_heating`, `calc_layer_temperature_rate`), the retained full solution via `get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` / `get_all_materials_set()`. The heat sources are in `heating_.hpp` (`c_Heating`, with `c_HeatSourceKind` `Radiogenic`, `Tidal`, and `Prescribed`), and the thermal network, with `c_zone_boundary_latent_capacity`, in `thermal_layout_.hpp`. The Cython `BaseWorld.solve_eos` wrapper converts the integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls the C++ method under `nogil`, and builds the Python result dict from the report.
+`c_BaseWorld` exposes `get_density/get_gravity/get_pressure(double) const` (delegating to the containing layer via `find_layer_for_radius`), the vectorized `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out) const` (entries of the `eos_layout_.hpp` evaluation layout at every radius, field-major, under one hold of the call lock) and `calc_complex_moduli(is_shear, radii, num_radii, frequency, moduli_out) const`, the result accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/` `get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/` `get_planet_mass_eos/get_planet_moi_eos`, the zones (`get_zones()` as solved, `get_radial_zones()` under the layers' current flags, `get_molten_regions()`, `get_is_liquid_at(radius)`), the heat sources (`set_prescribed_heating`, `get_tidal_heat_source`, `clear_tidal_heating`, `get_heating`, `calc_layer_temperature_rate`, and the lazily computed, cached `calc_layer_thermal_capacity` and `calc_layer_latent_capacity`), the retained full solution via `get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` / `get_all_materials_set()`. The heat sources are in `heating_.hpp` (`c_Heating`, with `c_HeatSourceKind` `Radiogenic`, `Tidal`, and `Prescribed`), and the thermal network, with `c_zone_boundary_latent_capacity`, in `thermal_layout_.hpp`. The Cython `BaseWorld.solve_eos` wrapper converts the integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls the C++ method under `nogil`, and builds the Python result dict from the report.
 
 ## Viscoelastic Properties
 
