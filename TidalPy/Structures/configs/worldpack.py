@@ -9,27 +9,18 @@ installation and the stale-copy warning, which the MatPack shares.
 World configurations and system configurations share this directory and are told apart by content:
 a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
 is that test, and :func:`available_worlds` / :func:`available_systems` list the two kinds separately.
+
+The TOML files are read into memory when TidalPy is imported (:mod:`TidalPy.database`), so a world or system named in
+a build comes from memory while its file is unchanged on disk.
 """
 
 import os
 
-import toml
-
-import TidalPy
+from TidalPy.database import PACKAGED_WORLDPACK_DIR, WORLD_PACK
 from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir
 from TidalPy.Utilities.binary import binary_file_class
 from TidalPy.Utilities.classes.classes import did_you_mean
-from TidalPy.Utilities.data_pack import DataPack
-
-
-# The packaged WorldPack directory (read-only source of the example worlds), found
-# relative to the installed TidalPy package root.
-PACKAGED_WORLDPACK_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(TidalPy.__file__)), "WorldPack")
-
-# File extensions installed into the user worlds directory: world TOMLs and their
-# companion data files (e.g. PREM-like radial profiles).
-_INSTALLED_EXTENSIONS = (".toml", ".csv", ".txt", ".dat")
+from TidalPy.Utilities.data_pack import parse_toml
 
 # The two kinds of configuration the world pack directory holds.
 WORLD_CONFIG = "world"
@@ -51,15 +42,9 @@ def get_worlds_dir():
     return _paths_get_worlds_dir()
 
 
-# The pack itself. Its getter looks get_worlds_dir up on every call, so redirecting that module attribute redirects
-# the pack.
-WORLD_PACK = DataPack(
-    "WorldPack",
-    PACKAGED_WORLDPACK_DIR,
-    lambda: get_worlds_dir(),
-    _INSTALLED_EXTENSIONS,
-    "stale_worldpack_copy",
-    "TidalPy.Structures.install_worldpack(force=True)")
+# The pack itself (TidalPy.database). Its getter looks get_worlds_dir up on every call, so redirecting that module
+# attribute redirects the pack, and the pack reads its database again for the new directory.
+WORLD_PACK.data_dir_getter = lambda: get_worlds_dir()
 
 
 def install_worldpack(force: bool = False) -> str:
@@ -274,11 +259,21 @@ def config_kind(source) -> str:
     ------
     FileNotFoundError
         If ``source`` is a path that does not exist.
-    toml.TomlDecodeError
+    ValueError
         If ``source`` is a path that does not parse as TOML.
     """
-    config = source if isinstance(source, dict) else toml.load(source)
+    config = source if isinstance(source, dict) else _read_config(source)
     return SYSTEM_CONFIG if config.get("worlds", None) else WORLD_CONFIG
+
+
+def _read_config(path: str) -> dict:
+    """A configuration file's table: the database's, for a pack file unchanged on disk (not to be changed), else the
+    file parsed."""
+    entry = WORLD_PACK.entry_at(path)
+    if entry is not None:
+        return entry.table()
+    with open(path, "r", encoding="utf-8") as file:
+        return parse_toml(file.read())
 
 
 # A system names its members under a ``worlds`` key, which TOML spells either with that word or, inside a quoted
@@ -291,10 +286,11 @@ def _available_configs(kind: str) -> list:
     """Return the sorted names of the bundled configurations of one kind.
 
     Combines the data directory with the packaged directory (the data directory takes
-    precedence when a name exists in both). A file that does not parse as TOML is skipped
-    rather than breaking the listing; it will report its own error when it is built. Listing
-    systems skips the parse of a file that cannot be one; listing worlds parses every file,
-    since only the parse tells a world from a file that is not valid TOML.
+    precedence when a name exists in both), read from the database. A file that does not
+    parse as TOML is skipped rather than breaking the listing; it will report its own error
+    when it is built. Listing systems skips the parse of a file that cannot be one (where the
+    database has not parsed it already); listing worlds parses every file, since only the
+    parse tells a world from a file that is not valid TOML.
 
     Parameters
     ----------
@@ -307,15 +303,17 @@ def _available_configs(kind: str) -> list:
         Configuration names, without the ``.toml`` extension.
     """
     names = []
-    for name, path in WORLD_PACK.files(".toml").items():
+    for name in WORLD_PACK.files(".toml"):
         try:
-            with open(path, "r", encoding="utf-8") as file:
-                text = file.read()
-            if (kind == SYSTEM_CONFIG) and not _may_be_system(text):
+            entry = WORLD_PACK.entry(name + ".toml", warn_stale=False)
+            if entry is None:
                 continue
-            if config_kind(toml.loads(text)) == kind:
+            if (kind == SYSTEM_CONFIG) and not _may_be_system(entry.contents.decode("utf-8")):
+                continue
+            if config_kind(entry.table()) == kind:
                 names.append(name)
-        except (toml.TomlDecodeError, OSError, UnicodeDecodeError):
+        except (ValueError, OSError):
+            # A file that is not valid TOML (or not UTF-8, a ValueError too), or that cannot be read.
             continue
     return sorted(names)
 

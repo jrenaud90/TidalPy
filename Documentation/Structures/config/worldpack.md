@@ -1,6 +1,6 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-10-05_
+_Updated: 2026-10-06_
 
 A world file is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `Structures` class system. WorldPack ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
@@ -10,7 +10,9 @@ The TOML schema for worlds and layers is described in [`toml_schema.md`](toml_sc
 
 ## How it Works
 
-The example worlds live in the package directory `TidalPy/WorldPack/`. They are not loaded directly from the package; instead they are copied into a per-user, per-version data directory the first time they are needed, and that data-directory copy is preferred thereafter. This lets a user edit the installed TOML to change the world they get from `build_world`, without touching the installed package.
+The example worlds live in the package directory `TidalPy/WorldPack/`. They are not loaded directly from the package; instead they are copied into a per-user, per-version data directory when TidalPy is imported, and that data-directory copy is preferred thereafter. This lets a user edit the installed TOML to change the world they get from `build_world`, without touching the installed package.
+
+When TidalPy is imported, every world and system TOML is also read into memory (`TidalPy.database`, shared with the [MatPack](../../Material/matpack.md)): the data directory's files, and the packaged files it has no copy of. A world or system named in a build then comes from memory after a check that its file's modification time and size are unchanged. A file edited, added, or deleted during a session is noticed by the next build, which reads it from disk and keeps the new contents in memory. `TidalPy.reinit()` reads every file again.
 
 ### Locations
 
@@ -33,16 +35,18 @@ The bundled materials install the same way into `<user documents>/TidalPy/<major
 - A world newly added to the package shows up on the next run (it is absent in the data dir, so it is copied).
 - Passing `force=True` re-copies every packaged world, discarding local edits.
 
-It returns the data directory path. It runs automatically inside `resolve_world_path` and `available_worlds`, so you rarely need to call it directly.
+It returns the data directory path. It runs when TidalPy is imported, so you rarely need to call it directly; `force=True` also makes the next lookup read the database again.
 
 ### Name Resolution
 
 `build_world("<name>")` (equivalently `BaseWorld.build("<name>")`) resolves a bare name through `resolve_world_path(name)`:
 
-1. Run `install_worldpack()` (copy-if-absent).
-2. If `Worlds/<name>.toml` exists, use it (the user-editable copy wins).
+1. If the in-memory database holds `<name>.toml` from the data directory, unchanged on disk, use it.
+2. Otherwise run `install_worldpack()` (copy-if-absent), and if `Worlds/<name>.toml` exists, use it (the user-editable copy wins).
 3. Otherwise fall back to the packaged `WorldPack/<name>.toml`.
 4. Otherwise raise `FileNotFoundError`.
+
+A file found in steps 2 or 3 is kept in the database for the next build.
 
 A `source` that ends in `.toml` or names an existing file is treated as a direct path; a `dict` is used as-is. So the same `build_world` entry point accepts a bundled name, a file path, or an in-memory config.
 

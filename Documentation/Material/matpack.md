@@ -1,6 +1,6 @@
 # MatPack (`Material.matpack`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-06_
 
 `TidalPy.Material.matpack` contains the named materials TidalPy ships and the functions that load them. Each MatPack material is a complete `Material`: a solid phase, a liquid phase, or both. Each phase has an equation of state and a thermal conductivity and heat capacity; a solid phase adds a shear-modulus law, a viscosity law, and a default tidal rheology, and most liquid phases a viscosity. A material that melts adds its melting curves, melt weakening, and latent heat. A material is loaded by name, optionally with overrides, and returns its state at a pressure [Pa], temperature [K], and radius [m] through `Material.calc_state` (see [Phases and Materials](materials.md)).
 
@@ -139,7 +139,7 @@ print(salty_ocean.calc_state(1.0e7, 260.0, use_melting=True)["melt_fraction"])
 
 ## Data Directory
 
-The packaged files are copied into `<documents>/TidalPy/<version>/Materials` on first use (copy-if-absent), and a material is read from that copy, so an edit there changes the material everywhere it is named. A copy that differs from the packaged file is reported once per session, since it may be an edit or a copy left by an older install; `install_matpack(force=True)` replaces every copy, and `stale_matpack_copy = false` under `[warnings]` in `TidalPy_Configs.toml` silences the report. Without a writable data directory the packaged files are read directly. The WorldPack's bundled worlds work the same way.
+The packaged files are copied into `<documents>/TidalPy/<version>/Materials` when TidalPy is imported (copy-if-absent), and a material is read from that copy, so an edit there changes the material everywhere it is named. The files are read into memory at the same time (`TidalPy.database`), and each material's presets are resolved the first time it is named and kept, so naming a material in a loop reads no files. A file edited, added, or deleted during a session is noticed the next time a material that draws on it is named. A copy that differs from the packaged file is reported once per session, since it may be an edit or a copy left by an older install; `install_matpack(force=True)` replaces every copy, and `stale_matpack_copy = false` under `[warnings]` in `TidalPy_Configs.toml` silences the report. Without a writable data directory the packaged files are read directly. The WorldPack's bundled worlds work the same way.
 
 ## Adding a Material
 

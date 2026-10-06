@@ -4,7 +4,8 @@ Each file in ``TidalPy/MatPack`` holds one material config table (the form ``Mat
 ``make_material`` takes) and three metadata keys: ``schema_version``, ``description``, and ``category`` (one of
 :data:`CATEGORIES`). Its references are comments in the file. The files are installed copy-if-absent into
 ``<documents>/TidalPy/<version>/Materials`` (see :class:`TidalPy.Utilities.data_pack.DataPack`), where they can be
-edited; an edited copy is preferred to the packaged file.
+edited; an edited copy is preferred to the packaged file. The files are read into memory when TidalPy is imported
+(:mod:`TidalPy.database`), and each material's presets are resolved once and kept until one of its files changes.
 
 A material is given in one of three forms:
 
@@ -21,22 +22,16 @@ material's melting curves, is written once.
 """
 
 import copy
-import os
 import warnings
 
-import toml
-
-import TidalPy
 from TidalPy.configurations import validate_schema_version
+from TidalPy.database import MAT_PACK, PACKAGED_MATPACK_DIR
 from TidalPy.paths import get_materials_dir as _paths_get_materials_dir
 from TidalPy.Utilities.classes import canonical_parameter_keys
 from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Utilities.classes.families import get_family
-from TidalPy.Utilities.data_pack import DataPack, user_stacklevel
+from TidalPy.Utilities.data_pack import TOML_DECODE_ERRORS, user_stacklevel
 from TidalPy.Material.material import Material, Phase
-
-# The packaged MatPack directory (read-only source of the materials), relative to the installed package root.
-PACKAGED_MATPACK_DIR = os.path.join(os.path.dirname(os.path.abspath(TidalPy.__file__)), "MatPack")
 
 # The key that names a preset, in a material table or in its solid or liquid table.
 PRESET_KEY = "preset"
@@ -69,9 +64,13 @@ _SLOT_FAMILIES = {
     "bulk_viscosity_mixing": "bulk-viscosity mixing",
 }
 
-# Parsed material files by path, with the text each was parsed from, so a material loaded in a loop does not parse its
-# file each time. The text is compared, so an edit is always read.
-_PARSED_FILES = {}
+# Resolved MatPack materials by lowercase name, each with the database entries it was resolved from as (name, version)
+# pairs: a material named in a loop resolves its presets once, and an edit to any file it draws on resolves it again.
+_RESOLVED_PRESETS = {}
+
+# The database entry versions whose schema version has been checked, so each read of a file is checked (and warned
+# about) once.
+_CHECKED_VERSIONS = set()
 
 
 def get_materials_dir():
@@ -89,15 +88,9 @@ def get_materials_dir():
     return _paths_get_materials_dir()
 
 
-# The pack itself. Its getter looks get_materials_dir up on every call, so redirecting that module attribute
-# redirects the pack.
-MAT_PACK = DataPack(
-    "MatPack",
-    PACKAGED_MATPACK_DIR,
-    lambda: get_materials_dir(),
-    (".toml",),
-    "stale_matpack_copy",
-    "TidalPy.Material.install_matpack(force=True)")
+# The pack itself (TidalPy.database). Its getter looks get_materials_dir up on every call, so redirecting that module
+# attribute redirects the pack, and the pack reads its database again for the new directory.
+MAT_PACK.data_dir_getter = lambda: get_materials_dir()
 
 
 # =====================================================================================================================
@@ -164,45 +157,47 @@ def material_info(name: str) -> dict:
     ValueError
         No MatPack material has that name.
     """
-    path = p_material_path(name)
-    table = p_read_material_file(path)
+    entry = p_material_entry(name)
+    table = p_material_table(entry)
     return {
         "name": name.lower(),
         "description": table.get("description", ""),
         "category": table.get("category", ""),
-        "path": path,
+        "path": entry.path,
     }
 
 
-def p_material_path(name: str) -> str:
-    """The file a MatPack material is read from: the data-directory copy, else the packaged file."""
+def p_material_entry(name: str):
+    """The database entry (:class:`TidalPy.Utilities.data_pack.PackEntry`) a MatPack material is read from: the
+    data-directory copy, else the packaged file."""
     if not isinstance(name, str):
         raise TypeError(f"TidalPy: a material is named by a string, not {type(name).__name__}.")
     if ("/" in name) or ("\\" in name) or (name in ("", ".", "..")):
         raise ValueError(f"TidalPy: '{name}' is not a MatPack material name; a name holds no path.")
-    path = MAT_PACK.find(name + ".toml")
-    if path is not None:
-        return path
+    entry = MAT_PACK.entry(name + ".toml")
+    if entry is not None:
+        return entry
     names = sorted(MAT_PACK.files(".toml"))
     raise ValueError(
         f"TidalPy: no MatPack material named '{name}'{did_you_mean(name, names)}. Available: {', '.join(names)}.")
 
 
-def p_read_material_file(path: str) -> dict:
-    """A material file's table, metadata included, after its schema-version check; a copy the caller may edit."""
-    with open(path, "r", encoding="utf-8") as file:
-        text = file.read()
-    key = os.path.normcase(os.path.abspath(path))
-    cached = _PARSED_FILES.get(key)
-    if cached is None or cached[0] != text:
-        try:
-            parsed = toml.loads(text)
-        except toml.TomlDecodeError as error:
-            raise ValueError(f"TidalPy: could not parse the material file '{path}': {error}") from error
-        validate_schema_version(parsed)
-        cached = (text, parsed)
-        _PARSED_FILES[key] = cached
-    return copy.deepcopy(cached[1])
+def p_material_path(name: str) -> str:
+    """The file a MatPack material is read from: the data-directory copy, else the packaged file."""
+    return p_material_entry(name).path
+
+
+def p_material_table(entry) -> dict:
+    """A material file's table, metadata included, after its schema-version check. The database's own table, shared
+    by every caller: it is never changed."""
+    try:
+        table = entry.table()
+    except TOML_DECODE_ERRORS as error:
+        raise ValueError(f"TidalPy: could not parse the material file '{entry.path}': {error}") from error
+    if entry.version not in _CHECKED_VERSIONS:
+        validate_schema_version(table)
+        _CHECKED_VERSIONS.add(entry.version)
+    return table
 
 
 # =====================================================================================================================
@@ -309,23 +304,25 @@ def p_names_other_model(slot: str, base_table: dict, override_table: dict) -> bo
         return True
 
 
-def p_resolve(table: dict, chain: tuple) -> dict:
+def p_resolve(table: dict, chain: tuple, sources: list = None) -> dict:
     """A material table with its presets resolved (its own, then each phase's) and its metadata dropped.
 
     ``chain`` holds the presets being resolved, so a file that names itself, directly or through others, is an
-    error rather than an endless loop.
+    error rather than an endless loop. The (name, version) pairs of the database entries the presets come from are
+    added to ``sources``. The result may share tables with ``table`` and with the cache of resolved presets, so the
+    caller does not change it.
     """
     if not isinstance(table, dict):
         raise TypeError(f"TidalPy: a material is a name or a table, not {type(table).__name__}.")
     table = {key: value for key, value in table.items() if key not in METADATA_KEYS}
     preset = table.pop(PRESET_KEY, None)
     if preset is not None:
-        base = p_resolve_preset(preset, chain)
+        base = p_resolve_preset(preset, chain, sources)
         table = merge_material_tables(base, table)
     for slot in _PRESET_SLOTS:
         slot_table = table.get(slot)
         if isinstance(slot_table, dict) and PRESET_KEY in slot_table:
-            table[slot] = p_resolve_slot(slot, slot_table, chain)
+            table[slot] = p_resolve_slot(slot, slot_table, chain, sources)
     p_check_preset_places(table, "the material table")
     return table
 
@@ -341,22 +338,44 @@ def p_check_preset_places(table: dict, where: str) -> None:
         p_check_preset_places(value, f"the '{key}' table")
 
 
-def p_resolve_preset(preset, chain: tuple) -> dict:
-    """A MatPack material's resolved table, guarding against a cycle of presets."""
+def p_resolve_preset(preset, chain: tuple, sources: list = None) -> dict:
+    """A MatPack material's resolved table, guarding against a cycle of presets.
+
+    The table is resolved once and kept, with the database entries it came from, until one of those files changes.
+    It is shared by every caller, so it is never changed; merging over it copies it.
+    """
     if not isinstance(preset, str):
         raise TypeError(f"TidalPy: '{PRESET_KEY}' names a MatPack material by a string, not {type(preset).__name__}.")
     name = preset.lower()
     if name in chain:
         raise ValueError(f"TidalPy: the MatPack presets {' -> '.join(chain + (name,))} form a cycle.")
-    return p_resolve(p_read_material_file(p_material_path(name)), chain + (name,))
+    cached = _RESOLVED_PRESETS.get(name)
+    if (cached is None) or not p_sources_current(cached[0]):
+        entry = p_material_entry(name)
+        resolved_from = [(name, entry.version)]
+        table = p_resolve(p_material_table(entry), chain + (name,), resolved_from)
+        cached = (tuple(resolved_from), table)
+        _RESOLVED_PRESETS[name] = cached
+    if sources is not None:
+        sources.extend(cached[0])
+    return cached[1]
 
 
-def p_resolve_slot(slot: str, slot_table: dict, chain: tuple) -> dict:
+def p_sources_current(sources: tuple) -> bool:
+    """Whether each (name, version) pair still names the database entry a material is read from."""
+    for name, version in sources:
+        entry = MAT_PACK.entry(name + ".toml")
+        if (entry is None) or (entry.version != version):
+            return False
+    return True
+
+
+def p_resolve_slot(slot: str, slot_table: dict, chain: tuple, sources: list = None) -> dict:
     """A phase or melting table that names a preset: that material's table in the same slot, with the table's other
     keys merged over it."""
     overrides = dict(slot_table)
     preset = overrides.pop(PRESET_KEY)
-    material_table = p_resolve_preset(preset, chain)
+    material_table = p_resolve_preset(preset, chain, sources)
     if not isinstance(material_table.get(slot), dict):
         noun = "phase" if slot in _PHASE_SLOTS else "table"
         raise ValueError(f"TidalPy: the MatPack material '{preset}' has no '{slot}' {noun} for a '{slot}' table to "

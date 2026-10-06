@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "environment": {
-    "timestamp_utc": "2026-09-30T03:35:14+00:00",
+    "timestamp_utc": "2026-10-06T15:47:24+00:00",
     "tidalpy_version": "0.8.0",
-    "git_commit": "5177f36f",
+    "git_commit": "88f819e4",
     "os": "Windows",
     "os_release": "11",
     "platform": "Windows-11-10.0.26200-SP0",
@@ -23,32 +23,32 @@
       "note": "2-layer terrestrial from bundled config",
       "number": 500,
       "repeats": 7,
-      "min_s": 0.00041031919978559017,
-      "median_s": 0.00045602119993418453,
-      "mean_s": 0.00044768497134957993,
-      "stdev_s": 2.8478090253933857e-05
+      "min_s": 0.00043905980000272395,
+      "median_s": 0.00044897079980000854,
+      "mean_s": 0.0004513190285568791,
+      "stdev_s": 9.1387550265824e-06
     },
     {
       "name": "build_world:jupiter_simple",
       "group": "structures",
       "note": "gas giant from bundled config",
-      "number": 1000,
+      "number": 2000,
       "repeats": 7,
-      "min_s": 0.0002937626999337226,
-      "median_s": 0.0002971402001567185,
-      "mean_s": 0.00029773944283702545,
-      "stdev_s": 3.4299038529826476e-06
+      "min_s": 0.00019270835001952946,
+      "median_s": 0.00020262340002227575,
+      "mean_s": 0.00020532938573575977,
+      "stdev_s": 9.62586074843523e-06
     },
     {
       "name": "build_world:earth_prem",
       "group": "structures",
       "note": "4-layer PREM-based terrestrial from bundled config",
-      "number": 500,
+      "number": 200,
       "repeats": 7,
-      "min_s": 0.0008925927998498082,
-      "median_s": 0.0008991074003279209,
-      "mean_s": 0.0008977820858625428,
-      "stdev_s": 3.334839227138008e-06
+      "min_s": 0.0010712604993022977,
+      "median_s": 0.0011303310003131627,
+      "mean_s": 0.0011267938571316856,
+      "stdev_s": 2.9384896719157545e-05
     },
     {
       "name": "build_world:io",
@@ -56,32 +56,32 @@
       "note": "3-layer Io (core, mantle, asthenosphere) from bundled config",
       "number": 500,
       "repeats": 7,
-      "min_s": 0.0004175458000972867,
-      "median_s": 0.0004229186000302434,
-      "mean_s": 0.00042799817152055244,
-      "stdev_s": 9.207658993104089e-06
+      "min_s": 0.0006722200000658632,
+      "median_s": 0.0007000798000954091,
+      "mean_s": 0.0007151786285851683,
+      "stdev_s": 4.5942630631153934e-05
     },
     {
       "name": "build_world:sol",
       "group": "structures",
       "note": "star from bundled config",
-      "number": 1000,
+      "number": 2000,
       "repeats": 7,
-      "min_s": 0.00023205209989100696,
-      "median_s": 0.00024087690003216268,
-      "mean_s": 0.00023970028575110648,
-      "stdev_s": 4.319892279090799e-06
+      "min_s": 0.0001256404500454664,
+      "median_s": 0.00012881599995307624,
+      "mean_s": 0.00013277885715277598,
+      "stdev_s": 1.0600984077256918e-05
     },
     {
       "name": "build_world:from_dict",
       "group": "structures",
       "note": "2-layer terrestrial from a Python dict",
-      "number": 5000,
+      "number": 2000,
       "repeats": 7,
-      "min_s": 5.1854800013825296e-05,
-      "median_s": 5.2582800015807153e-05,
-      "mean_s": 5.2557008573785425e-05,
-      "stdev_s": 3.381159196528381e-07
+      "min_s": 0.0001766907999990508,
+      "median_s": 0.00018409205006901175,
+      "mean_s": 0.00018794434286454427,
+      "stdev_s": 8.800428199898396e-06
     },
     {
       "name": "build_system:sol_system",
@@ -89,54 +89,54 @@
       "note": "star + terrestrial + gas giant from bundled config",
       "number": 200,
       "repeats": 7,
-      "min_s": 0.0012342089996673167,
-      "median_s": 0.0012384014995768667,
-      "mean_s": 0.0012387994999465133,
-      "stdev_s": 3.5979613417059066e-06
+      "min_s": 0.0010565975005738437,
+      "median_s": 0.0010950894991401583,
+      "mean_s": 0.001115722999841507,
+      "stdev_s": 4.669020338985673e-05
     },
     {
       "name": "solve_eos:earth_prem",
       "group": "eos",
       "note": "integrate the PREM interior",
-      "number": 1000,
+      "number": 500,
       "repeats": 7,
-      "min_s": 0.00023248589993454517,
-      "median_s": 0.00023323190002702177,
-      "mean_s": 0.00023390754288993778,
-      "stdev_s": 1.460606235791688e-06
+      "min_s": 0.0008084692000411451,
+      "median_s": 0.0008544719996862114,
+      "mean_s": 0.0008552081999368966,
+      "stdev_s": 2.593348674880067e-05
     },
     {
       "name": "solve_eos:earth_simple",
       "group": "eos",
       "note": "integrate the bundled 2-layer Earth interior",
-      "number": 2000,
+      "number": 1000,
       "repeats": 7,
-      "min_s": 0.00013216845004353672,
-      "median_s": 0.00013510349998250602,
-      "mean_s": 0.000134757899995228,
-      "stdev_s": 2.061418623029979e-06
+      "min_s": 0.0002422066000290215,
+      "median_s": 0.00024766830005683006,
+      "mean_s": 0.00024920788566981043,
+      "stdev_s": 4.593239995512858e-06
     },
     {
       "name": "solve_eos:io",
       "group": "eos",
       "note": "integrate the bundled 3-layer Io interior",
-      "number": 2000,
+      "number": 1000,
       "repeats": 7,
-      "min_s": 0.00015339935000520199,
-      "median_s": 0.00016613934992346912,
-      "mean_s": 0.0001641984999878332,
-      "stdev_s": 9.26964075275603e-06
+      "min_s": 0.0002651555000338703,
+      "median_s": 0.0002715066999662668,
+      "mean_s": 0.000271522628542568,
+      "stdev_s": 3.382008891757484e-06
     },
     {
       "name": "build_world+solve_eos:io",
       "group": "structures",
       "note": "bundled Io built and its interior integrated",
-      "number": 500,
+      "number": 200,
       "repeats": 7,
-      "min_s": 0.0007068956000730396,
-      "median_s": 0.0007075499999336898,
-      "mean_s": 0.0007094807141859616,
-      "stdev_s": 2.778110867961645e-06
+      "min_s": 0.0010641840007156135,
+      "median_s": 0.0010812150000128896,
+      "mean_s": 0.0010890921429797475,
+      "stdev_s": 1.953090514606521e-05
     },
     {
       "name": "profiles:earth_prem_200",
@@ -144,10 +144,10 @@
       "note": "density, gravity, and pressure of PREM at 200 radii",
       "number": 10000,
       "repeats": 7,
-      "min_s": 3.109125001356006e-05,
-      "median_s": 3.1419790000654756e-05,
-      "mean_s": 3.164164142882717e-05,
-      "stdev_s": 6.139339943542144e-07
+      "min_s": 3.459141999483108e-05,
+      "median_s": 3.504437999799847e-05,
+      "mean_s": 3.5115572853413006e-05,
+      "stdev_s": 4.1268194274452313e-07
     },
     {
       "name": "love_numbers:world_earth_simple",
@@ -155,65 +155,65 @@
       "note": "solve_love_numbers on the bundled Earth at the semidiurnal frequency",
       "number": 1000,
       "repeats": 7,
-      "min_s": 0.00027589499996975066,
-      "median_s": 0.0002781159000005573,
-      "mean_s": 0.00027864412860279636,
-      "stdev_s": 2.269355701694519e-06
+      "min_s": 0.0003119781999848783,
+      "median_s": 0.0003143123001791537,
+      "mean_s": 0.0003154118142889014,
+      "stdev_s": 3.3660084604198868e-06
     },
     {
       "name": "love_numbers:world_io",
       "group": "radial_solver",
       "note": "solve_love_numbers on the bundled 3-layer Io at Io's mean motion",
-      "number": 1000,
+      "number": 500,
       "repeats": 7,
-      "min_s": 0.00035059180017560723,
-      "median_s": 0.00035139079997316,
-      "mean_s": 0.00035197695713889385,
-      "stdev_s": 1.223659855207321e-06
+      "min_s": 0.0004160201996564865,
+      "median_s": 0.0004190529999323189,
+      "mean_s": 0.0004211097142126943,
+      "stdev_s": 4.254416609951811e-06
     },
     {
       "name": "world_config:get_config_dict",
       "group": "structures",
       "note": "get_config_dict of the 4-layer PREM Earth",
-      "number": 20000,
+      "number": 10000,
       "repeats": 7,
-      "min_s": 1.722026999341324e-05,
-      "median_s": 1.730976499384269e-05,
-      "mean_s": 1.734662571190191e-05,
-      "stdev_s": 1.0346080589813993e-07
+      "min_s": 2.567204001825303e-05,
+      "median_s": 2.602276001125574e-05,
+      "mean_s": 2.6022891434175628e-05,
+      "stdev_s": 2.503667958708014e-07
     },
     {
       "name": "world_toml:round_trip",
       "group": "structures",
       "note": "save_to_toml + build_world(load_toml) of the bundled 2-layer Earth",
-      "number": 100,
+      "number": 50,
       "repeats": 7,
-      "min_s": 0.003556713000871241,
-      "median_s": 0.0035673659993335606,
-      "mean_s": 0.0036268280004151166,
-      "stdev_s": 0.00012433018428022934
+      "min_s": 0.003855275996029377,
+      "median_s": 0.0039641959965229035,
+      "mean_s": 0.003957865998548056,
+      "stdev_s": 6.23499447114671e-05
     },
     {
       "name": "world_binary:round_trip",
       "group": "structures",
       "note": "save_binary + load_binary of the solved 4-layer PREM Earth",
-      "number": 200,
+      "number": 100,
       "repeats": 7,
-      "min_s": 0.0010143230005633086,
-      "median_s": 0.0010392600006889552,
-      "mean_s": 0.0010546820717198507,
-      "stdev_s": 3.7132037121885504e-05
+      "min_s": 0.003577853001188487,
+      "median_s": 0.0037205930007621645,
+      "mean_s": 0.00378648285754025,
+      "stdev_s": 0.00023847980236562687
     },
     {
       "name": "tidal_heating:fixed_q",
       "group": "tides",
       "note": "one calc_tides on a fixed-Q world",
-      "number": 500000,
+      "number": 200000,
       "repeats": 7,
-      "min_s": 7.479807999916375e-07,
-      "median_s": 7.844341997988522e-07,
-      "mean_s": 7.896577714543258e-07,
-      "stdev_s": 3.041761482527924e-08
+      "min_s": 1.3444014999549835e-06,
+      "median_s": 1.3556584995239974e-06,
+      "mean_s": 1.3648209288450225e-06,
+      "stdev_s": 1.7355479161286177e-08
     },
     {
       "name": "tidal_heating:io_radial_solver",
@@ -221,10 +221,10 @@
       "note": "one calc_tides on the bundled 3-layer Io, radial_solver Love method",
       "number": 200,
       "repeats": 7,
-      "min_s": 0.001197740500792861,
-      "median_s": 0.0012333279999438673,
-      "mean_s": 0.0012271734287164042,
-      "stdev_s": 1.914054979455124e-05
+      "min_s": 0.001411054499913007,
+      "median_s": 0.001417472999310121,
+      "mean_s": 0.0014208849286660552,
+      "stdev_s": 9.810646496206927e-06
     },
     {
       "name": "tidal_heating:io_homogeneous",
@@ -232,10 +232,10 @@
       "note": "one calc_tides on the bundled 3-layer Io, homogeneous Love method",
       "number": 5000,
       "repeats": 7,
-      "min_s": 5.8767860010266304e-05,
-      "median_s": 5.946511998772621e-05,
-      "mean_s": 5.9786199997844444e-05,
-      "stdev_s": 1.0259940458634587e-06
+      "min_s": 6.501537999138235e-05,
+      "median_s": 6.523247999139131e-05,
+      "mean_s": 6.587415999466819e-05,
+      "stdev_s": 8.440041626734446e-07
     },
     {
       "name": "love_numbers:radial_solver",
@@ -243,10 +243,10 @@
       "note": "one homogeneous radial solve for k/h/l",
       "number": 1000,
       "repeats": 7,
-      "min_s": 0.0002508795999456197,
-      "median_s": 0.0002511311999987811,
-      "mean_s": 0.00025209704280963963,
-      "stdev_s": 1.577115168733632e-06
+      "min_s": 0.0002815429999027401,
+      "median_s": 0.0002843378998804837,
+      "mean_s": 0.00028474635704021364,
+      "stdev_s": 3.5742160780405336e-06
     },
     {
       "name": "love_numbers:prop_matrix",
@@ -254,10 +254,10 @@
       "note": "homogeneous static-incompressible propagation-matrix solve for k/h/l",
       "number": 5000,
       "repeats": 7,
-      "min_s": 5.216234000399709e-05,
-      "median_s": 5.268991999328136e-05,
-      "mean_s": 5.262045141841684e-05,
-      "stdev_s": 3.097251548259887e-07
+      "min_s": 6.87287800014019e-05,
+      "median_s": 6.981954001821578e-05,
+      "mean_s": 6.981039713802082e-05,
+      "stdev_s": 8.118411835012583e-07
     },
     {
       "name": "love_numbers:radial_solver_3layer",
@@ -265,10 +265,10 @@
       "note": "solid / static-liquid / solid shooting solve for k/h/l",
       "number": 1000,
       "repeats": 7,
-      "min_s": 0.0003214318000245839,
-      "median_s": 0.00032435769983567297,
-      "mean_s": 0.0003248328000107514,
-      "stdev_s": 2.7881093292111716e-06
+      "min_s": 0.0003773759000468999,
+      "median_s": 0.0003809845999348909,
+      "mean_s": 0.0003836397285839277,
+      "stdev_s": 7.24942653313795e-06
     },
     {
       "name": "rheology:complex_modulus",
@@ -276,21 +276,21 @@
       "note": "one Maxwell complex-modulus evaluation",
       "number": 100000,
       "repeats": 7,
-      "min_s": 3.847500076517463e-08,
-      "median_s": 3.872100031003356e-08,
-      "mean_s": 3.8782000275594845e-08,
-      "stdev_s": 3.593686251685905e-10
+      "min_s": 8.039399981498718e-08,
+      "median_s": 8.330000098794699e-08,
+      "mean_s": 8.40660001683448e-08,
+      "stdev_s": 3.528055678454897e-09
     },
     {
       "name": "rheology:andrade_frequency_sweep_1000",
       "group": "rheology",
       "note": "Andrade complex moduli over 1000 frequencies (vectorized)",
-      "number": 20000,
+      "number": 10000,
       "repeats": 7,
-      "min_s": 1.9426510005723685e-05,
-      "median_s": 1.9546989991795273e-05,
-      "mean_s": 1.9538053569184348e-05,
-      "stdev_s": 8.44123141768459e-08
+      "min_s": 1.9854569993913173e-05,
+      "median_s": 2.0046339998953044e-05,
+      "mean_s": 2.0084460003168453e-05,
+      "stdev_s": 1.8134809000976428e-07
     },
     {
       "name": "viscosity:reference",
@@ -298,10 +298,10 @@
       "note": "one reference-law viscosity evaluation",
       "number": 100000,
       "repeats": 7,
-      "min_s": 3.4894999116659167e-08,
-      "median_s": 3.512500086799264e-08,
-      "mean_s": 3.537899980853711e-08,
-      "stdev_s": 6.063933232232028e-10
+      "min_s": 7.655400084331631e-08,
+      "median_s": 7.724199909716845e-08,
+      "mean_s": 7.720585679635406e-08,
+      "stdev_s": 4.640739023971589e-10
     },
     {
       "name": "cooling:convection_viscosity_sweep_200",
@@ -309,10 +309,10 @@
       "note": "convective cooling over 200 viscosities (vectorized)",
       "number": 50000,
       "repeats": 7,
-      "min_s": 4.629048001952469e-06,
-      "median_s": 4.641118003055453e-06,
-      "mean_s": 4.650058857431369e-06,
-      "stdev_s": 2.3782007121991217e-08
+      "min_s": 4.894330003298819e-06,
+      "median_s": 4.909053998999298e-06,
+      "mean_s": 4.919931143522263e-06,
+      "stdev_s": 2.2412833916358587e-08
     },
     {
       "name": "radiogenics:isotope_time_sweep_10k",
@@ -320,10 +320,10 @@
       "note": "chondritic isotope heating over 10k times (vectorized)",
       "number": 2000,
       "repeats": 7,
-      "min_s": 9.968555008526891e-05,
-      "median_s": 0.00010194424993824214,
-      "mean_s": 0.00010161932142052266,
-      "stdev_s": 1.0929573365690645e-06
+      "min_s": 0.00010321430000476539,
+      "median_s": 0.00010513629997149109,
+      "mean_s": 0.00010493171427931103,
+      "stdev_s": 1.1226125680996065e-06
     },
     {
       "name": "system_evolution:fixed_q",
@@ -331,10 +331,10 @@
       "note": "one calc_world_evolution step",
       "number": 200000,
       "repeats": 7,
-      "min_s": 1.4444584993179887e-06,
-      "median_s": 1.46340649924241e-06,
-      "mean_s": 1.4964973572308995e-06,
-      "stdev_s": 5.472753034638104e-08
+      "min_s": 1.47581750061363e-06,
+      "median_s": 1.5014190005604178e-06,
+      "mean_s": 1.5132430716351206e-06,
+      "stdev_s": 3.184862739310264e-08
     },
     {
       "name": "system_evolution:io_rheology",
@@ -342,10 +342,10 @@
       "note": "calc_world_evolution of the bundled 3-layer Io about Jupiter (rheology tide)",
       "number": 200,
       "repeats": 7,
-      "min_s": 0.0011736139992717654,
-      "median_s": 0.001233273500110954,
-      "mean_s": 0.0012449674285016953,
-      "stdev_s": 5.62311674024726e-05
+      "min_s": 0.001314377000089735,
+      "median_s": 0.0013204179995227605,
+      "mean_s": 0.0013230772858618626,
+      "stdev_s": 8.12200665133944e-06
     },
     {
       "name": "system_evolution:earth_moon_pair",
@@ -353,10 +353,10 @@
       "note": "calc_pair_evolution of the bundled Earth and Moon (both rheology tides)",
       "number": 100,
       "repeats": 7,
-      "min_s": 0.003300923998467624,
-      "median_s": 0.0033990920009091498,
-      "mean_s": 0.0033845797137889476,
-      "stdev_s": 5.036105214257723e-05
+      "min_s": 0.003566897998098284,
+      "median_s": 0.003630892999935895,
+      "mean_s": 0.00364011457090133,
+      "stdev_s": 4.4028267440075666e-05
     },
     {
       "name": "system:insolation",
@@ -364,10 +364,10 @@
       "note": "insolation flux and equilibrium temperature of the Moon",
       "number": 1000000,
       "repeats": 7,
-      "min_s": 3.6255820002406836e-07,
-      "median_s": 3.6714880005456506e-07,
-      "mean_s": 3.6639035715987637e-07,
-      "stdev_s": 3.0290234503508158e-09
+      "min_s": 3.436596000101417e-07,
+      "median_s": 3.463830999098718e-07,
+      "mean_s": 3.4871079995562987e-07,
+      "stdev_s": 5.04690700655666e-09
     },
     {
       "name": "system_evolution:multi_world",
@@ -375,21 +375,21 @@
       "note": "calc_system_evolution of a star, a terrestrial planet, and a gas giant (fixed-Q)",
       "number": 100000,
       "repeats": 7,
-      "min_s": 2.8278269991278648e-06,
-      "median_s": 2.8546629985794423e-06,
-      "mean_s": 2.910416571290365e-06,
-      "stdev_s": 1.103180788936775e-07
+      "min_s": 2.8774069994688034e-06,
+      "median_s": 2.9053799994289876e-06,
+      "mean_s": 2.916797856866781e-06,
+      "stdev_s": 3.29402292551203e-08
     },
     {
       "name": "solve_eos:birch_murnaghan",
       "group": "eos",
       "note": "homogeneous terrestrial with a Birch-Murnaghan EOS",
-      "number": 2000,
+      "number": 1000,
       "repeats": 7,
-      "min_s": 0.00013540044997353108,
-      "median_s": 0.00013652259996160864,
-      "mean_s": 0.0001371053785717647,
-      "stdev_s": 1.8218720665234737e-06
+      "min_s": 0.00022728360001929103,
+      "median_s": 0.00022781189996749163,
+      "mean_s": 0.00022799485715638314,
+      "stdev_s": 5.785647206784768e-07
     },
     {
       "name": "tides_3d:collapse_total",
@@ -397,10 +397,10 @@
       "note": "fully collapsed 3D heating total (rheology tide)",
       "number": 500,
       "repeats": 7,
-      "min_s": 0.0005906583997420966,
-      "median_s": 0.0005966946003027261,
-      "mean_s": 0.0005972580571791955,
-      "stdev_s": 6.197960607215168e-06
+      "min_s": 0.0006765787997283041,
+      "median_s": 0.0006813874002546072,
+      "mean_s": 0.0006823317713902465,
+      "stdev_s": 3.8571553372566995e-06
     },
     {
       "name": "tides_3d:heating_array_120",
@@ -408,10 +408,10 @@
       "note": "get_3d_tidal_heating_array at 120 surface colatitudes (rheology tide)",
       "number": 500,
       "repeats": 7,
-      "min_s": 0.000905731599777937,
-      "median_s": 0.0009446487999521196,
-      "mean_s": 0.0009399841714517346,
-      "stdev_s": 1.5354294819240576e-05
+      "min_s": 0.0010128613999113442,
+      "median_s": 0.00103394480003044,
+      "mean_s": 0.0010371346572147948,
+      "stdev_s": 1.4545532196539871e-05
     },
     {
       "name": "tides_3d:secular_map_1_thread",
@@ -419,10 +419,10 @@
       "note": "secular heating map 20 x 45 x 90, degrees 2 to 3, e^10, obliquity, 1 thread",
       "number": 2,
       "repeats": 3,
-      "min_s": 0.14684764994308352,
-      "median_s": 0.14759210008196533,
-      "mean_s": 0.14740015003674975,
-      "stdev_s": 0.0003966936310711302
+      "min_s": 0.19215799996163696,
+      "median_s": 0.19297410000581294,
+      "mean_s": 0.19911581665898362,
+      "stdev_s": 0.00926875882814642
     },
     {
       "name": "tides_3d:secular_map_all_threads",
@@ -430,10 +430,10 @@
       "note": "secular heating map 20 x 45 x 90, degrees 2 to 3, e^10, obliquity, 16 threads",
       "number": 10,
       "repeats": 3,
-      "min_s": 0.02262342001777142,
-      "median_s": 0.02279586000367999,
-      "mean_s": 0.02284733667038381,
-      "stdev_s": 0.00020706681277313368
+      "min_s": 0.023068349994719028,
+      "median_s": 0.02347573998849839,
+      "mean_s": 0.023481659994771083,
+      "stdev_s": 0.0003399088117031529
     },
     {
       "name": "tides_3d:stress_strain_1_thread",
@@ -441,21 +441,21 @@
       "note": "stress and strain 20 x 45 x 90 x 4 times, degrees 2 to 3, e^10, obliquity, 1 thread",
       "number": 1,
       "repeats": 3,
-      "min_s": 0.26569420006126165,
-      "median_s": 0.2752049998380244,
-      "mean_s": 0.27600323331231874,
-      "stdev_s": 0.008761368183850872
+      "min_s": 0.3085084001068026,
+      "median_s": 0.31303670001216233,
+      "mean_s": 0.3150576666618387,
+      "stdev_s": 0.006335773980374584
     },
     {
       "name": "tides_3d:stress_strain_all_threads",
       "group": "tides",
       "note": "stress and strain 20 x 45 x 90 x 4 times, degrees 2 to 3, e^10, obliquity, 16 threads",
-      "number": 10,
+      "number": 5,
       "repeats": 3,
-      "min_s": 0.038245379994623366,
-      "median_s": 0.03882373000960797,
-      "mean_s": 0.039160846670468645,
-      "stdev_s": 0.0009166409498828686
+      "min_s": 0.044358320022001865,
+      "median_s": 0.04498668001033366,
+      "mean_s": 0.04479002668522298,
+      "stdev_s": 0.00030566498278532527
     },
     {
       "name": "tides_3d:displacements_1_thread",
@@ -463,10 +463,10 @@
       "note": "displacements 20 x 45 x 90 x 24 times, degrees 2 to 3, e^10, obliquity, 1 thread",
       "number": 1,
       "repeats": 3,
-      "min_s": 0.2967438001651317,
-      "median_s": 0.2975025000050664,
-      "mean_s": 0.2990024000561486,
-      "stdev_s": 0.0026756491701825915
+      "min_s": 0.37299029994755983,
+      "median_s": 0.3907782998867333,
+      "mean_s": 0.38836633328658837,
+      "stdev_s": 0.011694828066761843
     },
     {
       "name": "tides_3d:displacements_all_threads",
@@ -474,10 +474,10 @@
       "note": "displacements 20 x 45 x 90 x 24 times, degrees 2 to 3, e^10, obliquity, 16 threads",
       "number": 5,
       "repeats": 3,
-      "min_s": 0.052178499987348914,
-      "median_s": 0.05228341999463737,
-      "mean_s": 0.053070153327037885,
-      "stdev_s": 0.0011875713081097067
+      "min_s": 0.05588318002410233,
+      "median_s": 0.05685895998030901,
+      "mean_s": 0.058054733322933316,
+      "stdev_s": 0.0024141531522012196
     },
     {
       "name": "system_binary:round_trip",
@@ -485,10 +485,10 @@
       "note": "save_binary + load_binary of the bundled sol system",
       "number": 200,
       "repeats": 7,
-      "min_s": 0.0010377435002010315,
-      "median_s": 0.0010553005000110715,
-      "mean_s": 0.001059560857247561,
-      "stdev_s": 1.9671951131727562e-05
+      "min_s": 0.0014878834993578493,
+      "median_s": 0.001523085000226274,
+      "mean_s": 0.0015519715714201864,
+      "stdev_s": 5.386262287500706e-05
     }
   ]
 }

@@ -79,6 +79,9 @@ def warn_unusable_data_dir(reason) -> None:
 def _data_sub_dir(name: str) -> Optional[str]:
     """ ``<data directory>/<name>``, created if absent; None, with a one-time warning, when it cannot be created. """
     directory = os.path.join(get_data_dir(), name)
+    # Checked before creating, which costs ten times more: the packs ask for their directory on every lookup.
+    if os.path.isdir(directory):
+        return directory
     try:
         Path(directory).mkdir(parents=True, exist_ok=True)
     except OSError as error:

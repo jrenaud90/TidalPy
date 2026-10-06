@@ -92,8 +92,9 @@ def initialize(provided_config=None):
 
     Loads the configuration when none is loaded yet (the packaged defaults with the user's ``TidalPy_Configs.toml``
     merged over them), merges a ``TidalPy_Configs.toml`` found in the working directory when ``[configs]
-    use_cwd_for_config`` is set, merges any override, sets up the run output directory and the logger, and pushes
-    the numerical settings into the C++ config singleton. ``TidalPy.reinit`` is this function.
+    use_cwd_for_config`` is set, merges any override, sets up the run output directory and the logger, pushes the
+    numerical settings into the C++ config singleton, and reads the material, world, and system files into memory
+    (:mod:`TidalPy.database`). ``TidalPy.reinit`` is this function.
 
     Parameters
     ----------
@@ -105,6 +106,7 @@ def initialize(provided_config=None):
     import TidalPy
     from TidalPy.configurations import get_default_config, save_config, set_config
     from TidalPy.constants import update_constants
+    from TidalPy.database import load_database
     from TidalPy.paths import timestamped_str
     from TidalPy.Utilities.logging.logger import init_logger, log_debug
 
@@ -147,6 +149,9 @@ def initialize(provided_config=None):
 
     # Push the numerical settings into the C++ config singleton.
     update_constants()
+
+    # Read the material, world, and system TOML files into memory (TidalPy.database).
+    load_database()
 
     TidalPy._tidalpy_init = True
     log_debug('TidalPy initialization complete.')

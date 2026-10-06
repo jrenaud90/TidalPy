@@ -21,12 +21,13 @@ import os
 from typing import Union
 
 import numpy as np
-import toml
 
 import TidalPy
 # Shared with the material and system loaders, re-exported: this loader is where callers look for them.
 from TidalPy.configurations import merge_configs, validate_schema_version, warning_enabled
+from TidalPy.database import WORLD_PACK
 from TidalPy.Utilities.classes.classes import did_you_mean
+from TidalPy.Utilities.data_pack import TOML_DECODE_ERRORS, parse_toml
 
 # The schema's version and key sets, re-exported: this loader is where callers look for them.
 from TidalPy.schema import (
@@ -162,24 +163,31 @@ def world_type_defaults(world_type: str) -> dict:
     return defaults
 
 
-# Parsed configuration files by path, with the text each was parsed from. A file read again with the same text (a
-# world built by name in a loop, say) skips the parse, which is most of the cost of building a world; any change to
-# the text parses it again. The text itself is compared, not the modification time, which on some file systems only
-# ticks every few milliseconds: a sweep that rewrites a file between builds always gets what it wrote.
+# Parsed configuration files outside the WorldPack database by path, with the text each was parsed from. A file read
+# again with the same text (a world built from a path in a loop, say) skips the parse; any change to the text parses it
+# again. The text itself is compared, not the modification time, which on some file systems only ticks every few
+# milliseconds: a sweep that rewrites a file between builds always gets what it wrote.
 _PARSED_TOML: dict = {}
 
 
 def _load_toml_file(path: str) -> dict:
-    """Parse a TOML file, reusing the last parse of the same path while its text is unchanged; returns a copy."""
-    # Read as toml.load does: UTF-8, with universal newlines.
+    """Parse a TOML file, returning a copy: a WorldPack file unchanged on disk from the database
+    (:mod:`TidalPy.database`), any other reusing the last parse of the same path while its text is unchanged."""
+    entry = WORLD_PACK.entry_at(path)
+    if entry is not None:
+        try:
+            return copy.deepcopy(entry.table())
+        except TOML_DECODE_ERRORS as error:
+            raise ValueError(f"Could not parse the TOML file '{path}': {error}") from error
+    # UTF-8, with universal newlines.
     with open(path, "r", encoding="utf-8") as file:
         text = file.read()
     key = os.path.normcase(os.path.abspath(path))
     cached = _PARSED_TOML.get(key)
     if cached is None or cached[0] != text:
         try:
-            parsed = toml.loads(text)
-        except toml.TomlDecodeError as error:
+            parsed = parse_toml(text)
+        except TOML_DECODE_ERRORS as error:
             raise ValueError(f"Could not parse the TOML file '{path}': {error}") from error
         cached = (text, parsed)
         _PARSED_TOML[key] = cached
