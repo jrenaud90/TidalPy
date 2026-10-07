@@ -112,6 +112,12 @@ CASE_INPUTS = {
 # floor in far fewer steps (the frozen step counts were re-recorded to match, see steps_note in the targets file).
 SOLVER_OVERRIDES = {"4layer": dict(integration_rtol=1.0e-12, integration_atol=1.0e-15, starting_radius=0.0)}
 
+# The relative tolerance on the Love numbers. At these cases' loose EOS settings (RK45 at rtol 1e-4, pressure_tol 1e-2)
+# the notebook's 2- and 3-layer values carry 6e-6 and 4e-6 of EOS error against converged ones (7.5e-8 and 2.4e-7 with
+# a tight EOS), so they pin the EOS integration's path, not the physics; a structure solve that leaves the pressure out
+# of its step control (densities independent of pressure) lands 2e-6 from them and 1e-6 closer to the converged values.
+LOVE_RTOL = {"2layer": 5.0e-6, "3layer": 5.0e-6}
+
 
 def _load_targets():
     with TARGETS_PATH.open("r", encoding="utf-8") as targets_file:
@@ -149,4 +155,4 @@ def test_benchmark_targets(case_name):
             np.asarray(solution.steps_taken).sum(axis=1), expected_steps.sum(axis=1), rtol=0.20, atol=3)
     else:
         np.testing.assert_array_equal(solution.steps_taken, expected_steps)
-        np.testing.assert_allclose(solution.love, expected_love, rtol=1.0e-7, atol=1.0e-10)
+        np.testing.assert_allclose(solution.love, expected_love, rtol=LOVE_RTOL.get(case_name, 1.0e-7), atol=1.0e-10)

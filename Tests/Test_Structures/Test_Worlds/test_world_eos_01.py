@@ -385,3 +385,80 @@ def test_eos_solver_defaults_come_from_the_config(restore_config):
     assert capped["max_iters_hit"] is True and capped["iterations"] == 1
     explicit = world.solve_eos(G_to_use=G, max_iters=100, pressure_tol=1.0e-5)
     assert explicit["max_iters_hit"] is False
+
+
+# =====================================================================================================================
+# Structure integrations, and densities that do not depend on pressure
+# =====================================================================================================================
+def _melting_material(density):
+    """A constant-density solid and liquid melting between fixed temperatures."""
+    return Material(
+        solid=Phase(eos={"model": "constant", "reference_density_kg_m3": density},
+                    shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
+                    shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e21}),
+        liquid=Phase(eos={"model": "constant", "reference_density_kg_m3": 0.85 * density},
+                     shear_viscosity={"model": "constant", "reference_viscosity_pas": 0.2}),
+        solidus={"model": "constant", "temperature_k": 1600.0},
+        liquidus={"model": "constant", "temperature_k": 2000.0})
+
+
+@pytest.mark.parametrize("build", [_uniform_world, _two_layer_world], ids=["uniform", "two_layer"])
+def test_a_density_independent_of_pressure_solves_in_two_integrations(build):
+    """With every density set by radius alone, the surface pressure falls one for one with the central pressure, so
+    the first unit-slope step lands on the root to rounding and the integration after it keeps its output."""
+    result = build().solve_eos(G_to_use=G)
+    assert result["success"] is True
+    assert result["structure_integrations"] == 2
+    assert result["pressure_error"] < 1.0e-12 * result["central_pressure"]
+
+
+def test_a_changed_world_with_densities_independent_of_pressure_resolves_in_two_integrations():
+    """A re-solve starts from the last central pressure and, when nothing changed, keeps its first integration; after a
+    change its unit-slope step is exact as from scratch."""
+    world = _two_layer_world()
+    assert world.solve_eos(G_to_use=G)["success"] is True
+    assert world.solve_eos(G_to_use=G)["structure_integrations"] == 1
+    world.mantle.material = _material(3100.0)
+    result = world.solve_eos(G_to_use=G)
+    assert result["success"] is True
+    assert result["structure_integrations"] == 2
+
+
+def test_a_compressible_world_repeats_a_converged_integration_that_kept_no_output():
+    """Where the density follows the pressure, the iteration measures the slope, and an integration that converges
+    without the dense output it was not expected to need is run again to keep it."""
+    result = _compressible_world().solve_eos(G_to_use=G)
+    assert result["success"] is True
+    assert result["structure_integrations"] >= 3
+    assert result["structure_integrations"] - result["iterations"] in (0, 1)
+
+
+@pytest.mark.parametrize("use_melt_density, use_pressure_melting, integrations", [
+    (False, False, 2),
+    (True, False, 2),
+    (True, True, 3),
+])
+def test_a_layer_mixing_its_melt_density_under_pressure_melting_takes_the_general_start(
+        use_melt_density,
+        use_pressure_melting,
+        integrations):
+    """A layer that mixes its melt's density into its own is treated as depending on the pressure when its melting
+    range moves with pressure, since its melt fraction then can; at a fixed melting range it is not."""
+    mass = (4.0 / 3.0) * math.pi * (5000.0 * _R_CMB ** 3 + 3000.0 * (_PLANET_RADIUS ** 3 - _R_CMB ** 3))
+    world = BaseWorld("Melting", _PLANET_RADIUS, mass)
+    world.add_layer(Layer("core", 0, 0.0, _R_CMB, 0.0, _material(5000.0)))
+    world.add_layer(Layer("mantle", 1, _R_CMB, _PLANET_RADIUS, 0.0, _melting_material(3000.0), temperature=1800.0,
+                          use_melting=True, use_melt_density=use_melt_density,
+                          use_pressure_melting=use_pressure_melting))
+    result = world.solve_eos(G_to_use=G, solve_temperature=False)
+    assert result["success"] is True, result["message"]
+    assert result["structure_integrations"] == integrations
+
+
+def test_a_thermal_solve_counts_the_integrations_of_every_pass():
+    """structure_integrations sums every thermal pass's integrations; iterations is the last pass's alone."""
+    from TidalPy.Structures import build_world
+    result = build_world("earth_thermal").solve_eos(solve_temperature=True, surface_temperature=300.0)
+    assert result["success"] is True
+    assert result["thermal_passes"] >= 1
+    assert result["structure_integrations"] >= result["iterations"] + result["thermal_passes"]

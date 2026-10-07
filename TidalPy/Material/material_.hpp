@@ -467,11 +467,15 @@ public:
         return state.density;
     }
 
-    // Whether calc_density can change with pressure: through the base phase's equation of state, or through the melt
-    // fraction where the melt density is mixed in.
+    // Whether calc_density can change with pressure: through an equation of state, or through the melt fraction where
+    // the melt density is mixed in and the melting range moves with pressure.
     bool get_density_depends_on_pressure(const c_MaterialSwitches& switches) const noexcept {
-        if (switches.use_melting && switches.use_melt_density && this->get_can_melt()) { return true; }
-        return this->get_base_phase().get_eos().get_density_depends_on_pressure();
+        if (!(switches.use_melting && switches.use_melt_density && this->get_can_melt())) {
+            return this->get_base_phase().get_eos().get_density_depends_on_pressure();
+        }
+        return switches.use_pressure_melting
+            || this->p_components.solid->get_eos().get_density_depends_on_pressure()
+            || this->p_components.liquid->get_eos().get_density_depends_on_pressure();
     }
 
     // ln(mu / mu_min), the post-melt shear modulus against a threshold [Pa]: positive while the material is solid

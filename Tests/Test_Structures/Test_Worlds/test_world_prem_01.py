@@ -67,6 +67,35 @@ def test_earth_prem_eos_solve_converges_and_reproduces_earth():
     assert math.isclose(world.central_pressure, _PREM_CENTRAL_PRESSURE, rel_tol=0.01)
 
 
+def test_earth_prem_solves_in_two_structure_integrations():
+    """PREM's density is tabulated in radius, so the surface pressure falls one for one with the central pressure: the
+    first unit-slope step lands on the root to rounding, and the integration after it keeps its output."""
+    world = build_world("earth_prem")
+    result = world.solve_eos(G_to_use=G)
+    assert result["success"] is True
+    assert result["structure_integrations"] == 2
+    assert result["pressure_error"] < 1.0e-12 * result["central_pressure"]
+    assert world.solve_eos(G_to_use=G)["structure_integrations"] == 1
+
+
+@pytest.mark.parametrize("settings, tolerance", [
+    ({}, 5.0e-8),                                                    # the defaults' error (1.5e-8 at the center)
+    (dict(rtol=1.0e-12, atol=1.0e-16, pressure_tol=1.0e-9), 5.0e-10),
+], ids=["defaults", "tight"])
+def test_earth_prem_pressure_is_hydrostatic(settings, tolerance):
+    """The pressure, left out of the step control for a density that does not depend on it, still integrates rho g:
+    at every layer boundary it matches the surface pressure plus a fine trapezoid quadrature of the solved density
+    times gravity, to the solve's accuracy on the central-pressure scale, and closer as the tolerances tighten."""
+    world = build_world("earth_prem")
+    world.solve_eos(G_to_use=G, **settings)
+    pressure_above = 0.0
+    for layer in reversed(list(world)):
+        radii = np.linspace(layer.radius_inner, layer.radius_outer, 20001)
+        integrand = layer.get_density(radii) * layer.get_gravity(radii)
+        pressure_above += np.sum(0.5 * (integrand[1:] + integrand[:-1]) * np.diff(radii))
+        assert abs(layer.get_pressure(layer.radius_inner) - pressure_above) < tolerance * world.central_pressure
+
+
 def test_earth_prem_love_number_is_earths():
     """The elastic PREM k2 is Earth's, with no dissipation."""
     world = _solved_prem()

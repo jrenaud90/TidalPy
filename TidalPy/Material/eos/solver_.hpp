@@ -70,8 +70,9 @@ struct c_EOSSolverSettings
     size_t slices_per_layer = 100;
     double length_scale = 1.0;
     // Every layer's density is set by its radius and temperature alone (c_Material::get_density_depends_on_pressure
-    // false) and the temperatures are fixed, so the surface pressure falls one for one with the central pressure and
-    // the first unit-slope step should land on the root.
+    // false) and the temperatures are fixed, so the surface pressure falls one for one with the central pressure. The
+    // pressure is then left out of the step control, which keeps that exact, and the first unit-slope step lands on
+    // the root.
     bool density_independent_of_pressure = false;
 };
 
@@ -138,6 +139,17 @@ public:
                 p_diffeq(settings.integrate_temperature ? c_eos_diffeq_thermal : c_eos_diffeq),
                 p_args_vec(sizeof(c_EOS_ODEInput))
     {
+        if (settings.density_independent_of_pressure)
+        {
+            // Nothing else depends on the pressure then, so leaving it out of the step control makes every pass take
+            // the same steps, and the surface pressure falls exactly one for one with the central pressure. Its error
+            // follows the steps gravity, mass, and moment of inertia set (CyRK raises a zero rtol to 100 eps, and an
+            // infinite atol leaves the scale infinite).
+            this->p_rtols_vec.assign(this->p_num_y, settings.rtol);
+            this->p_atols_vec.assign(this->p_num_y, settings.atol);
+            this->p_rtols_vec[C_EOS_PRESSURE_INDEX] = 0.0;
+            this->p_atols_vec[C_EOS_PRESSURE_INDEX] = TidalPyConstants::d_INF;
+        }
     }
 
     size_t get_num_y() const noexcept { return this->p_num_y; }
@@ -381,7 +393,8 @@ private:
     DiffeqFuncType                      p_diffeq;
     // CyRK reads its arguments from a byte buffer and takes the number of states from y0, so both are kept sized.
     std::vector<char>                   p_args_vec;
-    // One tolerance for every y; CyRK still takes vectors.
+    // One tolerance for every y unless the pressure is left out of the step control (the constructor); CyRK takes
+    // vectors either way.
     std::vector<double>                 p_rtols_vec  = {this->p_settings.rtol};
     std::vector<double>                 p_atols_vec  = {this->p_settings.atol};
     std::vector<double>                 p_t_eval_vec = std::vector<double>(0);
@@ -452,7 +465,8 @@ inline void c_commit_eos_pass(
 /// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a
 /// pass, so it is switched on for the first pass of a warm start (which usually converges there), for
 /// any pass the secant's own error model expects to converge, and, when the densities do not depend on pressure
-/// (settings.density_independent_of_pressure), for the pass after the first unit-slope step, which that makes exact.
+/// (settings.density_independent_of_pressure), for the pass after the first unit-slope step, which that makes exact:
+/// the pressure is then left out of the step control, so every pass takes the same steps.
 /// A pass that converges without it is repeated. The same passes alone stop at state changes: the zones are reported
 /// from the kept pass, and the others only steer the central pressure.
 ///
