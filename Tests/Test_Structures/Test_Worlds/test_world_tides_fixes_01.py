@@ -181,6 +181,23 @@ def test_volume_integral_warns_when_nodes_are_left_out(spdlog_text):
     assert _MISSING_NODES_WARNING in text and "homogeneous" in text
 
 
+def test_per_layer_heating_logs_left_out_nodes_by_their_heating_share_once(spdlog_text):
+    """The per-layer heating integral leaves out the nodes below the starting radius. At the automatic start their
+    estimated share of the heating is far below rtol, so nothing is logged; a start near 0.32 R leaves out a few
+    percent, which is logged once per world, not once per call."""
+    world = build_world("io")
+    world.solve_eos()
+    world.calc_tides(**_STATE)
+    assert _MISSING_NODES_WARNING not in spdlog_text()
+
+    world.set_solver_defaults(radial_solver={"start_radius_tolerance": 0.1})
+    for _ in range(3):
+        world.calc_tides(**_STATE)
+    text = spdlog_text()
+    assert text.count("of the per-layer tidal heating integral") == 1
+    assert "Shown once per world" in text
+
+
 # ======================================================================================================================
 # A failed calc_tides leaves no stale results
 # ======================================================================================================================

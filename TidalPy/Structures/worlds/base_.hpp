@@ -2093,6 +2093,14 @@ public:
         return worst_error;
     }
 
+    // True the first time it is called on this world: the heating integrals log the radial nodes they leave out below
+    // the radial solver's starting radius once per world, not once per call of a sweep or an evolution.
+    bool claim_center_nodes_warning() const noexcept {
+        if (this->p_center_nodes_warned) { return false; }
+        this->p_center_nodes_warned = true;
+        return true;
+    }
+
     // Warns, once per world, when estimate_dynamic_liquid_error passes dynamic_liquid_warn_error. The callers pass
     // the solve's degree and frequency, or for a set of solves the largest degree and smallest frequency among them,
     // which bounds every solve in the set. Runs on the calling thread, before any Love-solve workers start.
@@ -2788,6 +2796,50 @@ public:
             const std::vector<c_RetainedRadialSolve>* retained_solves = nullptr,
             c_TidalHeatingRecord* record_out = nullptr);
 
+    // The per-layer heating integral leaves out the radial nodes with no radial solution (non-finite shell power),
+    // which lie below the radial solver's starting radius. They are the innermost, where a shell's power falls as r^2
+    // at a nearly constant heating density, so the share of the integral they would hold is estimated from the
+    // innermost solved node's, and a share above the radial solver's rtol is logged once per world.
+    void p_warn_of_center_nodes(
+            const std::vector<double>& radii,
+            const std::vector<double>& node_weights,
+            const std::vector<std::size_t>& node_layer,
+            const std::vector<double>& shell_power,
+            double integral_sum) const {
+        if (this->p_center_nodes_warned || !(std::abs(integral_sum) > 0.0)) { return; }
+        std::size_t num_missing = 0;
+        double missing_radius = 0.0;
+        double inner_power = TidalPyConstants::d_NAN;
+        double inner_radius = TidalPyConstants::d_NAN;
+        for (std::size_t node_i = 0; node_i < radii.size(); ++node_i) {
+            if (!std::isfinite(shell_power[node_i])) {
+                ++num_missing;
+                missing_radius = std::max(missing_radius, radii[node_i]);
+            } else if (!std::isfinite(inner_power)) {
+                inner_power  = std::abs(shell_power[node_i]);
+                inner_radius = radii[node_i];
+            }
+        }
+        if ((num_missing == 0) || !(inner_radius > 0.0)) { return; }
+        double missing_estimate = 0.0;
+        for (std::size_t node_i = 0; node_i < radii.size(); ++node_i) {
+            if (std::isfinite(shell_power[node_i]) || !this->p_layers[node_layer[node_i]]->get_use_tides()) {
+                continue;
+            }
+            const double ratio = radii[node_i] / inner_radius;
+            missing_estimate += node_weights[node_i] * inner_power * ratio * ratio;
+        }
+        const double share = missing_estimate / std::abs(integral_sum);
+        const c_LoveSolveConfig love_cfg = this->make_radial_love_solve_config();
+        if (!love_cfg.warnings || !(share > love_cfg.rtol) || !this->claim_center_nodes_warning()) { return; }
+        TIDALPY_LOG_WARN(
+            "TidalPy: world '{}': {} of the {} radial nodes of the per-layer tidal heating integral, up to r = {:.4e} "
+            "m, have no radial solution (they lie below the radial solver's starting radius) and are left out. By the "
+            "heating at the innermost solved radius they would hold about {:.1e} of the integral. Lower the starting "
+            "radius (start_radius_tolerance or starting_radius) to include them. Shown once per world.",
+            this->get_name(), num_missing, radii.size(), missing_radius, share);
+    }
+
     // The radial solves calc_tides lends its per-layer heating integral; null outside that call (see
     // c_RetainedRadialSolve). The 3D radial-group solve takes a matching one instead of solving again.
     const std::vector<c_RetainedRadialSolve>* get_retained_radial_solves() const noexcept {
@@ -3372,6 +3424,8 @@ protected:
     c_LoveWorkspace p_love;
     // Set by warn_if_dynamic_liquid_unstable, which only the calling thread runs.
     mutable bool p_dynamic_liquid_warned = false;
+    // Set by claim_center_nodes_warning, under the call lock.
+    mutable bool p_center_nodes_warned = false;
     // Set only inside calc_layer_tidal_heating_radial, under the call lock (get_retained_radial_solves).
     const std::vector<c_RetainedRadialSolve>* p_retained_radial_solves = nullptr;
     // The solid and liquid zones of the last successful EOS solve (get_zones).

@@ -431,34 +431,14 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
     if (integrated.values.size() < radii.size()) { return; }
     std::vector<double> layer_totals(n_layers, 0.0);
     double integral_sum = 0.0;
-    std::size_t num_missing = 0;
-    double missing_volume = 0.0;
-    double total_volume = 0.0;
-    double missing_radius = 0.0;
     for (std::size_t i = 0; i < n_layers; ++i) {
         for (std::size_t node_i = layer_first_node[i]; node_i < layer_first_node[i + 1]; ++node_i) {
-            const double node_volume = node_weights[node_i] * radii[node_i] * radii[node_i];
-            total_volume += node_volume;
             const double shell_power = integrated.values[node_i];
-            if (!std::isfinite(shell_power)) {
-                ++num_missing;
-                missing_volume += node_volume;
-                missing_radius = std::max(missing_radius, radii[node_i]);
-                continue;
-            }
-            layer_totals[i] += node_weights[node_i] * shell_power;
+            if (std::isfinite(shell_power)) { layer_totals[i] += node_weights[node_i] * shell_power; }
         }
         if (this->p_layers[i]->get_use_tides()) { integral_sum += layer_totals[i]; }
     }
-    const c_LoveSolveConfig love_cfg = this->make_radial_love_solve_config();
-    if ((num_missing > 0) && love_cfg.warnings && (missing_volume > love_cfg.rtol * total_volume)) {
-        TIDALPY_LOG_WARN(
-            "TidalPy: world '{}': {} of the {} radial nodes of the per-layer tidal heating integral, up to r = {:.4e} "
-            "m, have no radial solution (they lie below the radial solver's starting radius) and are left out. They "
-            "hold {:.2e} of the body's volume. Lower the starting radius (start_radius_tolerance or starting_radius) "
-            "to include them.",
-            this->get_name(), num_missing, radii.size(), missing_radius, missing_volume / total_volume);
-    }
+    this->p_warn_of_center_nodes(radii, node_weights, node_layer, integrated.values, integral_sum);
     if (!std::isfinite(total_heating)) { return; }
     if (!(std::abs(integral_sum) > 0.0)) {
         // Nothing dissipates (a body with no viscosity, say): every layer takes the zero total.
@@ -1788,12 +1768,13 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
             }
         }
         const c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
-        if ((num_missing > 0) && love_cfg.warnings && (missing_volume > love_cfg.rtol * total_volume)) {
+        if ((num_missing > 0) && love_cfg.warnings && (missing_volume > love_cfg.rtol * total_volume)
+                && world.claim_center_nodes_warning()) {
             TIDALPY_LOG_WARN(
                 "TidalPy: world '{}': {} of the {} radial nodes of the 3D heating volume integral, up to r = {:.4e} m, "
                 "have no radial solution (they lie below the radial solver's starting radius) and are left out. "
                 "They hold {:.2e} of the body's volume. Lower the starting radius (start_radius_tolerance or "
-                "starting_radius) to include them.",
+                "starting_radius) to include them. Shown once per world.",
                 world.get_name(), num_missing, nr, missing_radius, missing_volume / total_volume);
         }
     }
