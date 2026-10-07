@@ -60,7 +60,7 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import (
     eccentricity_truncation_name, validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 from TidalPy.Utilities.logging.logger import log_warning
-from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name
+from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name, STARTING_METHOD_NAMES, starting_method_from_name
 from TidalPy.exceptions import SolutionFailedError
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths, with the heavy
@@ -556,7 +556,7 @@ cdef ODEMethod cy_resolve_integration_method(str integration_method) except *:
 
 cdef void cy_apply_love_solve_overrides(
         c_LoveSolveConfig* cfg,
-        object use_kamata,
+        object starting_method,
         object nondimensionalize,
         object start_radius_tol,
         object integration_method,
@@ -571,8 +571,8 @@ cdef void cy_apply_love_solve_overrides(
     The config already carries the ``[radial_solver]`` defaults of the TidalPy configuration, so a ``None``
     leaves that default in place.
     """
-    if use_kamata is not None:
-        cfg.use_kamata = <cpp_bool>bool(use_kamata)
+    if starting_method is not None:
+        cfg.starting_method = <int>starting_method_from_name(starting_method)
     if nondimensionalize is not None:
         cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
     if start_radius_tol is not None:
@@ -650,6 +650,7 @@ cdef int C_SOLVER_SETTING_METHOD = 0
 cdef int C_SOLVER_SETTING_REAL   = 1
 cdef int C_SOLVER_SETTING_COUNT  = 2
 cdef int C_SOLVER_SETTING_FLAG   = 3
+cdef int C_SOLVER_SETTING_STARTING_METHOD = 4
 
 
 cdef double cy_solver_setting_to_double(int kind, object value) except? -1.0:
@@ -660,6 +661,8 @@ cdef double cy_solver_setting_to_double(int kind, object value) except? -1.0:
         return <double>int(value)
     if kind == C_SOLVER_SETTING_FLAG:
         return 1.0 if value else 0.0
+    if kind == C_SOLVER_SETTING_STARTING_METHOD:
+        return <double>starting_method_from_name(value)
     return <double>value
 
 
@@ -671,6 +674,8 @@ cdef object cy_solver_setting_from_double(int kind, double value):
         return int(value)
     if kind == C_SOLVER_SETTING_FLAG:
         return value != 0.0
+    if kind == C_SOLVER_SETTING_STARTING_METHOD:
+        return STARTING_METHOD_NAMES[<int>value]
     return value
 
 
@@ -2102,7 +2107,7 @@ cdef class BaseWorld(StructureBase):
             int degree_l      = 2,
             solve_for         = 'tidal',
             int core_model    = 0,
-            use_kamata        = None,
+            starting_method   = None,
             nondimensionalize = None,
             double starting_radius = 0.0,
             start_radius_tol   = None,
@@ -2145,9 +2150,10 @@ cdef class BaseWorld(StructureBase):
             boundary condition; the Love-number properties then report the first entry.
         core_model : int, optional
             Propagation-matrix core starting condition (0-4). Ignored by the shooting method. Default 0.
-        use_kamata : bool, optional
-            Use Kamata starting conditions near the center (shooting method only) instead of Takeuchi and
-            Saito.
+        starting_method : str, optional
+            Starting conditions of the shooting method: ``'takeuchi'`` (alias ``'ts'``), ``'kamata'``,
+            ``'power_series'`` (aliases ``'powerseries'``, ``'ps'``, ``'martens'``), or ``'unity'``. Ignored by the
+            other Love methods.
         nondimensionalize : bool, optional
             Non-dimensionalize the problem internally (recommended).
         starting_radius : float, optional
@@ -2234,7 +2240,7 @@ cdef class BaseWorld(StructureBase):
         cfg.warnings        = <cpp_bool>warnings
         cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
-            &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
+            &cfg, starting_method, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
 
         with nogil:
@@ -2314,7 +2320,7 @@ cdef class BaseWorld(StructureBase):
             int    degree_l   = 2,
             solve_for         = 'tidal',
             int    core_model = 0,
-            use_kamata        = None,
+            starting_method   = None,
             nondimensionalize = None,
             double starting_radius = 0.0,
             start_radius_tol   = None,
@@ -2358,7 +2364,7 @@ cdef class BaseWorld(StructureBase):
         cfg.warnings        = <cpp_bool>warnings
         cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
-            &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
+            &cfg, starting_method, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
 
         cdef size_t n_in = radius_array.shape[0]

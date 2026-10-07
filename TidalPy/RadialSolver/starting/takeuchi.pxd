@@ -33,3 +33,31 @@ cdef extern from "takeuchi_.hpp" nogil:
         const double G_to_use,
         const size_t num_ys,
         cpp_complex[double]* starting_conditions_ptr) noexcept nogil
+
+    cdef void c_takeuchi_solid_dynamic_incompressible(
+        const double frequency,
+        const double radius,
+        const double density,
+        const cpp_complex[double]& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        cpp_complex[double]* starting_conditions_ptr) noexcept nogil
+
+    cdef void c_takeuchi_solid_static_incompressible(
+        const double radius,
+        const double density,
+        const cpp_complex[double]& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        cpp_complex[double]* starting_conditions_ptr) noexcept nogil
+
+    cdef void c_takeuchi_liquid_dynamic_incompressible(
+        const double frequency,
+        const double radius,
+        const double density,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        cpp_complex[double]* starting_conditions_ptr) noexcept nogil

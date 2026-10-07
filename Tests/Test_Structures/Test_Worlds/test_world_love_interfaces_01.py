@@ -113,7 +113,7 @@ def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(core
         tuple(bool(layer.is_incompressible) for layer in layers),
         np.array([layer.radius_outer for layer in layers], dtype=np.float64),
         degree_l=2,
-        use_kamata=True,
+        starting_method="kamata",
         integration_rtol=1.0e-6,
         integration_atol=1.0e-10,
         scale_rtols_bylayer_type=True)

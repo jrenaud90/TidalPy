@@ -47,6 +47,7 @@ from TidalPy.schema import (
     _COMMON_WORLD_KEYS,
     _STAR_WORLD_KEYS,
     _SOLVER_KEY_RULES,
+    SOLVER_KEY_NAMES,
     _REQUIRED_WORLD_KEYS,
     DEFAULT_TIDE_MODELS,
     PRESCRIBED_HEATING_KEYS,
@@ -68,8 +69,8 @@ def validate_solver_table(section: str, table, where: str) -> None:
     Raises
     ------
     ValueError
-        For a table that is not a dict, a key the section does not have, a value of the wrong type, or a value
-        at or below its lower bound.
+        For a table that is not a dict, a key the section does not have, a value of the wrong type, a value at or
+        below its lower bound, or a method name :data:`TidalPy.schema.SOLVER_KEY_NAMES` does not list.
     """
     rules = _SOLVER_KEY_RULES[section]
     if not isinstance(table, dict):
@@ -86,6 +87,10 @@ def validate_solver_table(section: str, table, where: str) -> None:
         elif kind is str:
             if not isinstance(value, str):
                 raise ValueError(f"{where}: '[{section}] {key}' must be a string, not {value!r}.")
+            if (key in SOLVER_KEY_NAMES) and (value.lower() not in SOLVER_KEY_NAMES[key]):
+                raise ValueError(
+                    f"{where}: '[{section}] {key}' must be one of {list(SOLVER_KEY_NAMES[key])} (any case), not "
+                    f"{value!r}.")
         elif kind is int:
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"{where}: '[{section}] {key}' must be an integer, not {value!r}.")
@@ -458,7 +463,7 @@ def outer_radius_from_spec(layer_name: str, layer_cfg: dict, radius_inner: float
 # mistake that bool() would hide, since bool("false") is True.
 BOOLEAN_KEYS = frozenset({
     "is_incompressible", "is_static", "is_volume_fixed", "is_star", "layer_tidal_heating", "solve_temperature",
-    "use_heating", "use_kamata", "use_melt_density", "use_melting", "use_pressure_melting", "use_thermal_expansion",
+    "use_heating", "use_melt_density", "use_melting", "use_pressure_melting", "use_thermal_expansion",
     "use_tides"})
 
 

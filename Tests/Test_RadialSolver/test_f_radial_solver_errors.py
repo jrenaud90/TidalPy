@@ -8,7 +8,7 @@ from TidalPy.RadialSolver.solver import radial_solver as _radial_solver
 
 def radial_solver(*args, **kwargs):
     """Force Kamata starts and map validation errors onto TidalPy's exception types."""
-    kwargs.setdefault('use_kamata', True)
+    kwargs.setdefault('starting_method', 'kamata')
     try:
         return _radial_solver(*args, **kwargs)
     except NotImplementedError as exc:

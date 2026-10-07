@@ -15,6 +15,11 @@ from TidalPy.RadialSolver.starting.kamata import (
     kamata_solid_dynamic_incompressible,
     kamata_solid_static_compressible,
 )
+from TidalPy.RadialSolver.starting.power_series import (
+    power_series_liquid_dynamic_compressible,
+    power_series_solid_dynamic_compressible,
+    power_series_solid_static_incompressible,
+)
 from TidalPy.RadialSolver.starting.takeuchi import (
     takeuchi_liquid_dynamic_compressible,
     takeuchi_solid_dynamic_compressible,
@@ -49,6 +54,9 @@ STARTING = (
     (takeuchi_solid_dynamic_compressible, (FREQUENCY, RADIUS, DENSITY, BULK, SHEAR, DEGREE_L), (0, False, False)),
     (takeuchi_solid_static_compressible, (RADIUS, DENSITY, BULK, SHEAR, DEGREE_L), (0, True, False)),
     (takeuchi_liquid_dynamic_compressible, (FREQUENCY, RADIUS, DENSITY, BULK, DEGREE_L), (1, False, False)),
+    (power_series_solid_dynamic_compressible, (FREQUENCY, RADIUS, DENSITY, BULK, SHEAR, DEGREE_L), (0, False, False)),
+    (power_series_solid_static_incompressible, (RADIUS, DENSITY, SHEAR, DEGREE_L), (0, True, True)),
+    (power_series_liquid_dynamic_compressible, (FREQUENCY, RADIUS, DENSITY, BULK, DEGREE_L), (1, False, False)),
 )
 
 
@@ -66,7 +74,7 @@ def test_starting_driver_takes_none_for_the_configured_g():
     for G_to_use in (None, G):
         out = _empty(0, False, False)
         find_starting_conditions(
-            0, False, False, True, FREQUENCY, RADIUS, DENSITY, BULK, SHEAR, DEGREE_L, G_to_use, out)
+            0, False, False, "kamata", FREQUENCY, RADIUS, DENSITY, BULK, SHEAR, DEGREE_L, G_to_use, out)
         results.append(out)
     np.testing.assert_array_equal(*results)
 

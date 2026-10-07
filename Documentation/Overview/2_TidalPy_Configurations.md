@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -131,7 +131,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | `max_thermal_passes`, `thermal_tol` | `12`, `1.0e-8` | |
 | `slices_per_layer` | `100` | |
 | `nondimensionalize` | `true` | `true` |
-| `use_kamata` | | `false` |
+| `starting_method` | | `"takeuchi"` |
 | `start_radius_tolerance` | | `1.0e-5` |
 | `scale_rtols` | | `false` |
 | `max_num_steps`, `expected_size`, `max_ram_mb` | | `500000`, `128`, `500` |

@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each.
 
@@ -389,6 +389,7 @@ For dual-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each 
 `radial_solver` takes the same positional arguments and nearly the same keywords as in 0.7.X. The differences:
 
 - `use_prop_matrix=True` is now `love_method="propagation_matrix"`.
+- `use_kamata=True` is now `starting_method="kamata"` (and `use_kamata=False` the default, `starting_method="takeuchi"`). The same key replaces `use_kamata` in the `[radial_solver]` configuration and world tables, and two new methods join it: `"power_series"` and `"unity"` (see [Starting Conditions](RadialSolver/starting_conditions.md)).
 - The solver settings (`integration_method`, `integration_rtol`, `integration_atol`, `expected_size`, the `eos_*` arguments, and the rest) default to `None`, which reads the `[radial_solver]` and `[eos_solver]` sections of the configuration. The packaged tolerances are tighter than the 0.7.X defaults (for example, `integration_rtol` 1e-6 and `integration_atol` 1e-10, against 1e-5 and 1e-8).
 - `solve_for` is a tuple of case-insensitive strings (_e.g._, `("tidal", "loading")`).
 - Invalid inputs raise `ValueError` instead of `ArgumentException` or `UnknownModelError`.

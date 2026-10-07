@@ -166,6 +166,103 @@ inline void c_takeuchi_solid_static_compressible(
 }
 
 
+// Calculate the starting guess at the bottom of a solid layer using the dynamic and incompressible assumptions: the
+// limit of TS72 Eqs. 95-102 as lambda -> infinity, which TS72 does not give.
+// Three independent solutions (sn1, sn2, sn3).
+//
+// With eps = 1 / alpha^2, k2_pos -> w^2 / beta^2 + l (l + 1) gamma^2 eps / w^2, so alpha^2 f_pos ->
+// l (l + 1) beta^2 gamma / w^2 and h_pos -> -(l + 1); the shear-wave solution keeps a finite limit. The k2_neg
+// solution, times eps, tends to the exact pressure-potential solution
+//     y = (0, -rho r^l, 0, 0, r^l, (2l + 1) r^(l - 1)).
+// As w -> 0 the shear-wave solution converges on that one (as KMN15's pair does), so sn1 is the shear-wave solution
+// minus l (l + 1) beta^2 gamma / w^2 times the pressure-potential solution, written with
+// (phi - 1) = -x psi / (2 (2l + 3)) so that no division by w^2 remains; it is finite and independent down to w = 0.
+// sn3 is TS72's polynomial solution.
+// phi, phi_{l+1}, and psi are taken at x = w^2 r^2 / beta^2.
+inline void c_takeuchi_solid_dynamic_incompressible(
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        std::complex<double>* starting_conditions_ptr) noexcept
+{
+    // Constants
+    const double gamma        = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const double dynamic_term = frequency * frequency;
+    const std::complex<double> beta2 = shear_modulus / density;
+
+    // Optimizations
+    const double r_inverse    = 1.0 / radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double lm1          = degree_l_dbl - 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double dlp3         = 2.0 * degree_l_dbl + 3.0;
+    const double llp1         = degree_l_dbl * lp1;
+    const double r_l          = std::pow(radius, degree_l_dbl);
+
+    // Shear-wave functions.
+    std::complex<double> phi, phi_lp1, psi;
+    c_takeuchi_phi_psi(dynamic_term * radius * radius / beta2, degree_l, &phi, &phi_lp1, &psi);
+
+    // sn1: the shear-wave solution, less its pressure-potential part.
+    starting_conditions_ptr[0 * num_ys + 0] = llp1 * psi * r_l * radius / (2.0 * dlp3);
+    starting_conditions_ptr[0 * num_ys + 1] =
+        density * llp1 * gamma * psi * r_l * radius * radius / (2.0 * dlp3) +
+        shear_modulus * r_l * (degree_l_dbl * lm1 * lp1 * psi + 2.0 * llp1 * phi_lp1) / dlp3;
+    starting_conditions_ptr[0 * num_ys + 2] = (0.5 * lp1 * psi + phi_lp1) * r_l * radius / dlp3;
+    starting_conditions_ptr[0 * num_ys + 3] = shear_modulus * r_l * (phi + (lm1 * lp1 * psi - 2.0 * phi_lp1) / dlp3);
+    starting_conditions_ptr[0 * num_ys + 4] = -lp1 * beta2 * r_l;
+    starting_conditions_ptr[0 * num_ys + 5] =
+        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] -
+        3.0 * degree_l_dbl * lp1 * gamma * psi * r_l * radius / (2.0 * dlp3);
+
+    // sn2: the pressure-potential solution.
+    starting_conditions_ptr[1 * num_ys + 0] = 0.0;
+    starting_conditions_ptr[1 * num_ys + 1] = -density * r_l;
+    starting_conditions_ptr[1 * num_ys + 2] = 0.0;
+    starting_conditions_ptr[1 * num_ys + 3] = 0.0;
+    starting_conditions_ptr[1 * num_ys + 4] = r_l;
+    starting_conditions_ptr[1 * num_ys + 5] = dlp1 * r_l * r_inverse;
+
+    // sn3: TS72's polynomial solution, unchanged by incompressibility (its displacement has no divergence).
+    starting_conditions_ptr[2 * num_ys + 0] = degree_l_dbl * r_l * r_inverse;
+    starting_conditions_ptr[2 * num_ys + 1] = 2.0 * shear_modulus * degree_l_dbl * lm1 * r_l * r_inverse * r_inverse;
+    starting_conditions_ptr[2 * num_ys + 2] = r_l * r_inverse;
+    starting_conditions_ptr[2 * num_ys + 3] = 2.0 * shear_modulus * lm1 * r_l * r_inverse * r_inverse;
+    starting_conditions_ptr[2 * num_ys + 4] = (degree_l_dbl * gamma - dynamic_term) * r_l;
+    starting_conditions_ptr[2 * num_ys + 5] =
+        dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - 3.0 * degree_l_dbl * gamma * r_l * r_inverse;
+}
+
+
+// Calculate the starting guess at the bottom of a solid layer using the static and incompressible assumptions: the
+// dynamic incompressible form at zero frequency (phi = phi_{l+1} = psi = 1).
+// Three independent solutions (sn1, sn2, sn3).
+inline void c_takeuchi_solid_static_incompressible(
+        const double radius,
+        const double density,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        std::complex<double>* starting_conditions_ptr) noexcept
+{
+    c_takeuchi_solid_dynamic_incompressible(
+        0.0,
+        radius,
+        density,
+        shear_modulus,
+        degree_l,
+        G_to_use,
+        num_ys,
+        starting_conditions_ptr);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //// Liquid Layers
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,4 +333,41 @@ inline void c_takeuchi_liquid_dynamic_compressible(
         dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 2] + (3.0 * degree_l_dbl * gamma * h * std::pow(radius, lp1) / (2.0 * dlp3)) * psi;
     starting_conditions_ptr[1 * num_ys + 3] =
         dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 2] - 3.0 * degree_l_dbl * gamma * std::pow(radius, lm1);
+}
+
+
+// Calculate the starting guess at the bottom of a liquid layer using the dynamic and incompressible assumptions: the
+// limit of TS72 Eqs. 95-102 (mu = 0) as lambda -> infinity, which TS72 does not give.
+// Two independent solutions (sn1, sn2) of (y1, y2, y5, y6).
+//
+// k2 -> 0, so phi = phi_{l+1} = psi = 1. The first solution times 1 / alpha^2 tends to the exact pressure-potential
+// solution (0, -rho r^l, r^l, (2l + 1) r^(l - 1)); the second is TS72's polynomial solution. Both are exact.
+inline void c_takeuchi_liquid_dynamic_incompressible(
+        const double frequency,
+        const double radius,
+        const double density,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        std::complex<double>* starting_conditions_ptr) noexcept
+{
+    const double gamma        = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const double dynamic_term = frequency * frequency;
+    const double r_inverse    = 1.0 / radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double r_l          = std::pow(radius, degree_l_dbl);
+
+    // y1, y2, y5, y6 of solution 1: the pressure-potential solution.
+    starting_conditions_ptr[0 * num_ys + 0] = 0.0;
+    starting_conditions_ptr[0 * num_ys + 1] = -density * r_l;
+    starting_conditions_ptr[0 * num_ys + 2] = r_l;
+    starting_conditions_ptr[0 * num_ys + 3] = dlp1 * r_l * r_inverse;
+
+    // Solution 2: TS72's polynomial solution.
+    starting_conditions_ptr[1 * num_ys + 0] = degree_l_dbl * r_l * r_inverse;
+    starting_conditions_ptr[1 * num_ys + 1] = 0.0;
+    starting_conditions_ptr[1 * num_ys + 2] = (degree_l_dbl * gamma - dynamic_term) * r_l;
+    starting_conditions_ptr[1 * num_ys + 3] =
+        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 2] - 3.0 * degree_l_dbl * gamma * r_l * r_inverse;
 }

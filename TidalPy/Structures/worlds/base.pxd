@@ -190,7 +190,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double fixed_q
         double fixed_dt
         int core_model
-        cpp_bool use_kamata
+        int starting_method
         cpp_bool nondimensionalize
         double starting_radius
         double start_radius_tol

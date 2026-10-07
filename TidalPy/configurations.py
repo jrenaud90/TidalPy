@@ -22,7 +22,7 @@ from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir, w
 from TidalPy.defaultc import default_config_str
 from TidalPy.schema import (
     CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_CONFIG_KEYS, LOG_LEVEL_RANGE, LOG_LEVELS,
-    SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES)
+    SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES, SOLVER_KEY_NAMES)
 
 
 def warning_enabled(name: str) -> bool:
@@ -275,7 +275,8 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
     A value must have the type of its packaged default (an int also serves a float, a bool serves only a bool), or the
     second type :data:`TidalPy.schema.CONFIG_ALTERNATE_TYPES` allows. The values read while TidalPy is imported are
     also checked for range: the log levels (a name of :data:`TidalPy.schema.LOG_LEVELS` or an integer 0 to 6), the
-    ``[eos_solver]`` and ``[radial_solver]`` values (the bounds a world file's pinned settings meet), and the
+    ``[eos_solver]`` and ``[radial_solver]`` values (the bounds a world file's pinned settings meet, and the method
+    names of :data:`TidalPy.schema.SOLVER_KEY_NAMES`), and the
     ``[numerical]`` values (finite and positive). Keys nothing reads are left to :func:`find_unknown_config_keys`. A
     per-type ``[tides.<type>]`` or ``[worlds.<type>]`` table is checked as its parent table.
 
@@ -303,7 +304,10 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
         return isinstance(value, kind)
 
     def check_range(path, section, key, value):
-        if (section in SOLVER_TABLES) and (key in _SOLVER_KEY_RULES[section]):
+        if (section in SOLVER_TABLES) and (key in SOLVER_KEY_NAMES):
+            if str(value).lower() not in SOLVER_KEY_NAMES[key]:
+                return f"must be one of {list(SOLVER_KEY_NAMES[key])} (any case)"
+        elif (section in SOLVER_TABLES) and (key in _SOLVER_KEY_RULES[section]):
             floor = _SOLVER_KEY_RULES[section][key][1]
             if (floor is not None) and not (math.isfinite(value) and (value > floor)):
                 return f"must be greater than {floor}"

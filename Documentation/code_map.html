@@ -411,7 +411,8 @@ const NODES = [
     inputs: 'layer radii and flags, degree, boundary conditions', outputs: 'per-solve Love numbers' },
   { id: 'c_shooting_solver', lane: 'radial', kind: 'cpp', shape: 'func',
     label: 'c_shooting_solver', sub: 'shooting_.hpp', file: 'RadialSolver/shooting_.hpp',
-    purpose: 'Layer by layer: starting conditions (Kamata or Takeuchi and Saito), independent solutions ' +
+    purpose: 'Layer by layer: starting conditions (starting_method: Takeuchi and Saito, Kamata, power series, ' +
+      'or unity), independent solutions ' +
       'integrated with dense output, interface conditions to the next layer, then the surface boundary condition ' +
       '(Eigen LU) and the collapse constants from the top down. Records the surface amplification.',
     inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants and constants on the storage' },

@@ -14,12 +14,24 @@ from TidalPy.RadialSolver.starting.kamata import (
     kamata_solid_dynamic_compressible,
     kamata_solid_dynamic_incompressible,
     kamata_solid_static_compressible,
+    kamata_solid_static_incompressible,
+)
+from TidalPy.RadialSolver.starting.power_series import (
+    power_series_liquid_dynamic_compressible,
+    power_series_liquid_dynamic_incompressible,
+    power_series_solid_dynamic_compressible,
+    power_series_solid_dynamic_incompressible,
+    power_series_solid_static_compressible,
+    power_series_solid_static_incompressible,
 )
 from TidalPy.RadialSolver.starting.saito import saito_liquid_static_incompressible
 from TidalPy.RadialSolver.starting.takeuchi import (
     takeuchi_liquid_dynamic_compressible,
+    takeuchi_liquid_dynamic_incompressible,
     takeuchi_solid_dynamic_compressible,
+    takeuchi_solid_dynamic_incompressible,
     takeuchi_solid_static_compressible,
+    takeuchi_solid_static_incompressible,
 )
 from TidalPy.Utilities.arrays.interp import partition_radius_by_layer
 
@@ -36,21 +48,32 @@ WRAPPER_ARGS = {
     "static_solid": (RADIUS, DENSITY, BULK, SHEAR, DEGREE_L, G),
     "liquid": (FREQUENCY, RADIUS, DENSITY, BULK, DEGREE_L, G),
     "solid_incomp": (FREQUENCY, RADIUS, DENSITY, SHEAR, DEGREE_L, G),
+    "static_solid_incomp": (RADIUS, DENSITY, SHEAR, DEGREE_L, G),
     "liquid_incomp": (FREQUENCY, RADIUS, DENSITY, DEGREE_L, G),
     "saito": (RADIUS, DEGREE_L),
 }
 
-# (wrapper, argument kind, layer_type, is_static, is_incompressible, use_kamata)
+# (wrapper, argument kind, layer_type, is_static, is_incompressible, starting_method)
 CASES = (
-    (kamata_solid_dynamic_compressible, "full", 0, False, False, True),
-    (kamata_solid_static_compressible, "static_solid", 0, True, False, True),
-    (kamata_solid_dynamic_incompressible, "solid_incomp", 0, False, True, True),
-    (kamata_liquid_dynamic_compressible, "liquid", 1, False, False, True),
-    (kamata_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, True),
-    (takeuchi_solid_dynamic_compressible, "full", 0, False, False, False),
-    (takeuchi_solid_static_compressible, "static_solid", 0, True, False, False),
-    (takeuchi_liquid_dynamic_compressible, "liquid", 1, False, False, False),
-    (saito_liquid_static_incompressible, "saito", 1, True, True, False),
+    (kamata_solid_dynamic_compressible, "full", 0, False, False, "kamata"),
+    (kamata_solid_static_compressible, "static_solid", 0, True, False, "kamata"),
+    (kamata_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "kamata"),
+    (kamata_liquid_dynamic_compressible, "liquid", 1, False, False, "kamata"),
+    (kamata_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "kamata"),
+    (kamata_solid_static_incompressible, "static_solid_incomp", 0, True, True, "kamata"),
+    (takeuchi_solid_dynamic_compressible, "full", 0, False, False, "takeuchi"),
+    (takeuchi_solid_static_compressible, "static_solid", 0, True, False, "takeuchi"),
+    (takeuchi_liquid_dynamic_compressible, "liquid", 1, False, False, "takeuchi"),
+    (takeuchi_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "takeuchi"),
+    (takeuchi_solid_static_incompressible, "static_solid_incomp", 0, True, True, "takeuchi"),
+    (takeuchi_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "takeuchi"),
+    (power_series_solid_dynamic_compressible, "full", 0, False, False, "power_series"),
+    (power_series_solid_static_compressible, "static_solid", 0, True, False, "power_series"),
+    (power_series_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "power_series"),
+    (power_series_solid_static_incompressible, "static_solid_incomp", 0, True, True, "power_series"),
+    (power_series_liquid_dynamic_compressible, "liquid", 1, False, False, "power_series"),
+    (power_series_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "power_series"),
+    (saito_liquid_static_incompressible, "saito", 1, True, True, "takeuchi"),
 )
 
 
@@ -60,7 +83,7 @@ def _empty(layer_type, is_static, is_incompressible):
     return np.zeros((num_sols, 2 * num_sols), dtype=np.complex128, order="C")
 
 
-@pytest.mark.parametrize("wrapper, kind, layer_type, is_static, is_incompressible, use_kamata",
+@pytest.mark.parametrize("wrapper, kind, layer_type, is_static, is_incompressible, starting_method",
                          CASES, ids=[case[0].__name__ for case in CASES])
 def test_wrapper_matches_the_driver(
         wrapper,
@@ -68,7 +91,7 @@ def test_wrapper_matches_the_driver(
         layer_type,
         is_static,
         is_incompressible,
-        use_kamata):
+        starting_method):
     """Calling a wrapper directly gives what the driver gives for the combination that selects it."""
     direct = _empty(layer_type, is_static, is_incompressible)
     wrapper(*WRAPPER_ARGS[kind], direct)
@@ -78,7 +101,7 @@ def test_wrapper_matches_the_driver(
         layer_type,
         is_static,
         is_incompressible,
-        use_kamata,
+        starting_method,
         FREQUENCY,
         RADIUS,
         DENSITY,

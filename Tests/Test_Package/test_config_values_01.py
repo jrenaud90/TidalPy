@@ -25,8 +25,11 @@ def packaged():
     {"numerical": {"love_solve_threads": -1}},
     {"worlds": {"star": {"albedo": "bright"}}},
     {"tides": {"fixed_q": 100.0}},
+    {"radial_solver": {"starting_method": "bessel"}},
+    {"eos_solver": {"integration_method": "euler"}},
 ], ids=["level_name", "level_number", "level_bool", "negative_rtol", "float_iterations", "int_for_bool",
-        "zero_frequency_floor", "negative_threads", "per_type_world_string", "scalar_for_list"])
+        "zero_frequency_floor", "negative_threads", "per_type_world_string", "scalar_for_list", "starting_method_name",
+        "integration_method_name"])
 def test_unusable_values_are_found(packaged, override):
     assert len(find_invalid_config_values(override, packaged)) == 1
 
@@ -39,8 +42,9 @@ def test_unusable_values_are_found(packaged, override):
     {"layers": {"material": {"solid": {"eos": {"model": "constant"}}}}},
     {"numerical": {"love_solve_threads": 0}},
     {"not_a_section": {"x": 1}},
+    {"radial_solver": {"starting_method": "PS", "integration_method": "lsoda"}},
 ], ids=["levels", "int_for_float", "truncation_names", "per_type_tides", "material_table", "zero_threads",
-        "unknown_keys_left_to_the_key_check"])
+        "unknown_keys_left_to_the_key_check", "method_names_any_case"])
 def test_usable_values_pass(packaged, override):
     assert find_invalid_config_values(override, packaged) == []
 
@@ -74,6 +78,29 @@ def test_a_bad_value_in_the_file_falls_back_with_a_warning(own_data_dir):
     with pytest.warns(UserWarning, match="logging.console_level"):
         config = get_default_config()
     assert config["logging"]["console_level"] == get_packaged_config()["logging"]["console_level"]
+
+
+@pytest.mark.parametrize("section, key, value", [
+    ("radial_solver", "starting_method", "bessel"), ("eos_solver", "integration_method", "euler")])
+def test_a_misspelled_method_in_the_file_falls_back_with_a_warning(own_data_dir, section, key, value):
+    """A method name TidalPy does not know falls back to the default instead of stopping the import."""
+    get_default_config()
+    path = _config_path(own_data_dir)
+    text = open(path, encoding="utf-8").read()
+    default = get_packaged_config()[section][key]
+    line = f'{key} = "{default}"'
+    assert line in text
+    open(path, "w", encoding="utf-8").write(text.replace(line, f'{key} = "{value}"', 1))
+    with pytest.warns(UserWarning, match=f"{section}.{key}"):
+        TidalPy.reinit("default")
+    assert TidalPy.config[section][key] == default
+
+
+def test_schema_method_names_match_the_constants():
+    from TidalPy.constants import ODE_METHOD_INTS, STARTING_METHOD_ALIASES
+    from TidalPy.schema import SOLVER_KEY_NAMES
+    assert set(SOLVER_KEY_NAMES["integration_method"]) == set(ODE_METHOD_INTS)
+    assert set(SOLVER_KEY_NAMES["starting_method"]) == set(STARTING_METHOD_ALIASES)
 
 
 def test_a_file_that_does_not_parse_falls_back_with_a_warning(own_data_dir):

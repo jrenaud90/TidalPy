@@ -6,6 +6,13 @@ import scipy
 
 from CyRK cimport ODEMethod
 
+cdef extern from "RadialSolver/starting/starting_method_.hpp" nogil:
+    cdef enum class c_StartingMethod(int):
+        Takeuchi
+        Kamata
+        PowerSeries
+        Unity
+
 # Even though these are defined in this file's .pxd; we need to cimport them so that Cython creates the correct
 # namespace signature like: `TidalPyConstants::d_ppb`.
 from TidalPy.constants cimport (
@@ -150,6 +157,52 @@ def ode_method_from_name(name: str) -> int:
             f'Unsupported integration method "{name}". Supported: {sorted(ODE_METHOD_INTS)}.') from None
 
 
+# The canonical (saved-config) name of each shooting-method starting-condition method, and every name the solvers
+# accept (case-insensitive), aliases included, mapped to its value (RadialSolver/starting/starting_method_.hpp).
+STARTING_METHOD_NAMES = {
+    <int>c_StartingMethod.Takeuchi:    'takeuchi',
+    <int>c_StartingMethod.Kamata:      'kamata',
+    <int>c_StartingMethod.PowerSeries: 'power_series',
+    <int>c_StartingMethod.Unity:       'unity',
+}
+STARTING_METHOD_ALIASES = {
+    'takeuchi':     <int>c_StartingMethod.Takeuchi,
+    'ts':           <int>c_StartingMethod.Takeuchi,
+    'kamata':       <int>c_StartingMethod.Kamata,
+    'power_series': <int>c_StartingMethod.PowerSeries,
+    'powerseries':  <int>c_StartingMethod.PowerSeries,
+    'ps':           <int>c_StartingMethod.PowerSeries,
+    'martens':      <int>c_StartingMethod.PowerSeries,
+    'unity':        <int>c_StartingMethod.Unity,
+}
+
+
+def starting_method_from_name(name: str) -> int:
+    """Starting-condition method value for a name or alias.
+
+    Parameters
+    ----------
+    name : str
+        ``'takeuchi'`` (alias ``'ts'``), ``'kamata'``, ``'power_series'`` (aliases ``'powerseries'``, ``'ps'``,
+        ``'martens'``), or ``'unity'``, in any case.
+
+    Returns
+    -------
+    int
+        The method's value (``STARTING_METHOD_NAMES`` maps it back to the canonical name).
+
+    Raises
+    ------
+    ValueError
+        If the name is not a starting method.
+    """
+    try:
+        return STARTING_METHOD_ALIASES[str(name).lower()]
+    except KeyError:
+        raise ValueError(
+            f'Unsupported starting method "{name}". Supported: {sorted(STARTING_METHOD_ALIASES)}.') from None
+
+
 def update_constants():
     """Populate the shared C++ config singleton from ``TidalPy.config`` and SciPy.
 
@@ -209,7 +262,7 @@ def update_constants():
     tidalpy_config_ptr.d_RADIAL_SOLVER_METHOD = ode_method_from_name(radial_solver['integration_method'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_RTOL = radial_solver['rtol']
     tidalpy_config_ptr.d_RADIAL_SOLVER_ATOL = radial_solver['atol']
-    tidalpy_config_ptr.d_RADIAL_SOLVER_USE_KAMATA = bool(radial_solver['use_kamata'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_STARTING_METHOD = starting_method_from_name(radial_solver['starting_method'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_START_RADIUS_TOL = radial_solver['start_radius_tolerance']
     tidalpy_config_ptr.d_RADIAL_SOLVER_SCALE_RTOLS = bool(radial_solver['scale_rtols'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_NUM_STEPS = int(radial_solver['max_num_steps'])

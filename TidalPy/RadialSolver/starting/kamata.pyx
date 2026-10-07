@@ -177,3 +177,25 @@ def kamata_liquid_dynamic_incompressible(
         cy_resolve_G(G_to_use),
         num_ys,
         ptr)
+
+
+def kamata_solid_static_incompressible(
+        double radius,
+        double density,
+        double complex shear_modulus,
+        int degree_l,
+        object G_to_use,
+        double complex[:, ::1] starting_conditions_view):
+    """
+    Calculate Kamata starting conditions for a solid static incompressible layer.
+
+    KMN15 gives none; this is the dynamic incompressible form (with its first solution replaced, see
+    ``kamata_solid_dynamic_incompressible``) at w = 0, where it stays finite. Three independent solutions.
+    """
+    cy_check_solution_buffer(
+        "kamata_solid_static_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
+    cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
+    c_kamata_solid_static_incompressible(radius, density, mu, degree_l, cy_resolve_G(G_to_use), num_ys, ptr)

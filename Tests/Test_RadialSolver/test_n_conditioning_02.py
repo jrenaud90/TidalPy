@@ -11,6 +11,7 @@ from TidalPy.RadialSolver import build_rs_input_homogeneous_layers, radial_solve
 from TidalPy.RadialSolver.rs_solution import check_surface_solve_conditioning
 from TidalPy.RadialSolver.starting.common import z_calc
 from TidalPy.RadialSolver.starting.kamata import kamata_solid_dynamic_incompressible
+
 from TidalPy.Rheology import Elastic, Maxwell
 
 WARNING_TEXT = "poorly conditioned"
@@ -92,11 +93,13 @@ def test_minimum_surface_rcond_is_wired_through():
     assert constants.minimum_surface_rcond == TidalPy.config["numerical"]["minimum_surface_rcond"]
 
 
-@pytest.mark.parametrize("use_kamata", (False, True))
+# Unit vectors carry singular content into the surface system, which leaves it less well conditioned; the regular
+# starts are checked here.
+@pytest.mark.parametrize("starting_method", ("takeuchi", "kamata", "power_series"))
 @pytest.mark.parametrize("degree_l", (2, 3))
-def test_regular_solve_reports_a_healthy_rcond(use_kamata, degree_l):
+def test_regular_solve_reports_a_healthy_rcond(starting_method, degree_l):
     """A regular solve is well conditioned: finite rcond, far above the threshold, at most 1."""
-    solution = radial_solver(*_static_one_layer_inputs(), degree_l=degree_l, use_kamata=use_kamata)
+    solution = radial_solver(*_static_one_layer_inputs(), degree_l=degree_l, starting_method=starting_method)
     assert solution.success, solution.message
     rcond = solution.surface_solve_rcond
     assert np.isfinite(rcond)
@@ -194,7 +197,7 @@ def test_kamata_solutions_stay_independent_at_low_frequency(frequency):
 @pytest.mark.parametrize("period_days", (16.0, 27.3, 80.0))
 def test_kamata_low_frequency_matches_the_closed_form(period_days, degree_l):
     """At long periods a homogeneous incompressible Moon matches the static closed-form k to 1e-5."""
-    solution = radial_solver(*_moon_inputs(period_days), degree_l=degree_l, use_kamata=True)
+    solution = radial_solver(*_moon_inputs(period_days), degree_l=degree_l, starting_method="kamata")
     assert solution.success, solution.message
     expected = _closed_form_incompressible_k(degree_l)
     assert abs(solution.k - expected) / expected < 1.0e-5

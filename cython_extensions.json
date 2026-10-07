@@ -1618,6 +1618,34 @@
     "link_args": [],
     "is_cpp": true
   },
+  "RadialSolver.starting.power_series": {
+    "name": "TidalPy.RadialSolver.starting.power_series",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "power_series.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "RadialSolver.starting.takeuchi": {
     "name": "TidalPy.RadialSolver.starting.takeuchi",
     "sources": [

@@ -29,7 +29,7 @@ struct c_LoveSolveRuntimeConfig {
     std::vector<int> bc_models = {1};               // tidal = 1, free = 0, loading = 2; one output block each
     bool      use_prop_matrix = false;              // false = shooting method, true = propagation matrix
     int       core_model      = 0;                  // propagation-matrix core starting condition (0-4)
-    bool      use_kamata      = false;
+    int       starting_method = 0;                  // c_StartingMethod (starting/starting_method_.hpp)
     double    starting_radius = 0.0;                // [m]; 0 -> auto
     double    start_radius_tol = 1.0e-4;
     ODEMethod integration_method = ODEMethod::DOP853;
@@ -355,7 +355,7 @@ public:
         } else {
             c_ShootingInputs& shoot = this->p_shooting_inputs;
             shoot.bc_models          = rt.bc_models;
-            shoot.use_kamata         = rt.use_kamata;
+            shoot.starting_method    = rt.starting_method;
             shoot.starting_radius    = start_r;
             shoot.start_radius_tol   = rt.start_radius_tol;
             shoot.integration_method = rt.integration_method;

@@ -48,7 +48,7 @@ def test_a_starting_buffer_with_too_few_rows_is_refused():
     with pytest.raises(ValueError, match="rows"):
         kamata_solid_dynamic_compressible(1.0e-5, 1.0e5, 3000.0, 1.0e11, 5.0e10, 2, G, _y(1))
     with pytest.raises(ValueError, match="rows"):
-        find_starting_conditions(SOLID, False, False, True, 1.0e-5, 1.0e5, 3000.0, 1.0e11, 5.0e10, 2, G, _y(2))
+        find_starting_conditions(SOLID, False, False, "kamata", 1.0e-5, 1.0e5, 3000.0, 1.0e11, 5.0e10, 2, G, _y(2))
 
 
 def test_a_starting_buffer_with_too_few_columns_is_refused():

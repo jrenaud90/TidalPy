@@ -23,6 +23,7 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants import starting_method_from_name
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons, so the C++ warnings of the world this
 # module builds (its EOS and Love solves) reach the logger.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -123,7 +124,7 @@ def radial_solver(
         start_radius_tolerance = None,
         nondimensionalize = None,
         # Shooting method parameters
-        use_kamata = None,
+        starting_method = None,
         integration_method = None,
         integration_rtol = None,
         integration_atol = None,
@@ -189,8 +190,9 @@ def radial_solver(
         Starting radius [m]; 0 selects R * tol^(1/l) with ``start_radius_tolerance``.
     nondimensionalize : bool, optional
         Non-dimensionalize the EOS and shooting solves.
-    use_kamata : bool, optional
-        Use the Kamata et al. (2015) starting conditions.
+    starting_method : str, optional
+        Starting conditions: 'takeuchi' (Takeuchi and Saito 1972; alias 'ts'), 'kamata' (Kamata et al. 2015),
+        'power_series' (Martens 2016; aliases 'powerseries', 'ps', 'martens'), or 'unity' (unit vectors).
     integration_method, eos_integration_method : str, optional
         CyRK method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
     integration_rtol, integration_atol, eos_rtol, eos_atol : float64, optional
@@ -242,8 +244,8 @@ def radial_solver(
         love_cfg.start_radius_tol = <double>start_radius_tolerance
     if nondimensionalize is not None:
         love_cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
-    if use_kamata is not None:
-        love_cfg.use_kamata = <cpp_bool>bool(use_kamata)
+    if starting_method is not None:
+        love_cfg.starting_method = <int>starting_method_from_name(starting_method)
     if integration_rtol is not None:
         love_cfg.rtol = <double>integration_rtol
     if integration_atol is not None:

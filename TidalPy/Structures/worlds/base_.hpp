@@ -160,7 +160,7 @@ struct c_LoveSolveConfig {
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
     double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
     int       core_model         = 0;                         // propagation-matrix core starting condition (0-4)
-    bool      use_kamata         = false;
+    int       starting_method    = 0;                         // c_StartingMethod (shooting method only)
     bool      nondimensionalize  = true;
     double    starting_radius    = 0.0;                       // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
@@ -181,7 +181,7 @@ struct c_LoveSolveConfig {
     c_LoveSolveConfig() {
         if (!c_solver_config_loaded()) { return; }
         const TidalPyConfig& config = *tidalpy_config_ptr;
-        this->use_kamata         = config.d_RADIAL_SOLVER_USE_KAMATA;
+        this->starting_method    = config.d_RADIAL_SOLVER_STARTING_METHOD;
         this->nondimensionalize  = config.d_RADIAL_SOLVER_NONDIMENSIONALIZE;
         this->start_radius_tol   = config.d_RADIAL_SOLVER_START_RADIUS_TOL;
         this->integration_method = c_ode_method_from_config(config.d_RADIAL_SOLVER_METHOD, this->integration_method);
@@ -212,6 +212,7 @@ enum class c_SolverSettingKind : uint8_t {
     Real   = 1,   // a double
     Count  = 2,   // a non-negative integer (uint64 in a binary record)
     Flag   = 3,   // a switch (uint8 in a binary record)
+    StartingMethod = 4,   // a c_StartingMethod (int32 in a binary record)
 };
 
 template <class Config>
@@ -258,8 +259,8 @@ struct c_RadialSolverSection {
              }},
             {"rtol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.rtol = value; }},
             {"atol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.atol = value; }},
-            {"use_kamata", c_SolverSettingKind::Flag,
-             [](Config& cfg, double value) { cfg.use_kamata = (value != 0.0); }},
+            {"starting_method", c_SolverSettingKind::StartingMethod,
+             [](Config& cfg, double value) { cfg.starting_method = static_cast<int>(value); }},
             {"start_radius_tolerance", c_SolverSettingKind::Real,
              [](Config& cfg, double value) { cfg.start_radius_tol = value; }},
             {"scale_rtols", c_SolverSettingKind::Flag,
@@ -321,6 +322,7 @@ public:
                 case c_SolverSettingKind::Real:   p_write_as<double>(out, *value);   break;
                 case c_SolverSettingKind::Count:  p_write_as<uint64_t>(out, *value); break;
                 case c_SolverSettingKind::Flag:   p_write_as<uint8_t>(out, *value);  break;
+                case c_SolverSettingKind::StartingMethod: p_write_as<int32_t>(out, *value); break;
             }
         }
     }
@@ -335,6 +337,7 @@ public:
                 case c_SolverSettingKind::Real:   this->p_values[row] = p_read_as<double>(in);   break;
                 case c_SolverSettingKind::Count:  this->p_values[row] = p_read_as<uint64_t>(in); break;
                 case c_SolverSettingKind::Flag:   this->p_values[row] = p_read_as<uint8_t>(in);  break;
+                case c_SolverSettingKind::StartingMethod: this->p_values[row] = p_read_as<int32_t>(in); break;
             }
         }
     }
@@ -1951,7 +1954,7 @@ public:
         rt.bc_models          = cfg.bc_models;
         rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
         rt.core_model         = cfg.core_model;
-        rt.use_kamata         = cfg.use_kamata;
+        rt.starting_method    = cfg.starting_method;
         rt.starting_radius    = cfg.starting_radius;
         rt.start_radius_tol   = cfg.start_radius_tol;
         rt.integration_method = cfg.integration_method;

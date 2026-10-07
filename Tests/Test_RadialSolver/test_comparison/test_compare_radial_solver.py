@@ -40,13 +40,13 @@ def _case_key(
         is_static,
         is_incompressible,
         degree_l,
-        use_kamata,
+        classic_kamata,
         solve_for,
         starting_radius,
         integration_method,
         nondimensionalize):
     starting_label = "auto" if starting_radius == 0.0 else "manual"
-    return (f"static_{is_static}__incompressible_{is_incompressible}__degree_l_{degree_l}__kamata_{use_kamata}"
+    return (f"static_{is_static}__incompressible_{is_incompressible}__degree_l_{degree_l}__kamata_{classic_kamata}"
             f"__solve_for_{'+'.join(solve_for)}__start_{starting_label}__method_{integration_method}"
             f"__nondimensionalize_{nondimensionalize}")
 
@@ -61,7 +61,8 @@ def _classic_solution(case_key):
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('degree_l', (2, 3))
-@pytest.mark.parametrize('use_kamata', (True, False))
+# The frozen references are keyed by the 0.7.X solver's use_kamata switch: Kamata when True, else Takeuchi.
+@pytest.mark.parametrize('classic_kamata', (True, False))
 @pytest.mark.parametrize('solve_for', (('tidal',), ('loading',), ('tidal', 'loading')))
 @pytest.mark.parametrize('starting_radius', (0.0, MANUAL_STARTING_RADIUS))
 @pytest.mark.parametrize('integration_method', ('RK45', 'DOP853'))
@@ -70,7 +71,7 @@ def test_compare_radial_solver_1layer_solid(
         is_static,
         is_incompressible,
         degree_l,
-        use_kamata,
+        classic_kamata,
         solve_for,
         starting_radius,
         integration_method,
@@ -80,7 +81,7 @@ def test_compare_radial_solver_1layer_solid(
         is_static,
         is_incompressible,
         degree_l,
-        use_kamata,
+        classic_kamata,
         solve_for,
         starting_radius,
         integration_method,
@@ -107,7 +108,7 @@ def test_compare_radial_solver_1layer_solid(
             upper_radius_by_layer,
             degree_l=degree_l,
             solve_for=solve_for,
-            use_kamata=use_kamata,
+            starting_method=('kamata' if classic_kamata else 'takeuchi'),
             integration_method=integration_method,
             integration_rtol=1.0e-7,
             integration_atol=1.0e-10,
@@ -132,7 +133,7 @@ def test_compare_radial_solver_1layer_solid(
     assert old_result.shape == new_out.result.shape
     # Different LU and ODE implementations agree to about 1e-4 in the interior. The classic Kamata start for a dynamic
     # incompressible solid has two nearly parallel solutions at low frequency and loses digits there.
-    interior_rtol = 3.0e-4 if (use_kamata and (not is_static) and is_incompressible) else 1.0e-4
+    interior_rtol = 3.0e-4 if (classic_kamata and (not is_static) and is_incompressible) else 1.0e-4
     np.testing.assert_allclose(
         new_out.result[:, :-1],
         old_result[:, :-1],

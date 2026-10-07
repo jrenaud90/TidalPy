@@ -45,22 +45,15 @@ def _check_3layer(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         solve_for,
-        starting_radius,
-        supported):
-    """Solve the 3-layer planet and check the output: a start layer with no starting conditions raises
-    NotImplementedError, and the known unstable pairing is skipped."""
+        starting_radius):
+    """Solve the 3-layer planet and check the output; the known unstable pairing is skipped."""
     # A compressible dynamic liquid over an incompressible solid can fail to integrate (step size underflow).
     known_unstable = (not liquid_is_incompressible) and solid_is_incompressible
     unstable_reason = 'Integration Failed. Compressible liquid with incompressible solid below is not very stable.'
     start_layer = _start_layer(starting_radius)
     start_is_liquid = layer_types[start_layer] == "liquid"
-    start_supported = supported(
-        layer_types[start_layer],
-        liquid_is_static if start_is_liquid else solid_is_static,
-        liquid_is_incompressible if start_is_liquid else solid_is_incompressible,
-        use_kamata)
 
     def solve():
         return radial_solver(
@@ -76,7 +69,7 @@ def _check_3layer(
             upper_radius_by_layer,
             degree_l=degree_l,
             solve_for=solve_for,
-            use_kamata=use_kamata,
+            starting_method=starting_method,
             integration_method=method,
             integration_rtol=1.0e-7,
             integration_atol=1.0e-10,
@@ -89,13 +82,15 @@ def _check_3layer(
             verbose=False,
             nondimensionalize=True)
 
-    if not start_supported:
-        with pytest.raises(NotImplementedError):
-            solve()
-        return
+    # Halfway up the planet in the constant-density dynamic liquid, whose solutions grow by up to exp(200) here, the
+    # power series refuses to start rather than return an inaccurate start.
+    series_may_refuse = (starting_method == 'power_series') and start_is_liquid and (not liquid_is_static) and \
+        (not liquid_is_incompressible)
     try:
         out = solve()
     except SolutionFailedError as error:
+        if series_may_refuse and ('power series starting conditions refused' in str(error)):
+            return
         # Only the liquid layer's step-size collapse is expected; any other failure is a real one.
         if known_unstable and ('Integration problem at layer 2' in str(error)):
             pytest.skip(unstable_reason)
@@ -113,7 +108,7 @@ def _check_3layer(
 @pytest.mark.parametrize('liquid_is_incompressible', (True, False))
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3, 10))
-@pytest.mark.parametrize('use_kamata', (True,))
+@pytest.mark.parametrize('starting_method', ('takeuchi', 'kamata', 'power_series'))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
 @pytest.mark.parametrize('starting_radius', starting_radii)
 def test_radial_solver_3layer(
@@ -123,10 +118,9 @@ def test_radial_solver_3layer(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         solve_for,
-        starting_radius,
-        starting_conditions_supported):
+        starting_radius):
     """A single solve type succeeds with a (6, N) result."""
     _check_3layer(
         solid_is_static,
@@ -135,10 +129,9 @@ def test_radial_solver_3layer(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         solve_for,
-        starting_radius,
-        starting_conditions_supported)
+        starting_radius)
 
 
 @pytest.mark.parametrize('solid_is_static', (True, False))
@@ -147,7 +140,7 @@ def test_radial_solver_3layer(
 @pytest.mark.parametrize('liquid_is_incompressible', (True, False))
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2,))
-@pytest.mark.parametrize('use_kamata', (True,))
+@pytest.mark.parametrize('starting_method', ('takeuchi', 'kamata', 'power_series'))
 def test_radial_solver_3layer_solve_for_both(
         solid_is_static,
         liquid_is_static,
@@ -155,8 +148,7 @@ def test_radial_solver_3layer_solve_for_both(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata,
-        starting_conditions_supported):
+        starting_method):
     """Solving for tidal and loading together succeeds with a (12, N) result."""
     _check_3layer(
         solid_is_static,
@@ -165,7 +157,6 @@ def test_radial_solver_3layer_solve_for_both(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         ('tidal', 'loading'),
-        0.2 * planet_r,
-        starting_conditions_supported)
+        0.2 * planet_r)

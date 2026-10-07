@@ -126,7 +126,7 @@ def test_prop_matrix_close_to_shooting_for_same_world():
     k2_matrix = world.love_number_k
     # Shooting cannot start a static incompressible solid, so it solves the dynamic form (equal at this frequency).
     world.mantle.is_static = False
-    world.solve_love_numbers(frequency=_FREQ, love_method='radial_solver', use_kamata=True, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='radial_solver', starting_method="kamata", verbose=False)
     assert world.love_solved
     k2_shoot = world.love_number_k
     assert k2_matrix.real == pytest.approx(k2_shoot.real, rel=1.0e-3)

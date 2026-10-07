@@ -118,3 +118,83 @@ def takeuchi_liquid_dynamic_compressible(
         cy_resolve_G(G_to_use),
         num_ys,
         ptr)
+
+
+def takeuchi_solid_dynamic_incompressible(
+        double frequency,
+        double radius,
+        double density,
+        double complex shear_modulus,
+        int degree_l,
+        object G_to_use,
+        double complex[:, ::1] starting_conditions_view):
+    """
+    Calculate Takeuchi starting conditions for a solid dynamic incompressible layer.
+
+    The lambda -> infinity limit of TS72 Eqs. 95-102 (derived in takeuchi_.hpp), with the shear-wave solution less
+    its pressure-potential part so the basis stays independent as the frequency drops. Three independent solutions.
+    """
+    cy_check_solution_buffer(
+        "takeuchi_solid_dynamic_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
+    cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
+    c_takeuchi_solid_dynamic_incompressible(
+        frequency,
+        radius,
+        density,
+        mu,
+        degree_l,
+        cy_resolve_G(G_to_use),
+        num_ys,
+        ptr)
+
+
+def takeuchi_solid_static_incompressible(
+        double radius,
+        double density,
+        double complex shear_modulus,
+        int degree_l,
+        object G_to_use,
+        double complex[:, ::1] starting_conditions_view):
+    """
+    Calculate Takeuchi starting conditions for a solid static incompressible layer.
+
+    The dynamic incompressible form at w = 0. Three independent solutions.
+    """
+    cy_check_solution_buffer(
+        "takeuchi_solid_static_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
+    cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
+    c_takeuchi_solid_static_incompressible(radius, density, mu, degree_l, cy_resolve_G(G_to_use), num_ys, ptr)
+
+
+def takeuchi_liquid_dynamic_incompressible(
+        double frequency,
+        double radius,
+        double density,
+        int degree_l,
+        object G_to_use,
+        double complex[:, ::1] starting_conditions_view):
+    """
+    Calculate Takeuchi starting conditions for a liquid dynamic incompressible layer.
+
+    The lambda -> infinity limit of TS72 Eqs. 95-102 (mu = 0): the pressure-potential and polynomial solutions, both
+    exact. Two independent solutions.
+    """
+    cy_check_solution_buffer(
+        "takeuchi_liquid_dynamic_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, False)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
+    c_takeuchi_liquid_dynamic_incompressible(
+        frequency,
+        radius,
+        density,
+        degree_l,
+        cy_resolve_G(G_to_use),
+        num_ys,
+        ptr)

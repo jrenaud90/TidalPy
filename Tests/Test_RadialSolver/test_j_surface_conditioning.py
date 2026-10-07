@@ -36,7 +36,7 @@ def _solve(**kwargs):
         (False,),
         (True,),
         upper_radius_by_layer,
-        use_kamata=True,
+        starting_method="kamata",
         raise_on_fail=True,
         **kwargs)
 

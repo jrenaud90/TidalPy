@@ -5,6 +5,8 @@ import pytest
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.Rheology import Maxwell
 
+from starting_methods import STARTING_METHODS
+
 frequency = 1.0 / (86400. * 0.2)
 N = 100
 radius_array = np.linspace(0.0, 6000.e3, N)
@@ -36,12 +38,11 @@ def _solve_1layer(
         is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         solve_for,
-        supported,
         **kwargs):
-    """Solve a 1-layer planet: an unsupported start raises NotImplementedError, and a supported one succeeds with a
-    k_l near the homogeneous sphere's. All-liquid planets are skipped."""
+    """Solve a 1-layer planet: every start succeeds with a k_l near the homogeneous sphere's. All-liquid planets are
+    skipped."""
     # A 1-layer all-liquid planet is numerically unstable.
     if layer_type != 'solid':
         pytest.skip('Planets with 1-layer liquid are not currently very stable. Skipping tests.')
@@ -60,7 +61,7 @@ def _solve_1layer(
             upper_radius_by_layer,
             degree_l=degree_l,
             solve_for=solve_for,
-            use_kamata=use_kamata,
+            starting_method=starting_method,
             integration_method=method,
             integration_rtol=1.0e-7,
             integration_atol=1.0e-10,
@@ -74,10 +75,6 @@ def _solve_1layer(
             raise_on_fail=True,
             **kwargs)
 
-    if not supported(layer_type, is_static, is_incompressible, use_kamata):
-        with pytest.raises(NotImplementedError):
-            solve()
-        return None
     out = solve()
     assert out.success
     assert type(out.message) is str
@@ -95,7 +92,7 @@ def _solve_1layer(
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3))
-@pytest.mark.parametrize('use_kamata', (True, False))
+@pytest.mark.parametrize('starting_method', STARTING_METHODS)
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
 def test_radial_solver_1layer(
         layer_type,
@@ -103,9 +100,8 @@ def test_radial_solver_1layer(
         is_incompressible,
         method,
         degree_l,
-        use_kamata,
-        solve_for,
-        starting_conditions_supported):
+        starting_method,
+        solve_for):
     """A single solve type succeeds with a (6, N) result; the log_info kwarg is accepted."""
     _solve_1layer(
         layer_type,
@@ -113,9 +109,8 @@ def test_radial_solver_1layer(
         is_incompressible,
         method,
         degree_l,
-        use_kamata,
+        starting_method,
         solve_for,
-        starting_conditions_supported,
         log_info=True)
 
 
@@ -124,15 +119,14 @@ def test_radial_solver_1layer(
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3))
-@pytest.mark.parametrize('use_kamata', (True, False))
+@pytest.mark.parametrize('starting_method', STARTING_METHODS)
 def test_radial_solver_1layer_solve_for_both(
         layer_type,
         is_static,
         is_incompressible,
         method,
         degree_l,
-        use_kamata,
-        starting_conditions_supported):
+        starting_method):
     """Solving for tidal and loading together succeeds and every solution attribute has its expected type and shape."""
     solve_for = ('tidal', 'loading')
     out = _solve_1layer(
@@ -141,11 +135,8 @@ def test_radial_solver_1layer_solve_for_both(
         is_incompressible,
         method,
         degree_l,
-        use_kamata,
-        solve_for,
-        starting_conditions_supported)
-    if out is None:
-        return
+        starting_method,
+        solve_for)
     num_solve_for = len(solve_for)
 
     assert type(out.error_code) is int

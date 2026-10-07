@@ -192,8 +192,10 @@ schema_version = "{SCHEMA_VERSION}"
     integration_method = "DOP853"
     rtol = 3.0e-8
     atol = 3.0e-8
-    # Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972).
-    use_kamata = false
+    # Starting conditions of the shooting method: "takeuchi" (Takeuchi and Saito 1972; alias "ts"), "kamata"
+    # (Kamata et al. 2015), "power_series" (Martens 2016; aliases "powerseries", "ps", "martens"), or "unity" (unit
+    # vectors). See the radial solver's starting conditions page.
+    starting_method = "takeuchi"
     # The automatic starting radius is R * start_radius_tolerance^(1/l), capped by
     # [numerical].max_start_radius_fraction.
     start_radius_tolerance = 1.0e-5

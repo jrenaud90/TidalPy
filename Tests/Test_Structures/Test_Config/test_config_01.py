@@ -53,7 +53,7 @@ def test_config_package_section_has_exactly_its_keys(section, keys):
                    "eos_invert_max_iters", "test_constant")),
     ("eos_solver", ("integration_method", "rtol", "atol", "pressure_tol", "max_iters", "nondimensionalize",
                     "slices_per_layer")),
-    ("radial_solver", ("integration_method", "rtol", "atol", "use_kamata", "start_radius_tolerance", "scale_rtols",
+    ("radial_solver", ("integration_method", "rtol", "atol", "starting_method", "start_radius_tolerance", "scale_rtols",
                        "max_num_steps", "expected_size", "max_ram_mb", "nondimensionalize")),
 ])
 def test_config_section_has_its_keys(section, keys):
@@ -333,7 +333,7 @@ def test_world_love_defaults_follow_the_config(restore_config):
         frequency=frequency,
         rtol=config["rtol"],
         atol=config["atol"],
-        use_kamata=config["use_kamata"],
+        starting_method=config["starting_method"],
         scale_rtols=config["scale_rtols"],
         start_radius_tol=config["start_radius_tolerance"],
         integration_method=config["integration_method"],

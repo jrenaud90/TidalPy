@@ -2,6 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 import numpy as np
+
+import TidalPy
 cimport numpy as cnp
 cnp.import_array()
 
@@ -9,9 +11,10 @@ from libcpp cimport bool as cpp_bool
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
-from libcpp.string cimport string as cpp_string, npos as cpp_npos
+from libcpp.string cimport string as cpp_string
 
 from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants import starting_method_from_name
 
 # Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -21,7 +24,7 @@ def find_starting_conditions(
         int layer_type,
         cpp_bool is_static,
         cpp_bool is_incompressible,
-        cpp_bool use_kamata,
+        object starting_method,
         double frequency,
         double radius,
         double density,
@@ -42,8 +45,10 @@ def find_starting_conditions(
         True for static tides.
     is_incompressible : bool
         True for incompressible.
-    use_kamata : bool
-        True = Kamata (2015), False = Takeuchi & Saito (1972).
+    starting_method : str or None
+        ``'takeuchi'`` (Takeuchi and Saito 1972), ``'kamata'`` (Kamata et al. 2015), ``'power_series'`` (Martens 2016),
+        or ``'unity'`` (unit vectors); aliases as ``TidalPy.constants.STARTING_METHOD_ALIASES``. None takes the
+        ``[radial_solver] starting_method`` of the TidalPy configuration.
     frequency : float
         Forcing frequency [rad s-1].
     radius : float
@@ -81,7 +86,8 @@ def find_starting_conditions(
         layer_type,
         is_static,
         is_incompressible,
-        use_kamata,
+        starting_method_from_name(
+            TidalPy.config['radial_solver']['starting_method'] if starting_method is None else starting_method),
         frequency,
         radius,
         density,
@@ -95,7 +101,5 @@ def find_starting_conditions(
         )
 
     if not success:
-        if message.find(cpp_string(b'not implemented')) != cpp_npos:
-            raise NotImplementedError(message.decode('utf-8'))
-        else:
-            raise Exception(message.decode('utf-8'))
+        # An unknown method, a power series that refused to start, or a buffer of the wrong size.
+        raise RuntimeError(message.decode('utf-8'))

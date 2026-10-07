@@ -71,7 +71,7 @@ struct c_ShootingInputs {
     int    degree_l            = 2;
 
     // Shooting-method knobs (per-call, set from the runtime config).
-    bool      use_kamata          = false;
+    int       starting_method     = 0;            // c_StartingMethod (starting/starting_method_.hpp)
     double    starting_radius     = 0.0;          // non-dim
     double    start_radius_tol    = 1.0e-4;
     ODEMethod integration_method  = ODEMethod::DOP853;
@@ -473,7 +473,7 @@ inline int c_shooting_solver(
                 layer_type,
                 layer_is_static,
                 layer_is_incomp,
-                inputs.use_kamata,
+                inputs.starting_method,
                 frequency,
                 radius_lower,
                 density_lower,

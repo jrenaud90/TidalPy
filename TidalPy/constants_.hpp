@@ -147,7 +147,7 @@ struct TidalPyConfig
     int    d_RADIAL_SOLVER_METHOD;
     double d_RADIAL_SOLVER_RTOL;
     double d_RADIAL_SOLVER_ATOL;
-    bool   d_RADIAL_SOLVER_USE_KAMATA;
+    int    d_RADIAL_SOLVER_STARTING_METHOD;   // c_StartingMethod (RadialSolver/starting/starting_method_.hpp)
     double d_RADIAL_SOLVER_START_RADIUS_TOL;
     bool   d_RADIAL_SOLVER_SCALE_RTOLS;
     int    d_RADIAL_SOLVER_MAX_NUM_STEPS;
@@ -202,7 +202,7 @@ struct TidalPyConfig
         d_RADIAL_SOLVER_METHOD = -1;
         d_RADIAL_SOLVER_RTOL = nan;
         d_RADIAL_SOLVER_ATOL = nan;
-        d_RADIAL_SOLVER_USE_KAMATA = false;
+        d_RADIAL_SOLVER_STARTING_METHOD = 0;
         d_RADIAL_SOLVER_START_RADIUS_TOL = nan;
         d_RADIAL_SOLVER_SCALE_RTOLS = false;
         d_RADIAL_SOLVER_MAX_NUM_STEPS = -1;

@@ -42,7 +42,7 @@ def test_layered_world_keeps_its_tide_spin_and_solver_settings(tmp_path):
     world.set_spin_model(Spin(moment_of_inertia_factor=0.33))
     world.set_solver_defaults(
         eos_solver={"rtol": 1.0e-9, "slices_per_layer": 70, "integration_method": "RK45"},
-        radial_solver={"use_kamata": True, "max_num_steps": 12345})
+        radial_solver={"starting_method": "power_series", "max_num_steps": 12345})
 
     loaded = _round_trip(world, type(world)("placeholder", 1.0, 1.0), tmp_path)
 

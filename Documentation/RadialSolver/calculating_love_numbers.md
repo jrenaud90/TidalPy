@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
 `TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `BaseWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
@@ -76,7 +76,7 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 |---|---|---|
 | `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused, here with a `ValueError` and on the world path with a failed solve. |
 | `start_radius_tolerance` | `None` (config) | Tolerance for that automatic choice: the start is at $R \cdot \mathrm{tol}^{1/l}$. |
-| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. For a dynamic incompressible solid, the first of the three Kamata solutions is replaced by a combination with the second that stays independent at long forcing periods, where the published pair converges (the difference is $O(\omega^2 / \gamma)$, $\gamma = 4 \pi G \rho / 3$). |
+| `starting_method` | `None` (config) | Starting conditions at the starting radius: `'takeuchi'` (Takeuchi and Saito 1972; alias `'ts'`), `'kamata'` (Kamata et al. 2015), `'power_series'` (Martens 2016; aliases `'powerseries'`, `'ps'`, `'martens'`), or `'unity'` (unit vectors). Every method covers every layer type. See [Starting Conditions](starting_conditions.md) for when to use each. |
 | `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Relative and absolute integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |
@@ -125,14 +125,14 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 | `integration_method` | `solve_love_numbers(integration_method=...)` | `[radial_solver] integration_method` |
 | `integration_rtol`, `integration_atol` | `solve_love_numbers(rtol=..., atol=...)` | `[radial_solver] rtol`, `atol` |
 | `scale_rtols_bylayer_type` | `solve_love_numbers(scale_rtols=...)` | `[radial_solver] scale_rtols` |
-| `use_kamata`, `max_num_steps`, `expected_size`, `nondimensionalize` | the same names | the same names |
+| `starting_method`, `max_num_steps`, `expected_size`, `nondimensionalize` | the same names | the same names |
 | `max_ram_MB` | `solve_love_numbers(max_ram_MB=...)` | `[radial_solver] max_ram_mb` |
 | `eos_integration_method` | `solve_eos(integration_method=...)` | `[eos_solver] integration_method` |
 | `eos_rtol`, `eos_atol` | `solve_eos(rtol=..., atol=...)` | `[eos_solver] rtol`, `atol` |
 | `eos_pressure_tol` | `solve_eos(pressure_tol=...)` | `[eos_solver] pressure_tol` |
 | `eos_max_iters` | `solve_eos(max_iters=...)` | `[eos_solver] max_iters` |
 
-The lower-level radial-solver functions that take Newton's constant (`find_starting_conditions` and the Kamata and Takeuchi starting conditions, `apply_surface_bc`, `solve_upper_y_at_interface`, `fundamental_matrix`), like the tidal-potential functions (`global_potential`, `tidal_potential_3d_modes`, `collapse_global_tides`) and the Kepler conversions, read a `G_to_use` of `None` as the TidalPy configuration's value (SciPy's G).
+The lower-level radial-solver functions that take Newton's constant (`find_starting_conditions` and the Kamata, Takeuchi, and power series starting conditions, `apply_surface_bc`, `solve_upper_y_at_interface`, `fundamental_matrix`), like the tidal-potential functions (`global_potential`, `tidal_potential_3d_modes`, `collapse_global_tides`) and the Kepler conversions, read a `G_to_use` of `None` as the TidalPy configuration's value (SciPy's G).
 
 ## Troubleshooting
 
@@ -144,7 +144,7 @@ Start with `solution.message`, then `solution.steps_taken`, then plot. The messa
 
 **"Error in step size calculation: Required step size is less than spacing between numbers."** The integrator could not make progress. Usually the tolerances are too tight, or counterintuitively too loose so that error compounds. A dynamic (non-static) compressible liquid layer is a common trigger; try the static assumption for it.
 
-**Slow solves or huge step counts.** A healthy solve needs a few hundred steps per solution per layer; a few thousand happens in awkward cases; ten thousand or more means the solution is likely unstable. `solution.plot_ys()` is a quick check, since instability shows up as large spikes, ringing, or curves that do not vary smoothly with radius. Things to try, roughly in order: change the integration tolerances, change the integration method, switch the starting condition with `use_kamata`, lower `degree_l`, start higher in the planet with `starting_radius`, revisit the layer assumptions (dynamic compressible liquid layers especially), add a small solid core beneath a fully liquid one, or add more slices to the input arrays.
+**Slow solves or huge step counts.** A healthy solve needs a few hundred steps per solution per layer; a few thousand happens in awkward cases; ten thousand or more means the solution is likely unstable. `solution.plot_ys()` is a quick check, since instability shows up as large spikes, ringing, or curves that do not vary smoothly with radius. Things to try, roughly in order: change the integration tolerances, change the integration method, switch the starting conditions with `starting_method` (see [Starting Conditions](starting_conditions.md)), lower `degree_l`, start higher in the planet with `starting_radius`, revisit the layer assumptions (dynamic compressible liquid layers especially), add a small solid core beneath a fully liquid one, or add more slices to the input arrays.
 
 **NaN Love numbers from a successful solve.** The surface boundary condition solve was ill-conditioned. Check `solution.surface_solve_amplification`: values far above one mean the solution constants are cancelling catastrophically. Raise the starting radius, or let the solver choose it.
 

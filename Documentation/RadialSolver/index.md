@@ -1,6 +1,6 @@
 # Love Numbers and Radial Functions (`RadialSolver`)
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
 `TidalPy.RadialSolver` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions $y_1$ through $y_6$ throughout the interior and the Love numbers $k$, $h$, and $l$ at the surface. Those numbers set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and the predicted gravity and displacement signals of a body.
 
@@ -22,6 +22,7 @@ Every path returns a [`RadialSolverSolution`](solution_class.md), which carries 
 :caption: Contents
 
 Calculating Love Numbers <calculating_love_numbers.md>
+Starting Conditions <starting_conditions.md>
 Solution Class <solution_class.md>
 Helper Functions <build_inputs.md>
 Dense Radial Solutions <dense_radial_solution.md>
@@ -36,7 +37,7 @@ The propagation-matrix approach is quasi-analytic and restricted to a single sol
 
 Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve altogether.
 
-[Calculating Love Numbers](calculating_love_numbers.md) covers how to choose between them, and [Dense Radial Solutions](dense_radial_solution.md) covers the numerics in more depth.
+[Calculating Love Numbers](calculating_love_numbers.md) covers how to choose between them, [Starting Conditions](starting_conditions.md) covers how the shooting method starts its independent solutions, and [Dense Radial Solutions](dense_radial_solution.md) covers the numerics in more depth.
 
 ## References
 
@@ -54,6 +55,9 @@ The methods implemented here come from the following work (this is not a compreh
 **Starting conditions**
 - Kamata, S., Matsuyama, I., and Nimmo, F. (2015). Tidal resonance in icy satellites with subsurface oceans. *Journal of Geophysical Research: Planets*, 120(9), 1528-1542.
 - Martens, H. R. (2016). *Using Earth deformation caused by surface mass loading to constrain the elastic structure of the crust and mantle*. PhD thesis, California Institute of Technology.
+- Martens, H. R., Rivera, L., and Simons, M. (2019). LoadDef: A Python-based toolkit to model elastic deformation caused by surface mass loading on spherically symmetric bodies. *Earth and Space Science*, 6(2), 311-323.
+- Smylie, D. E. (2013). *Earth Dynamics: Deformations and Oscillations of the Rotating Earth*. Cambridge University Press.
+- Crossley, D. J. (1975). The free-oscillation equations at the centre of the Earth. *Geophysical Journal of the Royal Astronomical Society*, 41(2), 153-163.
 
 **Propagation matrix method**
 - Sabadini, R., and Vermeersen, B. (2004). *Global Dynamics of the Earth: Applications of Normal Mode Relaxation Theory to Solid-Earth Geophysics*.

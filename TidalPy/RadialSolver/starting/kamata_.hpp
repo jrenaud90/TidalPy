@@ -248,6 +248,31 @@ inline void c_kamata_solid_dynamic_incompressible(
 }
 
 
+// Calculate the starting guess at the bottom of a solid layer using the static and incompressible assumptions, which
+// KMN15 does not give: the dynamic incompressible form above at zero frequency. Its first solution no longer divides by
+// w^2, so it is finite there (zx = 1 / (2l + 3)), and the static equations are the dynamic ones at w = 0.
+// Three independent solutions (sn1, sn2, sn3).
+inline void c_kamata_solid_static_incompressible(
+        const double radius,
+        const double density,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
+        std::complex<double>* starting_conditions_ptr) noexcept
+{
+    c_kamata_solid_dynamic_incompressible(
+        0.0,
+        radius,
+        density,
+        shear_modulus,
+        degree_l,
+        G_to_use,
+        num_ys,
+        starting_conditions_ptr);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //// Liquid Layers
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -71,7 +71,7 @@ def test_the_tables_round_trip_through_the_config_dict():
     tables = {
         "eos_solver": {"integration_method": "RK45", "rtol": 1.0e-8, "slices_per_layer": 40,
                        "solve_temperature": False},
-        "radial_solver": {"use_kamata": True, "max_ram_mb": 250, "start_radius_tolerance": 1.0e-4}}
+        "radial_solver": {"starting_method": "kamata", "max_ram_mb": 250, "start_radius_tolerance": 1.0e-4}}
     world = build_world(_config(**tables))
     assert world.get_solver_defaults() == tables
     config = world.get_config_dict()
@@ -85,10 +85,10 @@ def test_the_tables_round_trip_through_the_config_dict():
 
 
 def test_the_tables_survive_a_save(tmp_path):
-    world = build_world(_config(radial_solver={"use_kamata": True}))
+    world = build_world(_config(radial_solver={"starting_method": "kamata"}))
     path = str(tmp_path / "pinned.toml")
     world.save_to_toml(path)
-    assert build_world(path).get_solver_defaults() == {"radial_solver": {"use_kamata": True}}
+    assert build_world(path).get_solver_defaults() == {"radial_solver": {"starting_method": "kamata"}}
 
 
 @pytest.mark.parametrize("table, section", [
@@ -99,7 +99,9 @@ def test_the_tables_survive_a_save(tmp_path):
     ({"max_iters": True}, "eos_solver"),
     ({"slices_per_layer": 1}, "eos_solver"),
     ({"nondimensionalize": 1}, "eos_solver"),
-    ({"use_kamata": "yes"}, "radial_solver"),
+    ({"starting_method": True}, "radial_solver"),
+    ({"starting_method": "bessel"}, "radial_solver"),
+    ({"integration_method": "euler"}, "eos_solver"),
     ({"max_num_steps": 0}, "radial_solver"),
     ({"pressure_tol": 1.0e-8}, "radial_solver"),
 ])
@@ -112,8 +114,10 @@ def test_a_bad_table_is_refused(table, section):
 
 def test_an_unknown_method_and_a_non_table_are_refused():
     world = build_world(_config())
-    with pytest.raises(ValueError, match="integration method"):
+    with pytest.raises(ValueError, match="integration_method"):
         world.set_solver_defaults(eos_solver={"integration_method": "Euler"})
+    with pytest.raises(ValueError, match="starting_method"):
+        world.set_solver_defaults(radial_solver={"starting_method": "bessel"})
     with pytest.raises(ValueError, match="must be a table"):
         build_world(_config(eos_solver=3))
 
@@ -125,10 +129,10 @@ def test_a_data_file_world_pins_rk45_unless_its_file_says_otherwise():
     assert world.get_solver_defaults() == {"eos_solver": {"integration_method": "RK45"}}
     config = dict(world.portable_config)
     config["eos_solver"] = {"integration_method": "DOP853", "rtol": 1.0e-9}
-    config["radial_solver"] = {"use_kamata": True}
+    config["radial_solver"] = {"starting_method": "kamata"}
     pinned = build_world(config)
     assert pinned.get_solver_defaults() == {
-        "eos_solver": {"integration_method": "DOP853", "rtol": 1.0e-9}, "radial_solver": {"use_kamata": True}}
+        "eos_solver": {"integration_method": "DOP853", "rtol": 1.0e-9}, "radial_solver": {"starting_method": "kamata"}}
     # A file that pins other EOS keys still takes RK45 for the method.
     config["eos_solver"] = {"rtol": 1.0e-9}
     assert build_world(config).get_solver_defaults()["eos_solver"] == {"integration_method": "RK45", "rtol": 1.0e-9}
@@ -136,16 +140,17 @@ def test_a_data_file_world_pins_rk45_unless_its_file_says_otherwise():
 
 def test_a_star_takes_the_tables():
     config = {"name": "sun", "type": "star", "radius_m": 6.96e8, "mass_kg": 1.99e30, "luminosity_w": 3.8e26,
-              "radial_solver": {"use_kamata": True}}
-    assert build_world(config).get_solver_defaults()["radial_solver"] == {"use_kamata": True}
+              "radial_solver": {"starting_method": "kamata"}}
+    assert build_world(config).get_solver_defaults()["radial_solver"] == {"starting_method": "kamata"}
 
 
 def _a_value_for_every_key():
     """A value of each [eos_solver] and [radial_solver] key schema.py lists, inside its rules and away from the
     packaged default."""
     from TidalPy.schema import _SOLVER_KEY_RULES
-    choices = {str: "RK45", bool: True, int: 7, float: 2.5e-7}
-    return {section: {key: choices[kind] for key, (kind, _) in rules.items()}
+    choices = {bool: True, int: 7, float: 2.5e-7}
+    names = {"integration_method": "RK45", "starting_method": "power_series"}
+    return {section: {key: names[key] if kind is str else choices[kind] for key, (kind, _) in rules.items()}
             for section, rules in _SOLVER_KEY_RULES.items()}
 
 

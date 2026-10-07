@@ -101,7 +101,7 @@ def test_matrix_vs_shooting(degree_l):
     out_shooting = _solve(
         degree_l,
         False,
-        use_kamata=True,
+        starting_method="kamata",
         integration_method='DOP853',
         integration_rtol=1.0e-10,
         integration_atol=1.0e-12,

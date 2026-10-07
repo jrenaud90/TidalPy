@@ -11,7 +11,7 @@ cdef extern from "driver_.hpp" nogil:
         int layer_type,
         cpp_bool is_static,
         cpp_bool is_incompressible,
-        cpp_bool use_kamata,
+        int starting_method,
         double frequency,
         double radius,
         double density,
