@@ -149,7 +149,9 @@ def radial_solver(
         cpp_bool warnings = True,
         cpp_bool raise_on_fail = False,
         cpp_bool perform_checks = True,  # kept for API compatibility; C++ always validates
-        cpp_bool log_info = False
+        cpp_bool log_info = False,
+        # Shooting method: keep only what the Love numbers need
+        cpp_bool love_only = False
         ):
     """
     Solve the viscoelastic-gravitational problem for a planet of solid and liquid layers.
@@ -215,6 +217,10 @@ def radial_solver(
         Maximum central-pressure iterations.
     verbose, warnings, raise_on_fail, perform_checks, log_info : bool
         Reporting switches; ``perform_checks`` is accepted for compatibility and inputs are always validated.
+    love_only : bool, default=False
+        Keep only what the Love numbers need (shooting method): the integration builds no dense output, which makes
+        the solve faster, and the solution's radial functions (``result``, ``get_radial_solution``, ``plot_ys``) are
+        then unavailable and raise ``ValueError``. The Love numbers and the interior getters are unaffected.
 
     Returns
     -------
@@ -423,6 +429,7 @@ def radial_solver(
     love_cfg.starting_radius    = starting_radius
     love_cfg.max_step           = max_step
     love_cfg.verbose            = verbose
+    love_cfg.love_only          = love_only
     # This function runs its own conditioning check on the finished solution below.
     love_cfg.warnings           = False
 

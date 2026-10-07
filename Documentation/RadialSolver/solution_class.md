@@ -60,6 +60,8 @@ solution.get_radial_solution(1.5e6)        # complex y1..y6 at one radius [m]
 solution.get_radial_solution_array(radii)  # (n, 6) at many radii, all in C++
 ```
 
+A solve run with `love_only=True` keeps only its Love numbers and surface values (`love_only` reports it), so `result`, indexing by name, `get_radial_solution`, `get_radial_solution_array`, and `plot_ys` raise `ValueError` there. The interior members above still answer.
+
 The two dense getters evaluate the shooting method's per-layer interpolants, so they are accurate anywhere, including between grid slices. They are the recommended way to ask for values at a radius; see [Dense Radial Solutions](dense_radial_solution.md).
 
 ## Love Numbers

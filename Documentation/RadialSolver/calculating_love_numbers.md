@@ -84,6 +84,7 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 | `expected_size` | `None` (config) | Hint for the integrator's initial allocation. Overshooting costs little. |
 | `max_ram_MB` | `None` (config) | Memory ceiling for the integrator. Real usage runs somewhat higher. |
 | `max_step` | `0` | Largest allowed step [m]; `0` lets the integrator choose. |
+| `love_only` | `False` | Keep only what the Love numbers need. The integration builds no dense output, so it is faster. The solution's radial functions (`result`, `get_radial_solution`, `plot_ys`) raise `ValueError`. |
 
 **Propagation matrix**
 

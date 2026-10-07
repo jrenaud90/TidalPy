@@ -204,6 +204,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double max_step
         cpp_bool verbose
         cpp_bool warnings
+        cpp_bool love_only
 
     # One section's pinned solver keys (c_SolverOverrides), by the TidalPy_Configs.toml key; a value is a double
     # whatever its kind (kind: 0 an ODE method's enum value, 1 a real number, 2 a count, 3 a switch).
@@ -350,6 +351,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double get_love_lag_k(size_t ytype_idx) const
         cpp_complex[double] get_love_surface_y(size_t ytype_idx, size_t y_idx) const
         cpp_complex[double] get_radial_solution_y(double radius, size_t ytype_idx, size_t y_idx) const
+        cpp_bool get_love_only() const
         int get_love_method_last_int() const
         cpp_complex[double] get_love_analytic_shear() const
         double get_love_analytic_tidal_volume() const

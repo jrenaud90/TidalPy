@@ -184,13 +184,18 @@ public:
     // phase reports none: a shear modulus of 0 (a fluid), NaN viscosities. A shear law's value is floored at
     // [numerical] minimum_modulus.
     void calc_phase_state(const c_ThermoPoint& point, bool thermal, c_PhaseState& out) const noexcept {
+        this->calc_phase_mechanical(point, thermal, out);
+        this->p_calc_thermal_properties(point.temperature, out);
+    }
+
+    // The state without the heat capacity and conductivity: what the radial solver and a state change read.
+    void calc_phase_mechanical(const c_ThermoPoint& point, bool thermal, c_PhaseState& out) const noexcept {
         c_EOSPoint law_point;
         this->p_components.eos->calc_eos(point, thermal, law_point);
         out.density                = law_point.density;
         out.bulk_modulus           = law_point.bulk_modulus;
         out.adiabatic_bulk_modulus = law_point.adiabatic_bulk_modulus;
         out.thermal_expansion      = law_point.thermal_expansion;
-        this->p_calc_thermal_properties(point.temperature, out);
         out.shear_modulus = 0.0;
         if (this->p_components.shear_modulus) {
             out.shear_modulus = this->p_components.shear_modulus->calc_shear_modulus(point);
@@ -444,7 +449,7 @@ public:
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
             c_MaterialState& out) const noexcept {
-        this->p_evaluate(point, switches, true, out);
+        this->p_evaluate(point, switches, c_EvaluationScope::Full, out);
     }
 
     // Only what the thermal integration needs (density, expansivity, heat capacity, conductivity, melt fraction): no
@@ -453,7 +458,16 @@ public:
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
             c_MaterialState& out) const noexcept {
-        this->p_evaluate(point, switches, false, out);
+        this->p_evaluate(point, switches, c_EvaluationScope::Thermal, out);
+    }
+
+    // Only what a tidal deformation needs (density, the moduli, the viscosities, melt fraction, and the melting range):
+    // the heat capacity and conductivity are left NaN, the latent terms zero, and the expansivity the base phase's.
+    void calc_mechanical(
+            const c_ThermoPoint& point,
+            const c_MaterialSwitches& switches,
+            c_MaterialState& out) const noexcept {
+        this->p_evaluate(point, switches, c_EvaluationScope::Mechanical, out);
     }
 
     // The density alone [kg m-3], what the structure integration asks for.
@@ -463,7 +477,7 @@ public:
             return this->get_base_phase().calc_density(point, thermal);
         }
         c_MaterialState state;
-        this->p_evaluate(point, switches, false, state);
+        this->p_evaluate(point, switches, c_EvaluationScope::Thermal, state);
         return state.density;
     }
 
@@ -486,7 +500,7 @@ public:
             const c_MaterialSwitches& switches,
             double minimum_shear_modulus) const noexcept {
         c_MaterialState state;
-        this->p_evaluate(point, switches, true, state);
+        this->p_evaluate(point, switches, c_EvaluationScope::Mechanical, state);
         if (!(state.shear_modulus > 0.0)) { return -TidalPyConstants::d_INF; }
         return std::log(state.shear_modulus / minimum_shear_modulus);
     }
@@ -536,16 +550,21 @@ protected:
         return components;
     }
 
+    // What p_evaluate fills: everything (calc_state), the thermal integration's share (calc_thermal), or a tidal
+    // deformation's (calc_mechanical).
+    enum class c_EvaluationScope : uint8_t { Full, Thermal, Mechanical };
+
     void p_evaluate(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
-            bool mechanical,
+            c_EvaluationScope scope,
             c_MaterialState& out) const noexcept {
+        const bool mechanical          = (scope != c_EvaluationScope::Thermal);
+        const bool thermal_properties  = (scope != c_EvaluationScope::Mechanical);
         const bool thermal = switches.use_thermal_expansion;
         const bool liquid_only = this->get_is_liquid_only();
         c_PhaseState solid;
-        if (mechanical) { this->get_base_phase().calc_phase_state(point, thermal, solid); }
-        else            { this->get_base_phase().calc_phase_thermal(point, thermal, solid); }
+        this->p_calc_phase(this->get_base_phase(), point, thermal, scope, solid);
         p_copy_phase(solid, out);
         out.phase         = liquid_only ? c_MaterialPhase::Liquid : c_MaterialPhase::Solid;
         out.melt_fraction = liquid_only ? 1.0 : 0.0;
@@ -570,19 +589,20 @@ protected:
         out.phase = (phi >= 1.0) ? c_MaterialPhase::Liquid : c_MaterialPhase::Partial;
 
         c_PhaseState liquid;
-        if (mechanical) { this->p_components.liquid->calc_phase_state(point, thermal, liquid); }
-        else            { this->p_components.liquid->calc_phase_thermal(point, thermal, liquid); }
+        this->p_calc_phase(*this->p_components.liquid, point, thermal, scope, liquid);
 
         // Thermal properties: linear in the melt fraction, plus the latent heat over the melting range.
-        out.thermal_expansion    = (1.0 - phi) * solid.thermal_expansion + phi * liquid.thermal_expansion;
-        out.thermal_conductivity = (1.0 - phi) * solid.thermal_conductivity + phi * liquid.thermal_conductivity;
-        out.heat_capacity        = (1.0 - phi) * solid.heat_capacity + phi * liquid.heat_capacity;
-        if (!step && (phi < 1.0)) {
-            out.latent_heat_capacity = this->p_latent_heat / span;
-            out.heat_capacity += out.latent_heat_capacity;
+        if (thermal_properties) {
+            out.thermal_expansion    = (1.0 - phi) * solid.thermal_expansion + phi * liquid.thermal_expansion;
+            out.thermal_conductivity = (1.0 - phi) * solid.thermal_conductivity + phi * liquid.thermal_conductivity;
+            out.heat_capacity        = (1.0 - phi) * solid.heat_capacity + phi * liquid.heat_capacity;
+            if (!step && (phi < 1.0)) {
+                out.latent_heat_capacity = this->p_latent_heat / span;
+                out.heat_capacity += out.latent_heat_capacity;
+            }
         }
         if (switches.use_melt_density) { out.density = (1.0 - phi) * solid.density + phi * liquid.density; }
-        if (!step && (phi < 1.0) && switches.use_pressure_melting) {
+        if (thermal_properties && !step && (phi < 1.0) && switches.use_pressure_melting) {
             const double melting_slope = (1.0 - phi) * this->p_components.solidus->calc_melting_slope(point.pressure)
                 + phi * this->p_components.liquidus->calc_melting_slope(point.pressure);
             const double latent_expansion = out.density * this->p_latent_heat * melting_slope / (span * temperature);
@@ -605,7 +625,7 @@ protected:
             c_ThermoPoint solidus_point = point;
             solidus_point.temperature = out.solidus;
             c_PhaseState solid_at_solidus;
-            this->get_base_phase().calc_phase_state(solidus_point, thermal, solid_at_solidus);
+            this->get_base_phase().calc_phase_mechanical(solidus_point, thermal, solid_at_solidus);
             inputs.solid_shear_at_solidus     = solid_at_solidus.shear_modulus;
             inputs.solid_viscosity_at_solidus = solid_at_solidus.shear_viscosity;
         }
@@ -642,6 +662,15 @@ protected:
                 solid.bulk_viscosity, out.shear_viscosity, phi);
         } else if (phi >= 1.0) {
             out.bulk_viscosity = liquid.bulk_viscosity;
+        }
+    }
+
+    static void p_calc_phase(const c_Phase& phase, const c_ThermoPoint& point, bool thermal, c_EvaluationScope scope,
+                             c_PhaseState& out) noexcept {
+        switch (scope) {
+            case c_EvaluationScope::Full:       phase.calc_phase_state(point, thermal, out); break;
+            case c_EvaluationScope::Thermal:    phase.calc_phase_thermal(point, thermal, out); break;
+            case c_EvaluationScope::Mechanical: phase.calc_phase_mechanical(point, thermal, out); break;
         }
     }
 

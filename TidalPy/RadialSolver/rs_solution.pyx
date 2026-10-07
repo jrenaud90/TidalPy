@@ -287,13 +287,27 @@ cdef class RadialSolverSolution:
         out["complex_bulk_modulus"]  = bulk.reshape(shape)
         return out
 
+    def _require_radial_functions(self):
+        """Raise ``ValueError`` for a ``love_only`` solve, which keeps no radial functions below the surface."""
+        if self.solution_storage_ptr.get_love_only():
+            raise ValueError(
+                "TidalPy: this solution was solved with love_only=True, which keeps only the Love numbers and the "
+                "surface values; solve again with love_only=False for the radial functions.")
+
+    @property
+    def love_only(self) -> bool:
+        """Whether the solve kept only its Love numbers and surface values (no radial functions below them)."""
+        return bool(self.solution_storage_ptr.get_love_only())
+
     def get_radial_solution(self, double radius, size_t ytype_index = 0):
         """Complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
 
         Shooting solutions evaluate their dense interpolants; the matrix method continues its propagation inside
         the slice holding the radius, so both are exact between grid points.
-        Returns a length-6 complex128 array, NaN out of range or below the starting radius.
+        Returns a length-6 complex128 array, NaN out of range or below the starting radius. Raises ``ValueError``
+        for a ``love_only`` solve.
         """
+        self._require_radial_functions()
         cdef cnp.ndarray[cnp.complex128_t, ndim=1] out = np.empty(C_MAX_NUM_Y, dtype=np.complex128)
         self.solution_storage_ptr.get_radial_solution(
             radius, ytype_index, <cpp_complex[double]*><void*>&out[0])
@@ -301,6 +315,7 @@ cdef class RadialSolverSolution:
 
     def get_radial_solution_array(self, double[::1] radius_array not None, size_t ytype_index = 0):
         """Vectorized :meth:`get_radial_solution`: an ``(n, 6)`` complex128 array of y1..y6 (SI) at each radius [m]."""
+        self._require_radial_functions()
         cdef size_t n = radius_array.shape[0]
         cdef cnp.ndarray[cnp.complex128_t, ndim=2] out = np.empty((n, C_MAX_NUM_Y), dtype=np.complex128)
         if n > 0:
@@ -676,6 +691,7 @@ cdef class RadialSolverSolution:
 
     @property
     def result(self):
+        self._require_radial_functions()
         if self.success and (self.error_code == 0):
             return np.copy(self.full_solution_arr).T
         else:
@@ -796,6 +812,7 @@ cdef class RadialSolverSolution:
         cdef cpp_bool found = False
         cdef str sol_test_name
         cdef cnp.ndarray gridded
+        self._require_radial_functions()
         if self.ytype_names_set and self.success and (self.error_code == 0):
             for ytype_i in range(self.num_ytypes):
                 sol_test_name = str(self.ytypes[ytype_i], 'UTF-8')

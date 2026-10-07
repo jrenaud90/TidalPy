@@ -82,7 +82,31 @@ struct c_ShootingInputs {
     size_t    expected_size       = 500;
     size_t    max_ram_MB          = 500;
     double    max_step            = 0.0;
+    // Keep only what the Love numbers need: no dense output, so the radial functions below the surface are not
+    // available afterwards (c_RadialSolutionStorage::p_love_only).
+    bool      love_only           = false;
 };
+
+
+/// The y (`num_y` reals) of an integration's last stored step, when that step ended at `radius` to the layer
+/// continuity tolerance: the top of a layer integrated without dense output. False, NaN-filled, otherwise.
+inline bool c_last_step_at(const CySolverResult* result_ptr, double radius, double* y_out_ptr, size_t num_y) noexcept
+{
+    for (size_t y_i = 0; y_i < num_y; ++y_i) { y_out_ptr[y_i] = TidalPyConstants::d_NAN; }
+    if (!result_ptr || !result_ptr->config_uptr || (result_ptr->size == 0) || (result_ptr->num_y < num_y)) {
+        return false;
+    }
+    const size_t stride = result_ptr->config_uptr->capture_extra ? result_ptr->num_dy : result_ptr->num_y;
+    const size_t last_i = result_ptr->size - 1;
+    if ((result_ptr->time_domain_vec.size() <= last_i) || (result_ptr->solution.size() < (last_i + 1) * stride)) {
+        return false;
+    }
+    const double end_rtol = tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0;
+    if (!(std::abs(result_ptr->time_domain_vec[last_i] - radius) <= end_rtol * std::abs(radius))) { return false; }
+    const double* last_y = result_ptr->solution.data() + last_i * stride;
+    for (size_t y_i = 0; y_i < num_y; ++y_i) { y_out_ptr[y_i] = last_y[y_i]; }
+    return true;
+}
 
 
 // What the collapse reads of one integrated layer, recorded as the integration finishes it so the surface-down
@@ -164,8 +188,11 @@ inline int c_shooting_solver(
     const size_t num_extra            = 0;
     const double first_step_size      = 0.0;
     // Every independent solution's dense CyRK result is retained so the collapsed y can be evaluated at any radius;
-    // an empty t_eval keeps the adaptive dense segments with no fixed grid.
-    const bool   capture_dense_output = true;
+    // an empty t_eval keeps the adaptive dense segments with no fixed grid. A Love-only solve needs each solution at
+    // its layer's top alone, the last step CyRK stores, so it builds no dense output (with DOP853 that saves three of
+    // the fifteen right-hand-side calls of a step) and keeps no result.
+    const bool love_only            = inputs.love_only;
+    const bool capture_dense_output = !love_only;
     std::vector<double> teval_empty;
     std::vector<Event> events_vec;  // unused
 
@@ -203,6 +230,7 @@ inline int c_shooting_solver(
     const std::complex<double> c_constant_NAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
     solution_storage_ptr->reset_interpolant_storage();
     solution_storage_ptr->p_uses_interpolants = true;
+    solution_storage_ptr->p_love_only         = love_only;
     solution_storage_ptr->p_frequency_solve   = frequency;
     solution_storage_ptr->p_interp_by_layer_sol.resize(num_layers);
     solution_storage_ptr->p_num_sols_by_layer.assign(num_solutions_by_layer_vec.begin(), num_solutions_by_layer_vec.end());
@@ -562,14 +590,18 @@ inline int c_shooting_solver(
                 return solution_storage_ptr->error_code;
             }
 
-            // Top-of-layer y, for the next layer's interface condition and for the collapse.
+            // Top-of-layer y, for the next layer's interface condition and for the collapse: the dense output there, or
+            // for a Love-only solve the last stored step, which CyRK ends exactly on the stop radius.
             double interp_top[C_MAX_NUM_Y_REAL];
-            if (!c_call_dense_checked(integration_solution_ptr, radius_upper, interp_top, 2 * num_ys))
+            const bool top_found = love_only
+                ? c_last_step_at(integration_solution_ptr, radius_upper, interp_top, 2 * num_ys)
+                : c_call_dense_checked(integration_solution_ptr, radius_upper, interp_top, 2 * num_ys);
+            if (!top_found)
             {
                 solution_storage_ptr->error_code = -11;
                 solution_storage_ptr->success    = false;
                 solution_storage_ptr->message    =
-                    std::string("RadialSolver.ShootingMethod:: Dense output unavailable at the top of layer ") +
+                    std::string("RadialSolver.ShootingMethod:: No solution at the top of layer ") +
                     std::to_string(current_layer_i) + std::string("; solution ") + std::to_string(solution_i) +
                     std::string(".\n");
                 if (verbose)
@@ -584,12 +616,22 @@ inline int c_shooting_solver(
                     std::complex<double>(interp_top[2 * y_i], interp_top[2 * y_i + 1]);
             }
 
-            // Retain the dense interpolant and arm a fresh result for the next integration.
-            solution_storage_ptr->p_interp_by_layer_sol[current_layer_i][solution_i] =
-                std::move(integration_solution_uptr);
-            integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
-            integration_solution_ptr  = integration_solution_uptr.get();
+            // Retain the dense interpolant and arm a fresh result for the next integration; a Love-only solve reuses
+            // its one result.
+            if (!love_only)
+            {
+                solution_storage_ptr->p_interp_by_layer_sol[current_layer_i][solution_i] =
+                    std::move(integration_solution_uptr);
+                integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
+                integration_solution_ptr  = integration_solution_uptr.get();
+            }
         }
+    }
+    // The surface layer's solutions at the surface, which a Love-only solve's find_love collapses.
+    if (love_only)
+    {
+        solution_storage_ptr->p_surface_top_y.assign(
+            collapse_inputs_vec[num_layers - 1].top_y.begin(), collapse_inputs_vec[num_layers - 1].top_y.end());
     }
 
     // =================================================================================================================

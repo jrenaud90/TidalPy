@@ -47,6 +47,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double max_step
         cpp_bool verbose
         cpp_bool warnings
+        cpp_bool love_only
 
     cdef cppclass c_BaseWorld:
         c_WorldEOSSolveConfig make_eos_solve_config() const

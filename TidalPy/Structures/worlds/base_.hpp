@@ -174,6 +174,9 @@ struct c_LoveSolveConfig {
     double    max_step           = 0.0;
     bool      verbose            = false;
     bool      warnings           = true;
+    // Shooting method: keep only what the Love numbers need, so the radial functions below the surface are not
+    // available afterwards. The internal tide solves leave it off.
+    bool      love_only          = false;
 
     c_LoveSolveConfig() {
         if (!c_solver_config_loaded()) { return; }
@@ -548,6 +551,12 @@ struct c_LoveWorkspace {
         std::complex<double> y_at_r[C_MAX_NUM_Y];
         if (!storage->get_radial_solution(radius, ytype_idx, y_at_r)) { return nan_value; }
         return y_at_r[y_idx];
+    }
+    // Whether the latest solve kept only its Love numbers and surface values (c_LoveSolveConfig::love_only).
+    bool get_love_only() const noexcept {
+        if (this->is_analytic()) { return false; }
+        const auto* storage = this->get_storage();
+        return storage && this->solved && storage->get_love_only();
     }
     std::complex<double> get_surface_y(std::size_t ytype_idx, std::size_t y_idx) const noexcept {
         const std::complex<double> nan_value(TidalPyConstants::d_NAN, 0.0);
@@ -1953,6 +1962,7 @@ public:
         rt.max_ram_MB         = cfg.max_ram_MB;
         rt.max_step           = cfg.max_step;
         rt.verbose            = cfg.verbose;
+        rt.love_only          = cfg.love_only;
         return rt;
     }
 
@@ -2656,6 +2666,11 @@ public:
         const std::complex<double> love_k = this->get_love_number_k(ytype_idx);
         if (!std::isfinite(love_k.real())) { return TidalPyConstants::d_NAN; }
         return ::c_LoveNumbers(love_k, love_k, love_k).get_lag_k();
+    }
+    // Whether the latest Love solve kept only its Love numbers and surface values (love_only).
+    bool get_love_only() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_love_only();
     }
     // Surface y-value (SI) for a ytype and y-index (0..5 -> y1..y6). NaN if unsolved or after an analytic
     // solve, which has no radial functions.

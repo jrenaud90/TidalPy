@@ -477,9 +477,11 @@ print(world.love_number_h, world.love_number_l)
 
 The moduli and the viscosity are properties of the layer's material, not of the rheology model. A rheology class only holds model parameters (the Andrade exponent, the Voigt fractions, etc.) and uses the modulus and viscosity as arguments. A solid layer with no shear modulus has no strength, and the solve fails.
 
-**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None, raise_on_fail=False) -> dict`**
+**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None, raise_on_fail=False, love_only=False) -> dict`**
 
 Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use. `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. `solve_eos` must be called first: raises `ValueError` if the EOS has not been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`). The results are also stored on the world and read through the properties below. With `raise_on_fail=True` a failed solve raises `SolutionFailedError` (a `RuntimeError`) with its message.
+
+With `love_only=True` the shooting method keeps only what the Love numbers need. Each layer's solutions are read at its top from the integrator's last step instead of from a dense interpolant, so the integration builds no dense output and is faster, while the Love numbers, the surface values (`get_love_surface_y`), and the step counts are the same. The radial functions below the surface are not kept: `get_love_radial_y`, and the `result` and `get_radial_solution` of a released solution, raise `ValueError` until a solve without it. The Love solves of `calc_tides` and the 3D paths always keep them. `calc_love_numbers` passes it on like any other argument. The propagation matrix fills its grid as it solves, so the argument changes nothing there.
 
 ### Frequency Sweeps
 
@@ -535,7 +537,7 @@ Raw radial function y₁…y₆ at the surface for solution type `ytype_idx`, fu
 
 **`get_love_radial_y(radius, ytype_idx=0, y_idx=0) -> complex or array`**
 
-The same radial function at any radius \[m\] (a float, or an array giving a complex array of its shape), evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius.
+The same radial function at any radius \[m\] (a float, or an array giving a complex array of its shape), evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius. Raises `ValueError` after a `love_only` solve.
 
 ### Love-Number C++ API
 

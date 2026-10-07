@@ -41,6 +41,7 @@ struct c_LoveSolveRuntimeConfig {
     size_t    max_ram_MB         = 500;
     double    max_step           = 0.0;
     bool      verbose            = false;
+    bool      love_only          = false;             // shooting: keep only what the Love numbers need
     bool      redim_eos_arrays   = false;             // export mode: also redimensionalize the EOS arrays
     // Export mode: the radii [m] the returned solution's result grid is sampled on, the caller's own; null samples
     // the EOS grid.
@@ -364,6 +365,7 @@ public:
             shoot.max_num_steps      = rt.max_num_steps;
             shoot.expected_size      = rt.expected_size;
             shoot.max_ram_MB         = rt.max_ram_MB;
+            shoot.love_only          = rt.love_only;
             shoot.max_step           = max_step_solve;
             c_shooting_solver(storage, shoot, freq_nd, rt.verbose);
         }

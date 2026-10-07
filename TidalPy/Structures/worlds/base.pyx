@@ -2119,7 +2119,8 @@ cdef class BaseWorld(StructureBase):
             love_method        = None,
             fixed_q            = None,
             fixed_dt           = None,
-            raise_on_fail      = False) -> dict:
+            raise_on_fail      = False,
+            cpp_bool love_only = False) -> dict:
         """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
         Requires :meth:`solve_eos` first. Each layer's attached rheology is evaluated at ``frequency`` for the
@@ -2190,6 +2191,11 @@ cdef class BaseWorld(StructureBase):
         raise_on_fail : bool, optional
             Raise ``SolutionFailedError`` (a ``RuntimeError``) with the solve's message when the solve fails, rather
             than returning a result with ``success = False``. Default False.
+        love_only : bool, optional
+            Keep only what the Love numbers need (shooting method): the integration builds no dense output, which
+            makes the solve faster, and the radial functions below the surface are then unavailable
+            (:meth:`get_love_radial_y` and a released solution's radial functions raise ``ValueError``). The surface
+            values (:meth:`get_love_surface_y`) and the Love numbers are unaffected. Default False.
 
         Returns
         -------
@@ -2226,6 +2232,7 @@ cdef class BaseWorld(StructureBase):
         cfg.max_step        = max_step
         cfg.verbose         = <cpp_bool>verbose
         cfg.warnings        = <cpp_bool>warnings
+        cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
             &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
@@ -2321,14 +2328,16 @@ cdef class BaseWorld(StructureBase):
             double max_step    = 0.0,
             cpp_bool verbose   = False,
             cpp_bool warnings  = True,
-            str love_method    = 'radial_solver') -> dict:
+            str love_method    = 'radial_solver',
+            cpp_bool love_only = False) -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
         the world's internal EOS radius grid. Used by the standalone ``RadialSolver.radial_solver`` API.
         ``solve_eos`` must be called first. Only the radial-solver methods (``love_method``
         ``'radial_solver'`` or ``'propagation_matrix'``) are available here. Solver settings left as ``None``
-        take the ``[radial_solver]`` values of the TidalPy configuration, as in :meth:`solve_love_numbers`.
+        take the ``[radial_solver]`` values of the TidalPy configuration, as in :meth:`solve_love_numbers`, which
+        describes ``love_only``.
         """
         if radius_array.shape[0] == 0:
             raise ValueError("radius_array must not be empty")
@@ -2347,6 +2356,7 @@ cdef class BaseWorld(StructureBase):
         cfg.max_step        = max_step
         cfg.verbose         = <cpp_bool>verbose
         cfg.warnings        = <cpp_bool>warnings
+        cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
             &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
@@ -2578,8 +2588,17 @@ cdef class BaseWorld(StructureBase):
         -------
         complex or np.ndarray
             A complex for a scalar radius, else a complex array shaped like ``radius``.
+
+        Raises
+        ------
+        ValueError
+            After a ``love_only`` solve, which keeps no radial functions below the surface.
         """
         cdef c_BaseWorld* world_ptr = self._world_ptr.get()
+        if world_ptr.get_love_only():
+            raise ValueError(
+                f"TidalPy: the last Love solve of world '{self.name}' ran with love_only=True, which keeps no radial "
+                "functions below the surface; solve again with love_only=False.")
         cdef size_t ytype = <size_t>ytype_idx
         cdef size_t y_index = <size_t>y_idx
         cdef cpp_complex[double] v

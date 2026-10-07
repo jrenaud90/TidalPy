@@ -99,6 +99,12 @@ public:
     // full_solution_vec on its grid, and get_radial_solution continues its propagation to the radius asked for.
     bool p_uses_interpolants = false;
 
+    // A shooting solve run for its Love numbers alone (love_only) keeps no dense interpolants, only each surface-layer
+    // solution's y at the surface, [solution * C_MAX_NUM_Y + y] (solve units), which find_love collapses. Its radial
+    // functions anywhere below the surface are unavailable.
+    bool p_love_only = false;
+    std::vector<std::complex<double>> p_surface_top_y = std::vector<std::complex<double>>();
+
     // The propagation matrix's own radius grid (solve units). Empty after a shooting solve, which grids nothing.
     std::vector<double> p_matrix_radius_solve = std::vector<double>();
 
@@ -340,6 +346,8 @@ public:
     void reset_interpolant_storage() noexcept
     {
         this->p_uses_interpolants = false;
+        this->p_love_only         = false;
+        this->p_surface_top_y.clear();
         this->p_interp_by_layer_sol.clear();
         this->p_constants_by_ytype_layer.clear();
         this->p_layer_types.clear();
@@ -433,8 +441,19 @@ public:
         if (basis.num_sols == 0 || basis.num_sols > 3) return false;
 
         const size_t num_ys = 2 * basis.num_sols;
+        if (this->p_love_only)
+        {
+            // Only the surface values were kept.
+            const double surface = this->p_upper_radii_solve.back();
+            if ((target_layer_i + 1 != this->num_layers)
+                || !(std::fabs(radius_solve - surface) <= interface_rtol * surface + 1.0e-300)
+                || (this->p_surface_top_y.size() < basis.num_sols * C_MAX_NUM_Y)) return false;
+            for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+                for (size_t y_i = 0; y_i < num_ys; ++y_i)
+                    basis.ysol[sol_i][y_i] = this->p_surface_top_y[sol_i * C_MAX_NUM_Y + y_i];
+        }
         double real_out[2 * C_MAX_NUM_Y] = {};
-        for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+        for (size_t sol_i = 0; (sol_i < basis.num_sols) && !this->p_love_only; ++sol_i)
         {
             // CySolverResult::call is non-const, so get() is used to escape this method's constness.
             CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
@@ -721,7 +740,7 @@ public:
     // path's grid is its solution.
     void sample_onto_radii(const double* radius_si, size_t n)
     {
-        if (!this->success || !this->p_uses_interpolants) return;
+        if (!this->success || !this->p_uses_interpolants || this->p_love_only) return;
         this->num_slices = n;
         this->total_size = static_cast<size_t>(C_MAX_NUM_Y_REAL) * n * this->num_ytypes;
         this->full_solution_vec.assign(this->total_size, TidalPyConstants::d_NAN);
@@ -752,7 +771,7 @@ public:
     // released solution).
     void sample_onto_grid()
     {
-        if (!this->success || !this->p_uses_interpolants) return;
+        if (!this->success || !this->p_uses_interpolants || this->p_love_only) return;
         const c_EOSSolution* eos = this->eos_solution_uptr.get();
         const std::vector<double>& rad = eos->radius_array_vec;
         const size_t n = std::min(this->num_slices, rad.size());
@@ -764,4 +783,7 @@ public:
 
     // The radii [m] the `result` grid was sampled on; empty when it holds the matrix path's own grid.
     const std::vector<double>& get_sample_radii_si() const noexcept { return this->p_sample_radius_si; }
+
+    // Whether the solve kept only what its Love numbers need (see p_love_only): no radial functions below the surface.
+    bool get_love_only() const noexcept { return this->p_love_only; }
 };
