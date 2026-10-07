@@ -165,8 +165,8 @@ struct c_LoveSolveConfig {
     double    starting_radius    = 0.0;                       // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
     ODEMethod integration_method = ODEMethod::DOP853;
-    double    rtol               = 1.0e-6;
-    double    atol               = 1.0e-10;
+    double    rtol               = 3.0e-8;
+    double    atol               = 3.0e-8;
     bool      scale_rtols        = false;
     size_t    max_num_steps      = 500000;
     size_t    expected_size      = 128;

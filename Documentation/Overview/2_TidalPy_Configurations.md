@@ -124,7 +124,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | Key | `[eos_solver]` | `[radial_solver]` |
 |---|---|---|
 | `integration_method` | `"DOP853"` | `"DOP853"` |
-| `rtol`, `atol` | `1.0e-10`, `1.0e-14` | `1.0e-6`, `1.0e-10` |
+| `rtol`, `atol` | `1.0e-10`, `1.0e-14` | `3.0e-8`, `3.0e-8` |
 | `pressure_tol` | `1.0e-8` (relative to the central-pressure scale) | |
 | `max_iters` | `100` | |
 | `solve_temperature` | `true` | |
@@ -140,7 +140,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same thing for every planet. The packaged values come from a convergence study over the bundled worlds and synthetic homogeneous, rocky, icy-ocean, and liquid-core models at degrees 2 and 3 and periods from a day to a hundred days. DOP853 gave the most accuracy per millisecond at every tolerance on both solves: RK45 needs a hundred times tighter `rtol` for the same Love-number error, RK23 far more, and the implicit methods are slower without being more accurate here.
 
-Tightening the EOS tolerance costs almost nothing, so it is set where the mass, moment of inertia, and surface gravity are converged to about 1e-8. The Love tolerance is the loosest pair at which the degree-2 and degree-3 Love numbers of every well-conditioned case stay within about 3e-8 (real part) and 1e-6 (imaginary part) of a reference solved a million times tighter. Each step tighter in `rtol` gains roughly a factor of ten for about a quarter more time, and a Love solve takes a fraction of a millisecond on a cached world. A dynamic liquid layer at a long forcing period is ill-conditioned at any tolerance (use a static liquid there), and an interpolated PREM-style profile is limited by its own tabulation, whose Love numbers move in the fifth digit with the slice count, rather than by the integrator.
+Tightening the EOS tolerance costs almost nothing, so it is set where the mass, moment of inertia, and surface gravity are converged to about 1e-8. The Love tolerance comes from a sweep of 54 `rtol` and `atol` pairs over the bundled worlds (degrees 2 to 4, tidal and loading, periods within a factor of 30 of each world's own) and the synthetic and profile cases, checked on cases the sweep had not seen. At `rtol = atol = 3e-8` the Love numbers are within about 4e-6 of a reference solved at `rtol = 1e-11`, and 90 percent of them within 4e-7, for the same number of integration steps as the former `1e-6` and `1e-10` with errors two to eight times smaller. A small `atol` costs steps on solution components near zero without improving the Love numbers, so `atol` equal to `rtol` is the cheaper way to tighten. Below about 1e-7, the error also depends on step placement, so neighboring tolerances can differ by a factor of a few. A Love solve takes a fraction of a millisecond on a cached world. A dynamic liquid layer at a long forcing period is ill-conditioned at any tolerance (use a static liquid there), and an interpolated PREM-style profile is limited by its own tabulation, whose Love numbers move in the fifth digit with the slice count, rather than by the integrator.
 
 ## Numerical Settings
 

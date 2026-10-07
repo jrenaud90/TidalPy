@@ -184,12 +184,14 @@ schema_version = "{SCHEMA_VERSION}"
 # =====================================================================================================================
 [radial_solver]
     # CyRK integration method: "DOP853", "RK45", "RK23", or the implicit "BDF", "LSODA", "Radau". DOP853 at these
-    # tolerances keeps the degree-2 and degree-3 Love numbers of the bundled and synthetic worlds within about 3e-8
-    # (real part) and 1e-6 (imaginary part) of a reference solved a million times tighter, in a fraction of a
-    # millisecond per cached solve; RK45 needs a hundred times tighter rtol for the same error.
+    # tolerances keeps the Love numbers of the bundled and synthetic worlds (degrees 2 to 4, tidal and loading,
+    # forcing periods within a factor of 30 of each world's own) within about 4e-6 of a reference solved at rtol
+    # 1e-11, and 90 percent of them within 4e-7, in a fraction of a millisecond per cached solve; RK45 needs a
+    # hundred times tighter rtol for the same error. atol equal to rtol costs no more steps than a small atol at a
+    # fifty times looser rtol, since a small atol spends its steps on components near zero.
     integration_method = "DOP853"
-    rtol = 1.0e-6
-    atol = 1.0e-10
+    rtol = 3.0e-8
+    atol = 3.0e-8
     # Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972).
     use_kamata = false
     # The automatic starting radius is R * start_radius_tolerance^(1/l), capped by

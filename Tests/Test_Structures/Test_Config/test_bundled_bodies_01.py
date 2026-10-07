@@ -727,10 +727,11 @@ def test_europa_dynamic_ocean_decouples_the_shell():
     assert ocean_world.love_number_k.real > 15.0 * solid_world.love_number_k.real
 
 
-def test_luna_dynamic_keeps_the_quality_factor_fit_with_its_pinned_tolerance():
-    """luna_dynamic pins rtol = 1e-8 so its yearly Q matches luna.toml's fit; the month is unaffected."""
+def test_luna_dynamic_keeps_the_quality_factor_fit_at_the_default_tolerances():
+    """The default radial tolerances keep luna_dynamic's yearly Q on luna.toml's fit (its dynamic core once needed a
+    pinned rtol of 1e-8 for that); the month is unaffected."""
     world = build_world("luna_dynamic")
-    assert world.get_solver_defaults()["radial_solver"]["rtol"] == pytest.approx(1.0e-8)
+    assert "radial_solver" not in world.source_config
     world.solve_eos()
     assert _luna_quality(world, 27.3217) == pytest.approx(_LUNA_Q_MONTH, abs=0.5)
     assert _luna_quality(world, 365.25) == pytest.approx(_LUNA_Q_YEAR, abs=0.5)

@@ -69,8 +69,9 @@ def test_a_step_limit_in_meters_is_the_same_in_either_unit_system(io):
             frequency=_IO_FREQUENCY,
             degree_l=2,
             nondimensionalize=nondimensionalize,
-            max_step=2.0e4)
+            max_step=5.0e3)
         steps[nondimensionalize] = int(np.sum(io.release_radial_solution().steps_taken))
-    # Io is 1.8e6 m across, so a 2e4 m limit forces about 90 steps per integrated solution.
-    assert steps[True] > 200
+    # Io is 1.8e6 m across, so a 5e3 m limit forces about 360 steps per integrated solution, well above what the
+    # tolerances alone take in either unit system (about 100 and 230 in all).
+    assert steps[True] > 900
     assert steps[False] == pytest.approx(steps[True], rel=0.2)

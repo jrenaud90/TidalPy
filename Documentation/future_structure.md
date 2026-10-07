@@ -587,7 +587,7 @@ The 0.8.0 standalone radial solver wraps the world path. It builds a temporary w
 
 These settings reduce the time:
 
-- `integration_rtol` and `integration_atol` set the step count. At the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above), the 0.8.0 solver takes 0.27, 0.31, and 0.36 ms on the three shooting rows, faster than 0.7.X at its tighter setting. k2 moves by 4e-9 to 6e-9.
+- `integration_rtol` and `integration_atol` set the step count. At the `[radial_solver]` defaults (both 3e-8, looser than the rows above), the 0.8.0 solver takes 0.31, 0.35, and 0.40 ms on the three shooting rows: the same as 0.7.X at its tighter setting on the first and faster on the other two. k2 moves by 3e-11 to 6e-10.
 - The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded.
 - `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps.
 

@@ -27,10 +27,10 @@
 # pressure 5.44 GPa.
 #
 # Solver tolerance
-# This file pins the radial solver's rtol to 1e-8. The dynamic liquid equations recover the core's tangential
-# displacement through a division by the forcing frequency squared, which in a core this size costs accuracy at
-# long periods: at the default rtol of 1e-6 the yearly k2 is off by 0.8 percent (Q = 39.1), and at 1e-8 by 3e-4.
-# The monthly values agree to 1e-7 either way. A call's own rtol still overrides the pin.
+# The dynamic liquid equations recover the core's tangential displacement through a division by the forcing
+# frequency squared, which in a core this size costs accuracy at long periods. At the default tolerances (rtol and
+# atol 3e-8) the yearly k2 is within 3e-4 and the monthly within 3e-7; rtol 1e-6 put the yearly k2 0.8 percent off
+# (Q = 39.1). Tighten rtol and atol together for more at periods of a year and longer.
 #
 # The temperatures, viscosities, the reasoning behind the tidal fits, and the orbit are as documented in
 # luna.toml.
@@ -46,10 +46,6 @@ albedo = 0.12
 # world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
 [eos_solver]
 solve_temperature = false
-
-# The dynamic outer core needs a tighter tolerance at long periods; see the header.
-[radial_solver]
-rtol = 1.0e-8
 
 [layers.inner_core]
 layer_index = 0
