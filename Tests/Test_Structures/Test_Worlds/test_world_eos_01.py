@@ -1,6 +1,7 @@
 """The world equation-of-state solve (``BaseWorld.solve_eos``) and the per-layer material wiring (``material``)."""
 import copy
 import math
+import re
 import warnings
 from pathlib import Path
 
@@ -362,6 +363,15 @@ def test_max_iters_hit_is_reported():
     assert result["max_iters_hit"] is True
     assert result["iterations"] == 1
     assert "no hydrostatic structure" in result["message"]
+    # The mismatch is reported in Pa and against the central-pressure scale, never rounded to zero.
+    match = re.search(r"misses its target by (\S+) Pa, (\S+) of the central-pressure scale \((\S+) Pa\)",
+                      result["message"])
+    assert match is not None, result["message"]
+    mismatch, relative, scale = (float(match.group(index)) for index in (1, 2, 3))
+    assert mismatch > 0.0
+    assert relative > 1.0e-12
+    assert mismatch == pytest.approx(relative * scale, rel=1.0e-2)
+    assert 1.0e10 < scale < 1.0e13   # [Pa] an Earth-sized body's central-pressure scale
     assert world.eos_solved is False
 
 

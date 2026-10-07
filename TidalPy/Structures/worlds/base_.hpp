@@ -1314,6 +1314,7 @@ public:
                 settings.central_pressure_guess = central_pressure_guess;
                 settings.slices_per_layer       = slices;
                 settings.length_scale           = length_scale;
+                settings.pascal_scale           = pascal_scale;
                 // An integrated temperature profile could carry a pressure dependence into the density.
                 settings.density_independent_of_pressure = density_independent_of_pressure && !integrate_temperature;
 

@@ -69,12 +69,23 @@ struct c_EOSSolverSettings
     // Radial samples per layer of the reported profile (>= 2), and the length [m] of one solve unit.
     size_t slices_per_layer = 100;
     double length_scale = 1.0;
+    // The pascals in one solve unit of pressure, so a message can report pressures in Pa.
+    double pascal_scale = 1.0;
     // Every layer's density is set by its radius and temperature alone (c_Material::get_density_depends_on_pressure
     // false) and the temperatures are fixed, so the surface pressure falls one for one with the central pressure. The
     // pressure is then left out of the step control, which keeps that exact, and the first unit-slope step lands on
     // the root.
     bool density_independent_of_pressure = false;
 };
+
+
+/// A value for a message: three significant figures in scientific notation.
+inline std::string c_eos_format(double value)
+{
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.3e", value);
+    return std::string(buffer);
+}
 
 
 /// What one pass of the structure integration produced.
@@ -722,7 +733,8 @@ inline void c_solve_eos(
                     failed = true;
                     integrator_failure_message =
                         std::string("the secant step on the central pressure is not finite (surface pressure "
-                                    "residual ") + std::to_string(pressure_diff) + std::string(" Pa)");
+                                    "residual ") + c_eos_format(pressure_diff * settings.pascal_scale) +
+                        std::string(" Pa)");
                     break;
                 }
                 // Keep the central pressure positive by halving an overshooting step.
@@ -764,7 +776,8 @@ inline void c_solve_eos(
             eos_solution_ptr->message =
                 std::string("`c_solve_eos` found no hydrostatic structure: the structure integration failed at "
                             "iteration ") + std::to_string(iterations) + std::string(", at a central pressure of ") +
-                std::to_string(y0[1]) + std::string(" (") + std::to_string(y0[1] / pressure_scale) +
+                c_eos_format(y0[1] * settings.pascal_scale) + std::string(" Pa (") +
+                c_eos_format(y0[1] / pressure_scale) +
                 std::string(" times the uniform-sphere estimate), while searching for the central pressure that "
                             "meets the target surface pressure. The layers' equations of state may have no "
                             "hydrostatic solution at this radius and mass");
@@ -792,9 +805,12 @@ inline void c_solve_eos(
             eos_solution_ptr->message =
                 std::string("`c_solve_eos` found no hydrostatic structure: after ") + std::to_string(iterations) +
                 std::string(" iterations the surface pressure misses its target by ") +
-                std::to_string(pressure_diff_abs) + std::string(" Pa (tolerance ") +
-                std::to_string(pressure_tol_abs) + std::string(" Pa). The layers' equations of state may have no "
-                "hydrostatic solution at this radius and mass; otherwise raise `max_iters`.");
+                c_eos_format(pressure_diff_abs * settings.pascal_scale) + std::string(" Pa, ") +
+                c_eos_format(pressure_diff_abs / pressure_scale) + std::string(" of the central-pressure scale (") +
+                c_eos_format(pressure_scale * settings.pascal_scale) + std::string(" Pa) against a pressure_tol of ") +
+                c_eos_format(pressure_tol) + std::string(". The layers' equations of state may have no "
+                "hydrostatic solution at this radius and mass; otherwise raise `max_iters`, or keep pressure_tol "
+                "above the integration rtol.");
             if (verbose)
             {
                 std::printf("%s\n", eos_solution_ptr->message.c_str());
