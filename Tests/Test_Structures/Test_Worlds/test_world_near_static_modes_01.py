@@ -88,7 +88,10 @@ def test_floor_leaves_an_ordinary_solve_unchanged(complex_rigidity_floor):
 
 def test_floor_keeps_the_dissipation_of_a_relaxed_mantle(hot_pair, complex_rigidity_floor):
     """Toward a static frequency the hot mantle's upper part relaxes (|mu| near omega eta, below the floor): the floor
-    raises only its elastic part, so -Im(k2) matches the floorless solve and still falls toward zero with omega."""
+    raises only its elastic part, so k2 matches the floorless solve and -Im(k2) still falls toward zero with omega.
+
+    The floorless solve is the reference only where it is well posed: at 1e-13 rad/s its Kamata start fails and its
+    Takeuchi start gives Re(k2) differing by 1e-5 between platforms, while the floored solve agreed to 2e-7."""
     _, world, _ = hot_pair
     frequencies = (1.0e-11, 1.0e-12, 1.0e-13)   # [rad s-1]
     love = {}
@@ -99,8 +102,8 @@ def test_floor_keeps_the_dissipation_of_a_relaxed_mantle(hot_pair, complex_rigid
             world.solve_love_numbers(frequency=frequency)
             love[floor].append(world.get_love_number_k())
     floorless, floored = np.array(love[0.0]), np.array(list(love.values())[-1])
-    np.testing.assert_allclose(floored.imag, floorless.imag, rtol=1.0e-2)
-    np.testing.assert_allclose(floored.real, floorless.real, rtol=1.0e-5)
+    np.testing.assert_allclose(floored.imag[:2], floorless.imag[:2], rtol=1.0e-2)
+    np.testing.assert_allclose(floored.real[:2], floorless.real[:2], rtol=1.0e-5)
     dissipation = -floored.imag
     assert dissipation[0] > dissipation[1] > dissipation[2] > 0.0
     assert dissipation[2] < 0.2 * dissipation[0]

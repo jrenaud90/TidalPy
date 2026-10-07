@@ -80,7 +80,7 @@ def warn_if_internal_discontinuity(radius_array, upper_radius_bylayer_array):
     global _internal_discontinuity_warned
     radius = np.asarray(radius_array, dtype=np.float64)
     upper = np.asarray(upper_radius_bylayer_array, dtype=np.float64)
-    repeated = radius[1:][radius[1:] == radius[:-1]]
+    repeated = radius[1:][radius[1:] == radius[:radius.size - 1]]
     tolerance = 1.0e-9 * max(float(np.max(np.abs(radius))) if radius.size else 0.0, 1.0)
     internal = [float(value) for value in repeated
                 if (upper.size == 0) or (np.min(np.abs(upper - value)) > tolerance)]

@@ -80,6 +80,8 @@ def register_notebook_log_printer():
     console sink keeps its messages (``console_pending``) and this hook writes them to the cell through
     ``sys.stderr``.
     """
+    from IPython import get_ipython
+
     from TidalPy.Utilities.logging.logger import print_pending_messages
 
     events = get_ipython().events

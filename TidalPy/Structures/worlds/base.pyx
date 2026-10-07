@@ -229,7 +229,8 @@ class EOSResult(dict):
 
     def __repr__(self):
         radius = self.get("radius")
-        surface_radius = float(radius[-1]) if (radius is not None) and (len(radius) > 0) else math.nan
+        # Not radius[-1]: this module compiles with wraparound=False, under which a negative index is undefined.
+        surface_radius = float(radius[len(radius) - 1]) if (radius is not None) and (len(radius) > 0) else math.nan
         summary = (
             f"EOSResult(success={self.get('success')}, iterations={self.get('iterations')}, "
             f"message={self.get('message')!r})\n"
