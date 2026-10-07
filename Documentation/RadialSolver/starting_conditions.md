@@ -62,7 +62,7 @@ The closed forms carry that growth analytically and apply in all four cases. Whe
 
 The unit vectors are $y_1$, $y_4$, and $y_6$ in a solid, $y_1$ and $y_6$ in a dynamic liquid, and $y_7$ in a static liquid. These are the leading components of Martens' free-constant solutions. In a comparison of every set of unit vectors on homogeneous bodies, this set's errors were within a factor of two of the smallest. Sets that include $y_3$ can leave the regular solutions degenerate.
 
-A unit vector holds singular content as well as regular. Integrating outward, the singular part decays relative to the regular part as $(r_0 / r)^{2l - 1}$ in a solid and $(r_0 / r)^{2l + 1}$ in a liquid, where $r_0$ is the starting radius. Its error at the surface therefore depends on the starting radius rather than on the integration tolerance. Unity is a check on the other methods, not a default. It is unreliable in a weak solid starting layer, with errors of $10^{-2}$ to $5$ in $k$ in the comparison below.
+A unit vector holds singular content as well as regular. Integrating outward, the singular part decays relative to the regular part as $(r_0 / r)^{2l - 1}$ in a solid and $(r_0 / r)^{2l + 1}$ in a liquid, where $r_0$ is the starting radius. Its error at the surface therefore depends on the starting radius rather than on the integration tolerance. Unity is a check on the other methods, not a default. It is unreliable in a weak solid starting layer, with errors of $10^{-2}$ to $10^{-1}$ in $k$ at $\eta = 10^{11}$ in the comparison below.
 
 ## Choosing a Method
 
@@ -75,7 +75,7 @@ A unit vector holds singular content as well as regular. Integrating outward, th
 > Only the layer the integration starts in uses these conditions. Every layer above it starts from the interface conditions with the layer below.
 
 > [!WARNING]
-> In a very weak solid starting layer ($|\mu^*|$ near $10^{-4} \rho g R$ and below), the solve is ill-conditioned for every start. The Takeuchi and Saito and power series solves can then succeed with $k$ wrong by order one at the default tolerances: `surface_solve_rcond` falls to $10^{-13}$, just above the `[numerical] minimum_surface_rcond` refusal of $10^{-14}$. Check `surface_solve_rcond`, use `"kamata"`, and tighten the tolerances.
+> In a very weak solid starting layer ($|\mu^*|$ near $10^{-4} \rho g R$ and below), the solve is ill-conditioned for every start. The `[numerical] minimum_surface_rcond` floor of $10^{-12}$ refuses most such solves, but not all: in the $\eta = 10^{10}$ Maxwell start below, the degree 3 Takeuchi and Saito and power series solves succeeded with $k$ off by 0.6 at a `surface_solve_rcond` of $1.1 \times 10^{-12}$. A solve whose rcond is below the integration `rtol` logs a conditioning warning. Check `surface_solve_rcond`, use `"kamata"`, and tighten the tolerances.
 
 ## Accuracy and Cost
 
@@ -96,11 +96,11 @@ It used degrees 2, 3, 5, and 10 and forcing periods of 0.5, 3, and 30 days, for 
 | Method | Solves that succeed | Median error in $k$ | 90th percentile | Error above $10^{-5}$ | Median cost |
 |---|---|---|---|---|---|
 | `takeuchi` | 1360 | 5.5e-9 | 1.4e-6 | 4.1% | 1.00 |
-| `kamata` | 1365 | 1.7e-9 | 7.7e-7 | 2.6% | 1.44 |
+| `kamata` | 1364 | 1.7e-9 | 7.7e-7 | 2.6% | 1.44 |
 | `power_series` | 1355 | 9.6e-9 | 1.8e-6 | 3.5% | 1.04 |
-| `unity` | 1365 | 1.6e-7 | 4.3e-5 | 16.2% | 1.38 |
+| `unity` | 1357 | 1.6e-7 | 3.9e-5 | 15.7% | 1.38 |
 
-Every method failed a few solves in dynamic liquids at long periods, where the solutions grow exponentially. The power series also refused 11 such starts.
+Every method failed a few solves in dynamic liquids at long periods, where the solutions grow exponentially. The power series also refused 11 such starts. The `minimum_surface_rcond` floor refused one Kamata and eight unity solves, whose $k$ was off by $10^{-3}$ to 13.
 
 ### Synthetic Bodies
 
@@ -117,12 +117,12 @@ The table gives the solves that succeed, the median error in $k$, and the median
 | Homogeneous solid | 20/20, 2e-9, 1.00 | 20/20, 2e-9, 1.35 | 20/20, 2e-9, 1.04 | 20/20, 2e-7, 1.32 |
 | Maxwell start, $\eta = 10^{12}$ to $10^{13}$ | 10/10, 2e-8, 1.00 | 10/10, 5e-11, 3.06 | 7/10, 2e-9, 1.08 | 10/10, 5e-7, 1.50 |
 | Maxwell start, $\eta = 10^{11}$ | 5/5, 6e-7, 1.00 | 5/5, 8e-12, 2.64 | 3/5, 3e-9, 1.01 | 5/5, 3e-2, 1.44 |
-| Maxwell start, $\eta = 10^{10}$ | 5/5, 6e-1, 1.00 | 5/5, 8e-5, 1.88 | 3/5, 3e-1, 1.03 | 5/5, 5e0, 1.38 |
+| Maxwell start, $\eta = 10^{10}$ | 2/5, 3e-1, 1.00 | 4/5, 8e-5, 2.29 | 2/5, 3e-1, 1.02 | 0/5 |
 | Liquid core, static | 10/10, 9e-9, 1.00 | 10/10, 9e-9, 1.00 | 10/10, 9e-9, 0.97 | 10/10, 2e-8, 1.14 |
 | Liquid core, dynamic incompressible | 10/10, 7e-8, 1.00 | 10/10, 5e-9, 3.08 | 10/10, 7e-8, 0.99 | 10/10, 2e-8, 1.26 |
-| Liquid core, dynamic compressible | 6/10, 7e-8, 1.00 | 6/10, 5e-8, 1.20 | 4/10, 7e-8, 1.12 | 6/10, 2e-8, 1.25 |
+| Liquid core, dynamic compressible | 6/10, 7e-8, 1.00 | 6/10, 5e-8, 1.20 | 3/10, 7e-8, 1.15 | 5/10, 2e-8, 1.26 |
 
-At $\eta = 10^{9}$ no two references agreed, so those solves are not scored. The dynamic compressible liquid core fails at a 10 day period for every method, since its solutions grow by many orders of magnitude. The power series' missing Maxwell solves are refusals past its wavenumber bound (degrees 10 and 20, and degree 5 at the weakest viscosity).
+The `minimum_surface_rcond` floor refused every solve at $\eta = 10^{9}$, where no two references agreed, and half of those at $\eta = 10^{10}$ (rcond $2 \times 10^{-14}$ to $4 \times 10^{-13}$). The dynamic compressible liquid core fails at a 10 day period for every method, since its solutions grow by many orders of magnitude, and the floor refused one more power series and one more unity solve there. The power series' other missing Maxwell solves are refusals past its wavenumber bound (degrees 10 and 20).
 
 ### Cost of the Start
 

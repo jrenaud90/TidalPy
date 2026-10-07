@@ -86,10 +86,15 @@ def _check_3layer(
     # power series refuses to start rather than return an inaccurate start.
     series_may_refuse = (starting_method == 'power_series') and start_is_liquid and (not liquid_is_static) and \
         (not liquid_is_incompressible)
+    # That growth also leaves the surface system singular to working precision for some starts, integrators, and
+    # degrees (rcond 1e-13 to 1e-12, below the 1e-12 floor; where a reference succeeds, k was off by 0.3 to 9).
+    surface_may_be_singular = (not liquid_is_static) and (not liquid_is_incompressible)
     try:
         out = solve()
     except SolutionFailedError as error:
         if series_may_refuse and ('power series starting conditions refused' in str(error)):
+            return
+        if surface_may_be_singular and ('singular to working precision' in str(error)):
             return
         # Only the liquid layer's step-size collapse is expected; any other failure is a real one.
         if known_unstable and ('Integration problem at layer 2' in str(error)):

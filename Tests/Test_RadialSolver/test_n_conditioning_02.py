@@ -87,9 +87,9 @@ def _closed_form_incompressible_k(degree_l):
 
 
 def test_minimum_surface_rcond_is_wired_through():
-    """The config threshold defaults to 1e-14 and reaches the constants module."""
+    """The config threshold defaults to 1e-12 and reaches the constants module."""
     from TidalPy import constants
-    assert TidalPy.config["numerical"]["minimum_surface_rcond"] == 1.0e-14
+    assert TidalPy.config["numerical"]["minimum_surface_rcond"] == 1.0e-12
     assert constants.minimum_surface_rcond == TidalPy.config["numerical"]["minimum_surface_rcond"]
 
 

@@ -8,6 +8,7 @@ from TidalPy.Rheology import Maxwell
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.RadialSolver.rs_solution import SEVERE_SURFACE_AMPLIFICATION
 from TidalPy.Structures import build_world
+from TidalPy.exceptions import SolutionFailedError
 
 frequency = 2.0 * np.pi / (86400. * 1.0)
 N = 10
@@ -42,7 +43,7 @@ def _solve(**kwargs):
 
 
 def _run(starting_radius):
-    """Degree-3 solve; a 0.1 m starting radius makes the surface constants cancel catastrophically."""
+    """Degree-3 solve; a starting radius of a meter or less makes the surface constants cancel catastrophically."""
     return _solve(
         degree_l=3,
         solve_for=('tidal',),
@@ -66,11 +67,18 @@ def _solved_earth(**kwargs):
 
 
 def test_pathological_solve_records_amplification_and_warns(spdlog_text):
-    """A 0.1 m starting radius at degree 3 reports severe amplification and logs the warning."""
-    solution = _run(starting_radius=0.1)
+    """A 1 m starting radius at degree 3 (rcond near 1e-9) reports severe amplification and logs the warning."""
+    solution = _run(starting_radius=1.0)
     assert solution.success
     assert solution.surface_solve_amplification > SEVERE_SURFACE_AMPLIFICATION
     assert WARNING_TEXT in spdlog_text()
+
+
+def test_singular_start_fails():
+    """A 0.1 m starting radius drops the rcond near 1e-13, below the default floor: the solve fails (k was off by
+    2e-4 at rtol 1e-7 when it was accepted)."""
+    with pytest.raises(SolutionFailedError, match="singular to working precision"):
+        _run(starting_radius=0.1)
 
 
 def test_healthy_solve_is_silent(spdlog_text):

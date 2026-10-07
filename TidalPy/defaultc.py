@@ -92,9 +92,10 @@ schema_version = "{SCHEMA_VERSION}"
     # radial solver's surface boundary-condition system may have. Below it the system is singular to working
     # precision, the solution constants are undetermined, and the solve fails. An exactly singular system, such as
     # a degree-1 solve for a static body (a rigid translation meets every surface condition), measures 1e-16 to
-    # 2e-15; a healthy solve 1e-3 to 1e-1; an extreme manual start (0.1 m in a 6000 km body at degree 3), which
-    # still solves with a conditioning warning, about 1e-13.
-    minimum_surface_rcond = 1.0e-14
+    # 2e-15; a healthy solve 1e-3 to 1e-1. Solves measured between 1e-14 and 1e-12 (a very weak solid starting
+    # layer, an extreme manual start of 0.1 m in a 6000 km body at degree 3) had Love numbers off by 1e-4 to order
+    # one; none measured below 1e-11 was accurate to 1e-4.
+    minimum_surface_rcond = 1.0e-12
     # Relative tolerance within which two tidal-mode frequencies count as one (their modes then share a
     # radial solve), and within which a frequency counts as zero.
     frequency_match_rtol = 1.0e-9
