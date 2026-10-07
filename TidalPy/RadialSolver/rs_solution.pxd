@@ -39,6 +39,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
         double surface_rcond
+        double surface_frame_residual
         double p_love_frequency_si
         double p_length_conv
         cpp_bool p_eos_is_nondim
@@ -116,3 +117,7 @@ cdef bint cy_check_surface_solve_conditioning(
     double surface_amplification,
     double integration_rtol,
     double surface_rcond = *) except *
+
+# Warn when a degree-1 loading solve leaves the surface condition its frame row replaced far from met. Returns True
+# when it warned. Holds the GIL. NaN (any other solve) never warns.
+cdef bint cy_check_degree1_frame_residual(double surface_frame_residual) except *

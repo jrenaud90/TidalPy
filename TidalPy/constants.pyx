@@ -13,6 +13,14 @@ cdef extern from "RadialSolver/starting/starting_method_.hpp" nogil:
         PowerSeries
         Unity
 
+cdef extern from "RadialSolver/degree1_frame_.hpp" nogil:
+    cdef enum class c_Degree1Frame(int):
+        CE
+        CM
+        CF
+        CL
+        CH
+
 # Even though these are defined in this file's .pxd; we need to cimport them so that Cython creates the correct
 # namespace signature like: `TidalPyConstants::d_ppb`.
 from TidalPy.constants cimport (
@@ -203,6 +211,47 @@ def starting_method_from_name(name: str) -> int:
             f'Unsupported starting method "{name}". Supported: {sorted(STARTING_METHOD_ALIASES)}.') from None
 
 
+# The canonical (saved-config) name of each reference frame of the degree-1 load Love numbers (Blewitt 2003), mapped
+# from its value, and every name the solvers accept (case-insensitive) mapped to its value
+# (RadialSolver/degree1_frame_.hpp).
+DEGREE1_FRAME_NAMES = {
+    <int>c_Degree1Frame.CE: 'CE',
+    <int>c_Degree1Frame.CM: 'CM',
+    <int>c_Degree1Frame.CF: 'CF',
+    <int>c_Degree1Frame.CL: 'CL',
+    <int>c_Degree1Frame.CH: 'CH',
+}
+DEGREE1_FRAME_ALIASES = {name.lower(): value for value, name in DEGREE1_FRAME_NAMES.items()}
+
+
+def degree1_frame_from_name(name: str) -> int:
+    """Degree-1 reference frame value for a name.
+
+    Parameters
+    ----------
+    name : str
+        ``'CE'`` (center of mass of the solid body, k' = 0), ``'CM'`` (center of mass of the body and the load,
+        1 + k' = 0), ``'CF'`` (center of surface figure, h' + 2 l' = 0), ``'CL'`` (center of lateral figure, l' = 0),
+        or ``'CH'`` (center of height figure, h' = 0), in any case (Blewitt 2003).
+
+    Returns
+    -------
+    int
+        The frame's value (``DEGREE1_FRAME_NAMES`` maps it back to the canonical name).
+
+    Raises
+    ------
+    ValueError
+        If the name is not a frame.
+    """
+    try:
+        return DEGREE1_FRAME_ALIASES[str(name).lower()]
+    except KeyError:
+        raise ValueError(
+            f'Unsupported degree-1 frame "{name}". Supported: {sorted(DEGREE1_FRAME_NAMES.values())} (any case).'
+            ) from None
+
+
 def update_constants():
     """Populate the shared C++ config singleton from ``TidalPy.config`` and SciPy.
 
@@ -263,6 +312,7 @@ def update_constants():
     tidalpy_config_ptr.d_RADIAL_SOLVER_RTOL = radial_solver['rtol']
     tidalpy_config_ptr.d_RADIAL_SOLVER_ATOL = radial_solver['atol']
     tidalpy_config_ptr.d_RADIAL_SOLVER_STARTING_METHOD = starting_method_from_name(radial_solver['starting_method'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_DEGREE1_FRAME = degree1_frame_from_name(radial_solver['degree1_frame'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_START_RADIUS_TOL = radial_solver['start_radius_tolerance']
     tidalpy_config_ptr.d_RADIAL_SOLVER_SCALE_RTOLS = bool(radial_solver['scale_rtols'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_NUM_STEPS = int(radial_solver['max_num_steps'])

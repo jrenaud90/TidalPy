@@ -16,4 +16,6 @@ cdef extern from "boundaries_.hpp" nogil:
         size_t ytype_i,
         int layer_type,
         cpp_bool layer_is_static,
-        cpp_bool layer_is_incomp) noexcept nogil
+        cpp_bool layer_is_incomp,
+        cpp_bool degree1_frame,
+        double* frame_residual_ptr) noexcept nogil

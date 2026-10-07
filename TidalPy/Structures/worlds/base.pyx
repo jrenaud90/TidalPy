@@ -53,7 +53,7 @@ from TidalPy.Structures.layers.layer cimport (
 from TidalPy.Structures.layers.layer import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_YTYPES
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
-from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning
+from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning, cy_check_degree1_frame_residual
 from TidalPy.Tides.love.love cimport (
     c_love_method_name_int, c_love_method_uses_radial_solver_int, cy_parse_love_method)
 from TidalPy.Tides.eccentricity.eccentricity_driver import (
@@ -61,6 +61,7 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import (
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 from TidalPy.Utilities.logging.logger import log_warning
 from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name, STARTING_METHOD_NAMES, starting_method_from_name
+from TidalPy.constants import DEGREE1_FRAME_NAMES, degree1_frame_from_name
 from TidalPy.exceptions import SolutionFailedError
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths, with the heavy
@@ -558,6 +559,7 @@ cdef ODEMethod cy_resolve_integration_method(str integration_method) except *:
 cdef void cy_apply_love_solve_overrides(
         c_LoveSolveConfig* cfg,
         object starting_method,
+        object degree1_frame,
         object nondimensionalize,
         object start_radius_tol,
         object integration_method,
@@ -574,6 +576,8 @@ cdef void cy_apply_love_solve_overrides(
     """
     if starting_method is not None:
         cfg.starting_method = <int>starting_method_from_name(starting_method)
+    if degree1_frame is not None:
+        cfg.degree1_frame = <int>degree1_frame_from_name(degree1_frame)
     if nondimensionalize is not None:
         cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
     if start_radius_tol is not None:
@@ -652,6 +656,7 @@ cdef int C_SOLVER_SETTING_REAL   = 1
 cdef int C_SOLVER_SETTING_COUNT  = 2
 cdef int C_SOLVER_SETTING_FLAG   = 3
 cdef int C_SOLVER_SETTING_STARTING_METHOD = 4
+cdef int C_SOLVER_SETTING_DEGREE1_FRAME   = 5
 
 
 cdef double cy_solver_setting_to_double(int kind, object value) except? -1.0:
@@ -664,6 +669,8 @@ cdef double cy_solver_setting_to_double(int kind, object value) except? -1.0:
         return 1.0 if value else 0.0
     if kind == C_SOLVER_SETTING_STARTING_METHOD:
         return <double>starting_method_from_name(value)
+    if kind == C_SOLVER_SETTING_DEGREE1_FRAME:
+        return <double>degree1_frame_from_name(value)
     return <double>value
 
 
@@ -677,6 +684,8 @@ cdef object cy_solver_setting_from_double(int kind, double value):
         return value != 0.0
     if kind == C_SOLVER_SETTING_STARTING_METHOD:
         return STARTING_METHOD_NAMES[<int>value]
+    if kind == C_SOLVER_SETTING_DEGREE1_FRAME:
+        return DEGREE1_FRAME_NAMES[<int>value]
     return value
 
 
@@ -2126,7 +2135,8 @@ cdef class BaseWorld(StructureBase):
             fixed_q            = None,
             fixed_dt           = None,
             raise_on_fail      = False,
-            cpp_bool love_only = False) -> dict:
+            cpp_bool love_only = False,
+            degree1_frame      = None) -> dict:
         """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
         Requires :meth:`solve_eos` first. Each layer's attached rheology is evaluated at ``frequency`` for the
@@ -2203,6 +2213,13 @@ cdef class BaseWorld(StructureBase):
             makes the solve faster, and the radial functions below the surface are then unavailable
             (:meth:`get_love_radial_y` and a released solution's radial functions raise ``ValueError``). The surface
             values (:meth:`get_love_surface_y`) and the Love numbers are unaffected. Default False.
+        degree1_frame : str, optional
+            Reference frame of degree-1 load Love numbers (Blewitt 2003): ``'CE'`` (center of mass of the solid
+            body, k' = 0), ``'CM'`` (center of mass of the body and the load, 1 + k' = 0), ``'CF'`` (center of
+            surface figure), ``'CL'`` (center of lateral figure, l' = 0), or ``'CH'`` (center of height figure,
+            h' = 0), in any case. The Love numbers and the radial functions are both in this frame. Read only by a
+            degree-1 solve for loading; ``CF`` and ``CL`` need l', which a static liquid surface layer does not
+            define (error code -16).
 
         Returns
         -------
@@ -2241,8 +2258,8 @@ cdef class BaseWorld(StructureBase):
         cfg.warnings        = <cpp_bool>warnings
         cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
-            &cfg, starting_method, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
-            max_num_steps, expected_size, max_ram_MB)
+            &cfg, starting_method, degree1_frame, nondimensionalize, start_radius_tol, integration_method, rtol, atol,
+            scale_rtols, max_num_steps, expected_size, max_ram_MB)
 
         with nogil:
             self._world_ptr.get().solve_love_numbers(cfg)
@@ -2252,6 +2269,7 @@ cdef class BaseWorld(StructureBase):
             cy_check_surface_solve_conditioning(
                 self._world_ptr.get().get_love_surface_amplification(), cfg.rtol,
                 self._world_ptr.get().get_love_surface_rcond())
+            cy_check_degree1_frame_residual(self._world_ptr.get().get_love_surface_frame_residual())
         result = self._build_love_result()
         if raise_on_fail and not result["success"]:
             raise SolutionFailedError(
@@ -2336,7 +2354,8 @@ cdef class BaseWorld(StructureBase):
             cpp_bool verbose   = False,
             cpp_bool warnings  = True,
             str love_method    = 'radial_solver',
-            cpp_bool love_only = False) -> dict:
+            cpp_bool love_only = False,
+            degree1_frame      = None) -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
@@ -2344,7 +2363,7 @@ cdef class BaseWorld(StructureBase):
         ``solve_eos`` must be called first. Only the radial-solver methods (``love_method``
         ``'radial_solver'`` or ``'propagation_matrix'``) are available here. Solver settings left as ``None``
         take the ``[radial_solver]`` values of the TidalPy configuration, as in :meth:`solve_love_numbers`, which
-        describes ``love_only``.
+        describes ``love_only`` and ``degree1_frame``.
         """
         if radius_array.shape[0] == 0:
             raise ValueError("radius_array must not be empty")
@@ -2365,8 +2384,8 @@ cdef class BaseWorld(StructureBase):
         cfg.warnings        = <cpp_bool>warnings
         cfg.love_only       = love_only
         cy_apply_love_solve_overrides(
-            &cfg, starting_method, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
-            max_num_steps, expected_size, max_ram_MB)
+            &cfg, starting_method, degree1_frame, nondimensionalize, start_radius_tol, integration_method, rtol, atol,
+            scale_rtols, max_num_steps, expected_size, max_ram_MB)
 
         cdef size_t n_in = radius_array.shape[0]
         cdef cpp_complex[double]* shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus[0]
@@ -2383,6 +2402,7 @@ cdef class BaseWorld(StructureBase):
             cy_check_surface_solve_conditioning(
                 self._world_ptr.get().get_love_surface_amplification(), cfg.rtol,
                 self._world_ptr.get().get_love_surface_rcond())
+            cy_check_degree1_frame_residual(self._world_ptr.get().get_love_surface_frame_residual())
         return self._build_love_result()
 
     def release_radial_solution(self):
@@ -2473,6 +2493,16 @@ cdef class BaseWorld(StructureBase):
         number as ``RadialSolverSolution.surface_solve_rcond``.
         """
         return self._world_ptr.get().get_love_surface_rcond()
+
+    @property
+    def love_surface_frame_residual(self) -> float:
+        """How far the last degree-1 loading solve leaves the surface condition its reference frame replaced.
+
+        Roundoff when every layer is static; about omega^2 R / g when some layers carry inertia and others do not,
+        and warned about above 1e-2. NaN for any other solve. The standalone solver reports the same number as
+        ``RadialSolverSolution.surface_frame_residual``.
+        """
+        return self._world_ptr.get().get_love_surface_frame_residual()
 
     @property
     def love_method(self) -> str:

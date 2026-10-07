@@ -168,6 +168,7 @@ _SOLVER_KEY_RULES = {
         "rtol":                   (float, 0.0),
         "atol":                   (float, 0.0),
         "starting_method":        (str, None),
+        "degree1_frame":          (str, None),
         "start_radius_tolerance": (float, 0.0),
         "scale_rtols":            (bool, None),
         "max_num_steps":          (int, 0),
@@ -178,11 +179,12 @@ _SOLVER_KEY_RULES = {
 }
 EOS_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["eos_solver"])
 # The names the string-valued solver keys accept (any case). TidalPy.constants maps them to the C++ values
-# (ODE_METHOD_INTS, STARTING_METHOD_ALIASES); a test checks that the two agree.
+# (ODE_METHOD_INTS, STARTING_METHOD_ALIASES, DEGREE1_FRAME_ALIASES); a test checks that they agree.
 SOLVER_KEY_NAMES = {
     "integration_method": ("rk23", "rk45", "dop853", "bdf", "lsoda", "radau"),
     "starting_method":    ("takeuchi", "ts", "kamata", "power_series", "powerseries", "ps", "martens",
                            "unity"),
+    "degree1_frame":      ("ce", "cm", "cf", "cl", "ch"),
 }
 # The log levels by name, as the spdlog level integers (0 to 6) the logger also takes directly.
 LOG_LEVELS = {

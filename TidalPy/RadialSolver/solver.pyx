@@ -23,7 +23,7 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
-from TidalPy.constants import starting_method_from_name
+from TidalPy.constants import starting_method_from_name, degree1_frame_from_name
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons, so the C++ warnings of the world this
 # module builds (its EOS and Love solves) reach the logger.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -32,7 +32,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver.rs_constants cimport C_RS_MIN_SLICES_PER_LAYER
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution, c_RadialSolutionStorage
-from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning
+from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning, cy_check_degree1_frame_residual
 from TidalPy.Tides.love.love cimport c_parse_love_method_int
 # The world types and the C++ profile builder come from this module's own .pxd, which redeclares them rather
 # than cimporting Structures.worlds.base; see the note there for why that import cannot be used.
@@ -152,7 +152,9 @@ def radial_solver(
         cpp_bool perform_checks = True,  # kept for API compatibility; C++ always validates
         cpp_bool log_info = False,
         # Shooting method: keep only what the Love numbers need
-        cpp_bool love_only = False
+        cpp_bool love_only = False,
+        # Reference frame of degree-1 load Love numbers
+        degree1_frame = None
         ):
     """
     Solve the viscoelastic-gravitational problem for a planet of solid and liquid layers.
@@ -181,9 +183,9 @@ def radial_solver(
         Upper radius of each layer [m].
     degree_l : int, default=2
         Harmonic degree: 2 or more, or 1 for a solve for loading alone (a degree-1 tidal or free-surface response
-        is a translation of the body). Anything lower raises ``ValueError``. A degree-1 load on a static body
-        (every layer static) fails with error code -13: a rigid translation meets every surface condition, so the
-        response depends on a reference frame the solver does not choose.
+        is a translation of the body). Anything lower raises ``ValueError``. At degree 1 a rigid translation meets
+        every surface condition of a load, so the load Love numbers are given in the reference frame
+        ``degree1_frame``.
     solve_for : tuple[str, ...], optional
         Up to 5 of "tidal", "loading", "free"; None means ("tidal",).
     starting_radius : float64, default=0.0
@@ -223,6 +225,12 @@ def radial_solver(
         Keep only what the Love numbers need (shooting method): the integration builds no dense output, which makes
         the solve faster, and the solution's radial functions (``result``, ``get_radial_solution``, ``plot_ys``) are
         then unavailable and raise ``ValueError``. The Love numbers and the interior getters are unaffected.
+    degree1_frame : str, optional
+        Reference frame of degree-1 load Love numbers and radial functions (Blewitt 2003): 'CE' (center of mass of
+        the solid body, k' = 0), 'CM' (center of mass of the body and the load, 1 + k' = 0), 'CF' (center of surface
+        figure), 'CL' (center of lateral figure, l' = 0), or 'CH' (center of height figure, h' = 0), in any case.
+        Read only by a degree-1 solve for loading; 'CF' and 'CL' need l', which a static liquid surface layer does
+        not define (error code -16).
 
     Returns
     -------
@@ -246,6 +254,8 @@ def radial_solver(
         love_cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
     if starting_method is not None:
         love_cfg.starting_method = <int>starting_method_from_name(starting_method)
+    if degree1_frame is not None:
+        love_cfg.degree1_frame = <int>degree1_frame_from_name(degree1_frame)
     if integration_rtol is not None:
         love_cfg.rtol = <double>integration_rtol
     if integration_atol is not None:
@@ -478,5 +488,6 @@ def radial_solver(
         if solution.success:
             cy_check_surface_solve_conditioning(
                 solution.surface_solve_amplification, love_cfg.rtol, solution.surface_solve_rcond)
+            cy_check_degree1_frame_residual(solution.surface_frame_residual)
 
     return solution

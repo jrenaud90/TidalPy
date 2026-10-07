@@ -21,6 +21,14 @@
 // Solve the surface linear system for the collapse constants of the top layer (written to constant_vector_ptr,
 // unused entries NaN). bc_solution_info_ptr is 0 on success, 1 when the system is singular. layer_type: 0 =
 // solid (3x3 system), 1 = liquid (1x1 static, 2x2 dynamic).
+//
+// degree1_frame: a degree-1 loading solve. A rigid translation of the body meets every degree-1 surface condition of
+// a static body, so the conditions leave the Love numbers to a choice of reference frame (Farrell 1972; Blewitt
+// 2003). The frame of the body's own center of mass (CE: k' = 0, y5 = 1 at the surface) takes the place of the last
+// condition (y6 for a solid or a dynamic liquid, y7 for a static liquid; Guo et al. 2004 Eq. 9, Martens 2016
+// Eq. 4.150). The dropped condition then holds through the consistency relation of a static body (Saito 1974
+// Eq. 25), and frame_residual_ptr, when given, receives how far it is from met relative to the y6 condition:
+// |sum_s c_s y_dropped,s - S_dropped| / |S_6|.
 inline void c_apply_surface_bc(
         std::complex<double>* constant_vector_ptr,
         int* bc_solution_info_ptr,
@@ -33,32 +41,47 @@ inline void c_apply_surface_bc(
         size_t ytype_i,
         int layer_type,
         bool layer_is_static,
-        bool layer_is_incomp) noexcept
+        bool layer_is_incomp,
+        bool degree1_frame = false,
+        double* frame_residual_ptr = nullptr) noexcept
 {
     const double nan_val = std::numeric_limits<double>::quiet_NaN();
     *bc_solution_info_ptr = 0;
+    if (frame_residual_ptr != nullptr)
+    {
+        *frame_residual_ptr = nan_val;
+    }
+    const auto y_at = [&](size_t solution_i, size_t slot) {
+        return uppermost_y_per_solution_ptr[solution_i * max_num_y + slot];
+    };
+    // The frame row's value: y5 = 1 at the surface, the unit load potential.
+    const std::complex<double> frame_value(1.0, 0.0);
+    const double residual_scale = std::abs(bc_pointer[ytype_i * 3 + 2]);
+    const auto record_residual = [&](std::complex<double> dropped_value, std::complex<double> dropped_condition) {
+        if (degree1_frame && (frame_residual_ptr != nullptr) && (residual_scale > 0.0))
+        {
+            *frame_residual_ptr = std::abs(dropped_value - dropped_condition) / residual_scale;
+        }
+    };
 
     if (layer_type == 0)
     {
         Eigen::Matrix3cd A;
         Eigen::Vector3cd B;
 
-        // At the surface y_2 = S_1, y_4 = S_4, y_6 = S_6 (KTC21 Eq. B.37; KMN15 Eq. 16).
+        // At the surface y_2 = S_1, y_4 = S_4, y_6 = S_6 (KTC21 Eq. B.37; KMN15 Eq. 16), or y_5 = 1 in place of the
+        // last at degree 1.
         B(0) = bc_pointer[ytype_i * 3 + 0];
         B(1) = bc_pointer[ytype_i * 3 + 1];
-        B(2) = bc_pointer[ytype_i * 3 + 2];
+        B(2) = degree1_frame ? frame_value : std::complex<double>(bc_pointer[ytype_i * 3 + 2], 0.0);
+        const size_t last_slot = degree1_frame ? 4 : 5;
 
-        A(0, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
-        A(1, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
-        A(2, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 5];
-
-        A(0, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
-        A(1, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
-        A(2, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 5];
-
-        A(0, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 1];
-        A(1, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 3];
-        A(2, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 5];
+        for (size_t solution_i = 0; solution_i < 3; ++solution_i)
+        {
+            A(0, solution_i) = y_at(solution_i, 1);
+            A(1, solution_i) = y_at(solution_i, 3);
+            A(2, solution_i) = y_at(solution_i, last_slot);
+        }
 
         // Fails only when the solution is non-finite (truly singular).
         Eigen::PartialPivLU<Eigen::Matrix3cd> lu(A);
@@ -71,18 +94,22 @@ inline void c_apply_surface_bc(
         constant_vector_ptr[0] = X(0);
         constant_vector_ptr[1] = X(1);
         constant_vector_ptr[2] = X(2);
+        record_residual(X(0) * y_at(0, 5) + X(1) * y_at(1, 5) + X(2) * y_at(2, 5), bc_pointer[ytype_i * 3 + 2]);
 
     } else
     {
         if (layer_is_static)
         {
             // y_7 = y_6 + (4 pi G / g) y_2
-            std::complex<double> B_val =
+            const std::complex<double> y7_condition =
                 bc_pointer[ytype_i * 3 + 2] +
                 bc_pointer[ytype_i * 3 + 0] * (4.0 * TidalPyConstants::d_PI * G_to_use / surface_gravity);
 
-            // y_7 is at index 1 (index 0 is y_5).
-            std::complex<double> A_val = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
+            // y_7 is at index 1 (index 0 is y_5); at degree 1 the frame row y_5 = 1 takes its place. A degree-1 load
+            // makes y7_condition vanish (3/R = 4 pi G rho_bar / g), so without the frame row the constant is 0, or
+            // undetermined when the layer's solution is the rigid translation itself.
+            const std::complex<double> B_val = degree1_frame ? frame_value : y7_condition;
+            const std::complex<double> A_val = y_at(0, degree1_frame ? 0 : 1);
 
             if (std::abs(A_val) == 0.0) {
                 *bc_solution_info_ptr = 1;
@@ -92,6 +119,7 @@ inline void c_apply_surface_bc(
             constant_vector_ptr[0] = B_val / A_val;
             constant_vector_ptr[1] = std::complex<double>(nan_val, nan_val);
             constant_vector_ptr[2] = std::complex<double>(nan_val, nan_val);
+            record_residual(constant_vector_ptr[0] * y_at(0, 1), y7_condition);
 
         } else
         {
@@ -99,14 +127,15 @@ inline void c_apply_surface_bc(
             Eigen::Vector2cd B;
 
             B(0) = bc_pointer[ytype_i * 3 + 0];
-            B(1) = bc_pointer[ytype_i * 3 + 2];
+            B(1) = degree1_frame ? frame_value : std::complex<double>(bc_pointer[ytype_i * 3 + 2], 0.0);
 
-            // y_2 and y_6 are at indices 1 and 3.
-            A(0, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
-            A(1, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
-
-            A(0, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
-            A(1, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
+            // y_2 and y_6 are at indices 1 and 3, y_5 (the frame row at degree 1) at 2.
+            const size_t last_slot = degree1_frame ? 2 : 3;
+            for (size_t solution_i = 0; solution_i < 2; ++solution_i)
+            {
+                A(0, solution_i) = y_at(solution_i, 1);
+                A(1, solution_i) = y_at(solution_i, last_slot);
+            }
 
             Eigen::PartialPivLU<Eigen::Matrix2cd> lu(A);
             Eigen::Vector2cd X = lu.solve(B);
@@ -118,6 +147,7 @@ inline void c_apply_surface_bc(
             constant_vector_ptr[0] = X(0);
             constant_vector_ptr[1] = X(1);
             constant_vector_ptr[2] = std::complex<double>(nan_val, nan_val);
+            record_residual(X(0) * y_at(0, 3) + X(1) * y_at(1, 3), bc_pointer[ytype_i * 3 + 2]);
         }
     }
 }
@@ -191,7 +221,8 @@ inline double c_reciprocal_condition_1norm(const Eigen::Matrix<std::complex<doub
 
 
 // Rank measure of the surface solve: the reciprocal 1-norm condition number of the matrix c_apply_surface_bc
-// solves (its rows are y2, y4, y6 for a solid, y2, y6 for a dynamic liquid, y7 for a static liquid; one column
+// solves (its rows are y2, y4, y6 for a solid, y2, y6 for a dynamic liquid, y7 for a static liquid, with y5 in
+// place of the last for a degree-1 loading solve (degree1_frame); one column
 // per independent solution), after equilibration so the result does not depend on units or on how each starting
 // solution was normalized:
 //     1. each radial function is divided by its largest magnitude across the solutions, and
@@ -209,11 +240,14 @@ inline double c_estimate_surface_rcond(
         size_t num_ys,
         size_t max_num_y,
         int layer_type,
-        bool layer_is_static) noexcept
+        bool layer_is_static,
+        bool degree1_frame = false) noexcept
 {
-    // The rows the boundary conditions constrain, in the layer's own y storage order (c_LayerKindLayout).
+    // The rows the boundary conditions constrain, in the layer's own y storage order (c_LayerKindLayout); a degree-1
+    // loading solve's frame row (y5) in place of the last.
     const c_LayerKindLayout& layout = c_layer_layout(layer_type, layer_is_static);
-    const std::array<size_t, 3>& bc_rows = layout.surface_condition_slots;
+    const std::array<size_t, 3>& bc_rows =
+        degree1_frame ? layout.degree1_frame_slots : layout.surface_condition_slots;
     const size_t num_bc_rows = layout.num_solutions;
     if ((num_bc_rows != num_sols) || (num_ys > max_num_y) || (num_ys != 2 * num_sols))
     {

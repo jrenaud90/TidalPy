@@ -145,6 +145,7 @@ inline int c_shooting_solver(
     // The conditioning diagnostics describe this solve only; they stay at these values if it stops early.
     solution_storage_ptr->surface_amplification = 0.0;
     solution_storage_ptr->surface_rcond         = TidalPyConstants::d_NAN;
+    solution_storage_ptr->surface_frame_residual = TidalPyConstants::d_NAN;
     if (verbose)
     {
         printf("%s", solution_storage_ptr->message.c_str());
@@ -641,6 +642,19 @@ inline int c_shooting_solver(
 
     c_LayerCollapseInputs& surface_layer = collapse_inputs_vec[num_layers - 1];
 
+    // A rigid translation of the whole body (y1 = y3 = u, y2 = y4 = 0, y5 = g u, y6 = 0) solves the static
+    // equations at degree 1 for any structure and meets every surface condition, so the degree-1 Love numbers are
+    // fixed only once a reference frame is chosen (Farrell 1972; Blewitt 2003). A loading solve fixes the frame of the
+    // body's own center of mass (k' = 0) in the surface solve itself (c_apply_surface_bc), static or dynamic: with
+    // inertia the exact solution is already in that frame (Saito 1974 App. 2), but the system it would be found from
+    // is singular as the frequency squared. The solution is shifted to another frame afterwards
+    // (c_RadialSolutionStorage::find_love). Tidal and free solves have no degree-1 answer to fix.
+    bool degree1_frame = (degree_l == 1);
+    for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
+    {
+        degree1_frame = degree1_frame && (inputs.bc_models[ytype_i] == 2);
+    }
+
     // Rank of the surface system, which does not depend on the boundary condition: a singular system still hands
     // back finite, arbitrary constants that the amplification cannot flag.
     const double surface_rcond = c_estimate_surface_rcond(
@@ -649,18 +663,14 @@ inline int c_shooting_solver(
         2 * surface_layer.num_sols,
         C_MAX_NUM_Y,
         surface_layer.layer_type,
-        surface_layer.is_static);
+        surface_layer.is_static,
+        degree1_frame);
     solution_storage_ptr->surface_rcond = surface_rcond;
 
-    // A rigid translation of the whole body (y1 = y3 = u, y2 = y4 = 0, y5 = g u, y6 = 0) solves the static
-    // equations at degree 1 for any structure and meets every surface condition, so when no integrated layer
-    // carries inertia the surface system is singular in exact arithmetic and the degree-1 Love numbers are fixed
-    // only once a reference frame is chosen (Farrell 1972; Blewitt 2003). Integration error can hold the computed
-    // rcond far above machine precision (1e-11 at rtol 1e-6 below a static liquid core), so this is decided from
-    // the structure rather than from the rcond threshold below. Inertia in a dynamic layer removes the mode, and
-    // the solution then tends to the frame of the body's own center of mass (k' = 0) as the frequency falls, with
-    // conditioning that degrades as frequency squared.
-    if (degree_l == 1)
+    // Without a frame row, the static degree-1 system is singular in exact arithmetic. Integration error can hold the
+    // computed rcond far above machine precision (1e-11 at rtol 1e-6 below a static liquid core), so this is decided
+    // from the structure rather than from the rcond threshold below.
+    if ((degree_l == 1) && !degree1_frame)
     {
         bool all_layers_static = true;
         for (size_t current_layer_i = start_layer_i; current_layer_i < num_layers; ++current_layer_i)
@@ -676,12 +686,10 @@ inline int c_shooting_solver(
             solution_storage_ptr->error_code = -13;
             solution_storage_ptr->success    = false;
             solution_storage_ptr->message    =
-                std::string("RadialSolver.ShootingMethod:: A degree-1 solve in which every integrated layer is ") +
-                std::string("static is singular: a rigid translation of the body satisfies the equations and every ") +
-                std::string("surface condition, so the Love numbers depend on a choice of reference frame and are ") +
-                std::string("not determined. Make at least one layer dynamic (is_static False) so inertia fixes ") +
-                std::string("the frame; in the frame of the body's center of mass k' = 0, and h' and l' shift ") +
-                std::string("together with k' between frames.\n");
+                std::string("RadialSolver.ShootingMethod:: A degree-1 tidal or free solve in which every ") +
+                std::string("integrated layer is static is singular: a rigid translation of the body satisfies the ") +
+                std::string("equations and every surface condition. Only loading has degree-1 Love numbers; solve ") +
+                std::string("for loading alone, which fixes the reference frame.\n");
             if (verbose)
             {
                 printf("%s", solution_storage_ptr->message.c_str());
@@ -733,6 +741,7 @@ inline int c_shooting_solver(
             std::string("\" solver.\n");
 
         bc_solution_info = -999;
+        double frame_residual = TidalPyConstants::d_NAN;
         for (size_t i = 0; i < 3; ++i)
         {
             constant_vector_ptr[i] = c_constant_NAN;
@@ -763,7 +772,9 @@ inline int c_shooting_solver(
                     ytype_i,
                     layer.layer_type,
                     layer.is_static,
-                    layer.is_incompressible
+                    layer.is_incompressible,
+                    degree1_frame,
+                    &frame_residual
                 );
 
                 if (bc_solution_info != 0)
@@ -782,6 +793,16 @@ inline int c_shooting_solver(
                         printf("%s", solution_storage_ptr->message.c_str());
                     }
                     return solution_storage_ptr->error_code;
+                }
+
+                // How far the condition the frame row replaced is from met, worst across ytypes (NaN unless
+                // degree1_frame). A static body meets it to roundoff; inertia in some layers but not others leaves
+                // a residual of about omega^2 R / g.
+                if (degree1_frame)
+                {
+                    const double previous = solution_storage_ptr->surface_frame_residual;
+                    solution_storage_ptr->surface_frame_residual =
+                        std::isnan(previous) ? frame_residual : std::fmax(previous, frame_residual);
                 }
 
                 // Worst-case error amplification of the surface solve across ytypes (large cancelling constants

@@ -76,6 +76,7 @@ cdef extern from "constants_.hpp" nogil:
         double   d_RADIAL_SOLVER_RTOL
         double   d_RADIAL_SOLVER_ATOL
         int      d_RADIAL_SOLVER_STARTING_METHOD
+        int      d_RADIAL_SOLVER_DEGREE1_FRAME
         double   d_RADIAL_SOLVER_START_RADIUS_TOL
         cpp_bool d_RADIAL_SOLVER_SCALE_RTOLS
         int      d_RADIAL_SOLVER_MAX_NUM_STEPS

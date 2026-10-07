@@ -53,8 +53,9 @@ def test_config_package_section_has_exactly_its_keys(section, keys):
                    "eos_invert_max_iters", "test_constant")),
     ("eos_solver", ("integration_method", "rtol", "atol", "pressure_tol", "max_iters", "nondimensionalize",
                     "slices_per_layer")),
-    ("radial_solver", ("integration_method", "rtol", "atol", "starting_method", "start_radius_tolerance", "scale_rtols",
-                       "max_num_steps", "expected_size", "max_ram_mb", "nondimensionalize")),
+    ("radial_solver", ("integration_method", "rtol", "atol", "starting_method", "degree1_frame",
+                       "start_radius_tolerance", "scale_rtols", "max_num_steps", "expected_size", "max_ram_mb",
+                       "nondimensionalize")),
 ])
 def test_config_section_has_its_keys(section, keys):
     missing = [key for key in keys if key not in TidalPy.config[section]]

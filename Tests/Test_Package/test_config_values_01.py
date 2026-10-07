@@ -81,7 +81,8 @@ def test_a_bad_value_in_the_file_falls_back_with_a_warning(own_data_dir):
 
 
 @pytest.mark.parametrize("section, key, value", [
-    ("radial_solver", "starting_method", "bessel"), ("eos_solver", "integration_method", "euler")])
+    ("radial_solver", "starting_method", "bessel"), ("radial_solver", "degree1_frame", "CX"),
+    ("eos_solver", "integration_method", "euler")])
 def test_a_misspelled_method_in_the_file_falls_back_with_a_warning(own_data_dir, section, key, value):
     """A method name TidalPy does not know falls back to the default instead of stopping the import."""
     get_default_config()
@@ -97,10 +98,11 @@ def test_a_misspelled_method_in_the_file_falls_back_with_a_warning(own_data_dir,
 
 
 def test_schema_method_names_match_the_constants():
-    from TidalPy.constants import ODE_METHOD_INTS, STARTING_METHOD_ALIASES
+    from TidalPy.constants import DEGREE1_FRAME_ALIASES, ODE_METHOD_INTS, STARTING_METHOD_ALIASES
     from TidalPy.schema import SOLVER_KEY_NAMES
     assert set(SOLVER_KEY_NAMES["integration_method"]) == set(ODE_METHOD_INTS)
     assert set(SOLVER_KEY_NAMES["starting_method"]) == set(STARTING_METHOD_ALIASES)
+    assert set(SOLVER_KEY_NAMES["degree1_frame"]) == set(DEGREE1_FRAME_ALIASES)
 
 
 def test_a_file_that_does_not_parse_falls_back_with_a_warning(own_data_dir):

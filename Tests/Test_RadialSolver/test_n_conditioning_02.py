@@ -109,9 +109,9 @@ def test_regular_solve_reports_a_healthy_rcond(starting_method, degree_l):
 
 
 def test_singular_surface_system_fails():
-    """A degree-1 load on a static body fails as singular (error -13) and raises when asked to."""
-    # A rigid translation meets every surface condition; amplification reads about 1 here, only rcond catches it.
-    solution = radial_solver(*_static_one_layer_inputs(), degree_l=1, solve_for=("loading",))
+    """A surface system singular to working precision fails (error -13) and raises when asked to."""
+    # A 0.1 m start at degree 3 leaves the independent solutions numerically dependent at the surface (rcond 2e-13).
+    solution = radial_solver(*_static_one_layer_inputs(), degree_l=3, starting_radius=0.1)
     assert not solution.success
     assert solution.error_code == -13
     assert "singular" in solution.message
@@ -119,7 +119,7 @@ def test_singular_surface_system_fails():
     assert np.isnan(solution.k)
 
     with pytest.raises(SolutionFailedError, match="singular"):
-        radial_solver(*_static_one_layer_inputs(), degree_l=1, solve_for=("loading",), raise_on_fail=True)
+        radial_solver(*_static_one_layer_inputs(), degree_l=3, starting_radius=0.1, raise_on_fail=True)
 
 
 def test_the_threshold_is_read_from_the_config(numerical_setter):

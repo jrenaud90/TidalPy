@@ -414,12 +414,14 @@ const NODES = [
     purpose: 'Layer by layer: starting conditions (starting_method: Takeuchi and Saito, Kamata, power series, ' +
       'or unity), independent solutions ' +
       'integrated with dense output, interface conditions to the next layer, then the surface boundary condition ' +
-      '(Eigen LU) and the collapse constants from the top down. Records the surface amplification.',
+      '(Eigen LU; at degree 1 for loading the frame row y5 = 1 replaces the last condition) and the collapse ' +
+      'constants from the top down. Records the surface amplification, rcond, and degree-1 frame residual.',
     inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants and constants on the storage' },
   { id: 'c_RadialSolutionStorage', lane: 'radial', kind: 'cpp', shape: 'class',
     label: 'c_RadialSolutionStorage', sub: 'rs_solution_.hpp', file: 'RadialSolver/rs_solution_.hpp',
     purpose: 'Owns the EOS solution and the dense interpolants plus collapse constants; get_radial_solution(r) ' +
-      'collapses y1..y6 at any radius on demand; get_surface_y and get_eos_si.',
+      'collapses y1..y6 at any radius on demand, shifted to the requested degree-1 frame (degree1_frame_.hpp); ' +
+      'get_surface_y and get_eos_si.',
     inputs: 'radius, boundary-condition index', outputs: 'y1..y6 (SI), EOS values (SI)' },
   { id: 'c_find_love', lane: 'radial', kind: 'cpp', shape: 'func',
     label: 'c_find_love', sub: 'love_.hpp, love_method_.hpp', file: 'RadialSolver/love_.hpp',

@@ -197,6 +197,10 @@ schema_version = "{SCHEMA_VERSION}"
     # (Kamata et al. 2015), "power_series" (Martens 2016; aliases "powerseries", "ps", "martens"), or "unity" (unit
     # vectors). See the radial solver's starting conditions page.
     starting_method = "takeuchi"
+    # Reference frame of degree-1 load Love numbers (Blewitt 2003): "CE" (center of mass of the solid body, k' = 0),
+    # "CM" (center of mass of the body and the load, 1 + k' = 0), "CF" (center of surface figure), "CL" (center of
+    # lateral figure, l' = 0), or "CH" (center of height figure, h' = 0). Only degree-1 loading solves read it.
+    degree1_frame = "CE"
     # The automatic starting radius is R * start_radius_tolerance^(1/l), capped by
     # [numerical].max_start_radius_fraction.
     start_radius_tolerance = 1.0e-5

@@ -34,6 +34,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         int love_method
         int core_model
         int starting_method
+        int degree1_frame
         cpp_bool nondimensionalize
         double starting_radius
         double start_radius_tol

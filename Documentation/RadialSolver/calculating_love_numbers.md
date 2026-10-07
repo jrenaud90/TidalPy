@@ -77,6 +77,7 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 | `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused, here with a `ValueError` and on the world path with a failed solve. |
 | `start_radius_tolerance` | `None` (config) | Tolerance for that automatic choice: the start is at $R \cdot \mathrm{tol}^{1/l}$. |
 | `starting_method` | `None` (config) | Starting conditions at the starting radius: `'takeuchi'` (Takeuchi and Saito 1972; alias `'ts'`), `'kamata'` (Kamata et al. 2015), `'power_series'` (Martens 2016; aliases `'powerseries'`, `'ps'`, `'martens'`), or `'unity'` (unit vectors). Every method covers every layer type. See [Starting Conditions](starting_conditions.md) for when to use each. |
+| `degree1_frame` | `None` (config) | Reference frame of degree-1 load Love numbers and radial functions: `'CE'`, `'CM'`, `'CF'`, `'CL'`, or `'CH'`. Read only by a degree-1 solve for loading. See [Degree-1 Load Love Numbers](#degree-1-load-love-numbers). |
 | `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Relative and absolute integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |
@@ -125,7 +126,7 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 | `integration_method` | `solve_love_numbers(integration_method=...)` | `[radial_solver] integration_method` |
 | `integration_rtol`, `integration_atol` | `solve_love_numbers(rtol=..., atol=...)` | `[radial_solver] rtol`, `atol` |
 | `scale_rtols_bylayer_type` | `solve_love_numbers(scale_rtols=...)` | `[radial_solver] scale_rtols` |
-| `starting_method`, `max_num_steps`, `expected_size`, `nondimensionalize` | the same names | the same names |
+| `starting_method`, `degree1_frame`, `max_num_steps`, `expected_size`, `nondimensionalize` | the same names | the same names |
 | `max_ram_MB` | `solve_love_numbers(max_ram_MB=...)` | `[radial_solver] max_ram_mb` |
 | `eos_integration_method` | `solve_eos(integration_method=...)` | `[eos_solver] integration_method` |
 | `eos_rtol`, `eos_atol` | `solve_eos(rtol=..., atol=...)` | `[eos_solver] rtol`, `atol` |
@@ -133,6 +134,36 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 | `eos_max_iters` | `solve_eos(max_iters=...)` | `[eos_solver] max_iters` |
 
 The lower-level radial-solver functions that take Newton's constant (`find_starting_conditions` and the Kamata, Takeuchi, and power series starting conditions, `apply_surface_bc`, `solve_upper_y_at_interface`, `fundamental_matrix`), like the tidal-potential functions (`global_potential`, `tidal_potential_3d_modes`, `collapse_global_tides`) and the Kepler conversions, read a `G_to_use` of `None` as the TidalPy configuration's value (SciPy's G).
+
+## Degree-1 Load Love Numbers
+
+At degree 1 a rigid translation of the whole body (y1 = y3 = a constant, y5 = that constant times g, no stress) satisfies the equations and every surface condition of a load. The load Love numbers are therefore defined only once a reference frame is chosen (Farrell 1972; Blewitt 2003). A degree-1 tidal or free-surface response is only a translation, so only `solve_for=('loading',)` takes `degree_l=1`.
+
+The solver finds the response in CE, the frame of the solid body's own center of mass, where k' = 0. It replaces the last surface condition (y6, or y7 for a static liquid surface layer) with y5 = 1 at the surface (Guo et al. 2004 Eq. 9; Martens 2016 Eq. 4.150). In a static body the replaced condition then holds by itself, because the body feels no net force (Saito 1974 Eq. 25). `degree1_frame` moves the result to another frame. The Love numbers and the radial functions move together: y1 and y3 shift by a constant c, y5 by c times g(r), and the stresses do not change.
+
+| `degree1_frame` | Origin | Defined by | Shift alpha from CE |
+|---|---|---|---|
+| `'CE'` (default) | Center of mass of the solid body | k' = 0 | 0 |
+| `'CM'` | Center of mass of the body and the load | 1 + k' = 0 | 1 |
+| `'CF'` | Center of surface figure | h' + 2 l' = 0 | (h' + 2 l') / 3 |
+| `'CL'` | Center of lateral figure | l' = 0 | l' |
+| `'CH'` | Center of height figure | h' = 0 | h' |
+
+In each frame h', l', and 1 + k' are their CE values minus alpha (Blewitt 2003 Eq. 17). h' - k' and l' - k' do not depend on the frame, and neither do the strain, the stress, or the dissipation. CE is the frame most published values use. CM and CF are the frames of satellite laser ranging and GNSS.
+
+`Tests/Test_RadialSolver/test_degree_one_loading_01.py` checks the solver against two references:
+
+- A homogeneous sphere with $V_P$ = 10 km/s, $V_S$ = 5 km/s, and $\rho$ = 5000 kg m$^{-3}$ gives h' = -0.206731 and l' = 0.161380. That is the exact value from the Takeuchi and Saito solutions; Martens (2016) Table C.4 gives -0.2069 and 0.1617. Every starting method and every tolerance from $10^{-6}$ to $10^{-12}$ agree, and a dynamic solve gives the same numbers from $\omega = 10^{-4}$ to $10^{-11}$ rad s$^{-1}$.
+- The Guo et al. (2004) PREM gives h' = -0.28559 to -0.28564 and l' = 0.10372 to 0.10375 across static and dynamic layer choices. They give -0.285694 and 0.103633.
+
+**Liquid surface layers.** A static liquid surface layer carries no horizontal displacement. Its l' is NaN, and the CF and CL frames, which read l', are refused with error code -16. Its surface is hydrostatic, which fixes h' = 1 - $\bar{\rho} / \rho_s$ in CE exactly, whatever lies beneath ($\bar{\rho}$ is the bulk density, $\rho_s$ the density at the surface). An incompressible solid lid of the same density tends to this value as its rigidity falls. A dynamic liquid surface layer solves like a solid one. Its l' is large, since the horizontal motion of an inviscid liquid grows as $1 / \omega^2$, and at long periods a dynamic compressible liquid fails as it does at any degree, or returns a wrong answer flagged by a large `surface_frame_residual` and a conditioning warning.
+
+**Mixed static and dynamic layers.** A body with inertia in some layers but not others has no exact degree-1 frame: the replaced condition holds only to about $\omega^2 R / g$. `solution.surface_frame_residual` (`world.love_surface_frame_residual` on a world) reports how far it is from met, relative to the y6 condition, and the solver warns when it is above $10^{-2}$. Dynamic solid layers under a static ocean leave $5 \times 10^{-3}$ at a one-day period. Making every layer static, or every layer dynamic, removes it.
+
+Other notes:
+
+- k' is 0 in CE and -1 in CM, so its quality factor and lag mean nothing there.
+- The propagation matrix refuses degree 1 (error code -13). The `homogeneous`, `cpl`, and `ctl` methods give tidal Love numbers only, at every degree.
 
 ## Troubleshooting
 
@@ -150,7 +181,9 @@ Start with `solution.message`, then `solution.steps_taken`, then plot. The messa
 
 **"The surface boundary condition system is singular to working precision" (error code -13).** The reciprocal condition number of the surface system, `solution.surface_solve_rcond`, fell below `[numerical] minimum_surface_rcond` (default `1e-12`), so no set of solution constants is determined by the surface conditions. The independent solutions have become numerically dependent; start higher in the planet or use the automatic starting radius. A very weak solid starting layer does this for every start; see [Starting Conditions](starting_conditions.md).
 
-**"A degree-1 solve in which every integrated layer is static is singular" (error code -13).** At degree 1 a rigid translation of the body satisfies the static equations and every surface condition, so when no integrated layer carries inertia the degree-1 Love numbers depend on the choice of reference frame (Farrell 1972; Blewitt 2003), which the solver does not make. Integration error keeps `surface_solve_rcond` above machine precision in such a solve, so the solver decides this from the layer flags rather than from the condition number. A translation shifts k', h', and l' by the same amount; in the frame of the body's own center of mass k' = 0. With at least one dynamic layer (`is_static` False) inertia removes the translation and the solve is determined: the Guo et al. (2004) Earth with dynamic solid layers gives h' = -0.2873 and k' = -0.0017 at a one-day period, close to the center-of-mass frame values h' = -0.2856 and k' = 0. That solution tends to the center-of-mass frame as the frequency falls, while `surface_solve_rcond` falls as the frequency squared (about 6e-6 at one day and 4e-9 at 30 days for that Earth), so check it against the integration `rtol` at long periods. The propagation matrix, whose layer is always static, refuses degree 1 for the same reason.
+**"The degree-1 frame asked for reads l'" (error code -16).** The `'CF'` and `'CL'` frames need l', which a static liquid surface layer does not define. Use `'CE'`, `'CM'`, or `'CH'`, or make the surface layer dynamic.
+
+**"The surface condition its reference frame replaced is met only to ..." (warning).** A degree-1 loading solve on a body whose layers are partly static and partly dynamic. See [Degree-1 Load Love Numbers](#degree-1-load-love-numbers).
 
 **"Layer ... is compressible but its bulk modulus is not positive" (error code -15).** A compressible solid or dynamic liquid layer needs a positive bulk modulus. An interpolated equation of state given no bulk-modulus table reports none (NaN), and a bulk modulus of zero with a shear modulus is a Poisson ratio of -1, which would give wrong Love numbers without any other sign of trouble. Give the material a bulk modulus, or mark the layer incompressible. A value between the threshold and the integration `rtol` is solved but logged as poorly conditioned, since the constants then carry the integration error divided by roughly `surface_solve_rcond`.
 

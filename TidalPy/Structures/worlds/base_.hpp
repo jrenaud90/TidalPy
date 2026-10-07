@@ -161,6 +161,7 @@ struct c_LoveSolveConfig {
     double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
     int       core_model         = 0;                         // propagation-matrix core starting condition (0-4)
     int       starting_method    = 0;                         // c_StartingMethod (shooting method only)
+    int       degree1_frame      = 0;                         // c_Degree1Frame (degree-1 loading only)
     bool      nondimensionalize  = true;
     double    starting_radius    = 0.0;                       // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
@@ -182,6 +183,7 @@ struct c_LoveSolveConfig {
         if (!c_solver_config_loaded()) { return; }
         const TidalPyConfig& config = *tidalpy_config_ptr;
         this->starting_method    = config.d_RADIAL_SOLVER_STARTING_METHOD;
+        this->degree1_frame      = config.d_RADIAL_SOLVER_DEGREE1_FRAME;
         this->nondimensionalize  = config.d_RADIAL_SOLVER_NONDIMENSIONALIZE;
         this->start_radius_tol   = config.d_RADIAL_SOLVER_START_RADIUS_TOL;
         this->integration_method = c_ode_method_from_config(config.d_RADIAL_SOLVER_METHOD, this->integration_method);
@@ -213,6 +215,7 @@ enum class c_SolverSettingKind : uint8_t {
     Count  = 2,   // a non-negative integer (uint64 in a binary record)
     Flag   = 3,   // a switch (uint8 in a binary record)
     StartingMethod = 4,   // a c_StartingMethod (int32 in a binary record)
+    Degree1Frame   = 5,   // a c_Degree1Frame (int32 in a binary record)
 };
 
 template <class Config>
@@ -261,6 +264,8 @@ struct c_RadialSolverSection {
             {"atol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.atol = value; }},
             {"starting_method", c_SolverSettingKind::StartingMethod,
              [](Config& cfg, double value) { cfg.starting_method = static_cast<int>(value); }},
+            {"degree1_frame", c_SolverSettingKind::Degree1Frame,
+             [](Config& cfg, double value) { cfg.degree1_frame = static_cast<int>(value); }},
             {"start_radius_tolerance", c_SolverSettingKind::Real,
              [](Config& cfg, double value) { cfg.start_radius_tol = value; }},
             {"scale_rtols", c_SolverSettingKind::Flag,
@@ -323,6 +328,7 @@ public:
                 case c_SolverSettingKind::Count:  p_write_as<uint64_t>(out, *value); break;
                 case c_SolverSettingKind::Flag:   p_write_as<uint8_t>(out, *value);  break;
                 case c_SolverSettingKind::StartingMethod: p_write_as<int32_t>(out, *value); break;
+                case c_SolverSettingKind::Degree1Frame:   p_write_as<int32_t>(out, *value); break;
             }
         }
     }
@@ -338,6 +344,7 @@ public:
                 case c_SolverSettingKind::Count:  this->p_values[row] = p_read_as<uint64_t>(in); break;
                 case c_SolverSettingKind::Flag:   this->p_values[row] = p_read_as<uint8_t>(in);  break;
                 case c_SolverSettingKind::StartingMethod: this->p_values[row] = p_read_as<int32_t>(in); break;
+                case c_SolverSettingKind::Degree1Frame:   this->p_values[row] = p_read_as<int32_t>(in); break;
             }
         }
     }
@@ -528,6 +535,11 @@ struct c_LoveWorkspace {
         if (this->is_analytic()) { return TidalPyConstants::d_NAN; }
         const auto* storage = this->get_current_storage();
         return storage ? storage->surface_rcond : TidalPyConstants::d_NAN;
+    }
+    double get_surface_frame_residual() const noexcept {
+        if (this->is_analytic()) { return TidalPyConstants::d_NAN; }
+        const auto* storage = this->get_current_storage();
+        return storage ? storage->surface_frame_residual : TidalPyConstants::d_NAN;
     }
 
     // The Love numbers for a boundary-condition ytype; the analytic methods hold one tidal set at index 0. NaN when
@@ -1955,6 +1967,7 @@ public:
         rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
         rt.core_model         = cfg.core_model;
         rt.starting_method    = cfg.starting_method;
+        rt.degree1_frame      = cfg.degree1_frame;
         rt.starting_radius    = cfg.starting_radius;
         rt.start_radius_tol   = cfg.start_radius_tol;
         rt.integration_method = cfg.integration_method;
@@ -1997,6 +2010,17 @@ public:
                 "TidalPy: degree_l must be 2 or more for a tidal or free-surface Love-number solve (degree 1 is a "
                 "translation of the body), and 1 or more for a loading solve; got " + std::to_string(cfg.degree_l)
                 + ".");
+        }
+        // The homogeneous-sphere formulas (homogeneous, cpl, ctl) give the tidal Love numbers only.
+        if (c_love_method_is_homogeneous(c_love_method_from_int(cfg.love_method))) {
+            for (const int bc_model : cfg.bc_models) {
+                if (bc_model != 1) {
+                    throw std::invalid_argument(
+                        std::string("TidalPy: the ") + c_love_method_name(c_love_method_from_int(cfg.love_method)) +
+                        " Love-number method gives tidal Love numbers only; solve for loading or a free surface "
+                        "with love_method 'radial_solver'.");
+                }
+            }
         }
         if (!std::isfinite(cfg.frequency) || !(cfg.frequency > 0.0)) {
             throw std::invalid_argument(
@@ -2651,6 +2675,12 @@ public:
     double get_love_surface_rcond() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_surface_rcond();
+    }
+    // A degree-1 loading solve's frame residual: how far the surface condition its frame row replaced is from met;
+    // NaN for any other solve. See c_apply_surface_bc in RadialSolver/boundaries/boundaries_.hpp.
+    double get_love_surface_frame_residual() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_surface_frame_residual();
     }
     // For the given boundary-condition ytype index; the analytic methods hold a single tidal set at index 0.
     // NaN when no solve describes the current structure: never solved, failed, or followed by a solve_eos.

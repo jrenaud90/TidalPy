@@ -41,12 +41,25 @@ def test_the_standalone_solver_refuses_an_undefined_degree(degree_l, solve_for):
         radial_solver(*_one_layer_inputs(), degree_l=degree_l, solve_for=solve_for)
 
 
-def test_a_degree_one_load_fails_as_singular_without_a_frame():
-    """A degree-1 load solve fails cleanly as singular."""
-    # Without a reference-frame condition (Farrell 1972, not implemented) a rigid translation solves the system.
+def test_a_degree_one_load_solves_in_the_frame_of_its_center_of_mass():
+    """A degree-1 load on a static body solves: the frame condition fixes the rigid translation (k' = 0 in CE)."""
     solution = radial_solver(*_one_layer_inputs(), degree_l=1, solve_for=("loading",))
-    assert not solution.success
-    assert solution.error_code == -13
+    assert solution.success, solution.message
+    assert abs(solution.k) < 1.0e-8
+    assert np.isfinite(solution.h) and np.isfinite(solution.l)
+
+
+@pytest.mark.parametrize("love_method", ("homogeneous", "cpl", "ctl"))
+@pytest.mark.parametrize("solve_for", ("loading", "free", ("tidal", "loading")))
+@pytest.mark.parametrize("degree_l", (1, 2))
+def test_homogeneous_methods_refuse_anything_but_tides(io, love_method, solve_for, degree_l):
+    """The homogeneous-sphere formulas give tidal Love numbers; asked for loading or a free surface they returned the
+    tidal ones with success, so they refuse."""
+    if (degree_l == 1) and (solve_for != "loading"):
+        pytest.skip("degree 1 is refused for tides before the method is")
+    with pytest.raises(ValueError, match="tidal Love numbers only"):
+        io.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=degree_l, solve_for=solve_for,
+                              love_method=love_method, fixed_q=100.0, fixed_dt=600.0)
 
 
 def test_homogeneous_methods_use_the_solved_mass(io):

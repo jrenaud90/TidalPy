@@ -25,13 +25,14 @@
 
 
 struct c_LoveSolveRuntimeConfig {
-    double    frequency       = 1.0e-5;             // [rad/s]; the only physically per-call quantity
-    std::vector<int> bc_models = {1};               // tidal = 1, free = 0, loading = 2; one output block each
-    bool      use_prop_matrix = false;              // false = shooting method, true = propagation matrix
-    int       core_model      = 0;                  // propagation-matrix core starting condition (0-4)
-    int       starting_method = 0;                  // c_StartingMethod (starting/starting_method_.hpp)
-    double    starting_radius = 0.0;                // [m]; 0 -> auto
-    double    start_radius_tol = 1.0e-4;
+    double    frequency          = 1.0e-5;             // [rad/s]; the only physically per-call quantity
+    std::vector<int> bc_models   = {1};                // tidal = 1, free = 0, loading = 2; one output block each
+    bool      use_prop_matrix    = false;              // false = shooting method, true = propagation matrix
+    int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
+    int       starting_method    = 0;                  // c_StartingMethod (starting/starting_method_.hpp)
+    int       degree1_frame      = 0;                  // c_Degree1Frame (degree1_frame_.hpp); degree-1 loading only
+    double    starting_radius    = 0.0;                // [m]; 0 -> auto
+    double    start_radius_tol   = 1.0e-4;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-5;
     double    atol               = 1.0e-7;
@@ -291,6 +292,8 @@ public:
         // Diagnostics describe this solve only: a failed integration must not leave the previous solve's.
         storage->surface_amplification = 0.0;
         storage->surface_rcond         = TidalPyConstants::d_NAN;
+        storage->surface_frame_residual = TidalPyConstants::d_NAN;
+        storage->p_degree1_frame       = rt.degree1_frame;
         std::fill(storage->shooting_method_steps_taken_vec.begin(), storage->shooting_method_steps_taken_vec.end(), 0);
         storage->p_bc_models = rt.bc_models;
         storage->p_love_frequency_si = rt.frequency;
@@ -311,6 +314,32 @@ public:
                 "largest allowed, " + c_format_scientific(max_start_radius_si) + " m ([numerical] " +
                 "max_start_radius_fraction times the planet radius " + c_format_scientific(planet_radius_si) +
                 " m). Use a lower starting radius, or 0 for the automatic choice.";
+            storage->success        = false;
+            this->p_solved          = false;
+            this->p_storage_current = true;
+            return;
+        }
+
+        // A degree-1 load's frame. A static liquid surface carries no y3, so it has no l' for CF or CL to read.
+        if ((rt.degree1_frame < 0) || (rt.degree1_frame >= C_NUM_DEGREE1_FRAMES))
+        {
+            storage->error_code = -5;
+            storage->message    = "TidalPy: unknown degree-1 reference frame " + std::to_string(rt.degree1_frame) + ".";
+            storage->success        = false;
+            this->p_solved          = false;
+            this->p_storage_current = true;
+            return;
+        }
+        const c_ShootingInputs& shape = this->p_shooting_inputs;
+        const bool static_liquid_surface = (this->p_n_layers > 0) && (shape.layer_types.back() != 0) &&
+            shape.is_static && shape.is_static[this->p_n_layers - 1];
+        if ((this->p_degree_l == 1) && static_liquid_surface && c_degree1_frame_needs_l(rt.degree1_frame) &&
+            (std::find(rt.bc_models.begin(), rt.bc_models.end(), 2) != rt.bc_models.end()))
+        {
+            storage->error_code = -16;
+            storage->message    =
+                "TidalPy: the degree-1 frame asked for reads l', which a static liquid surface layer does not define "
+                "(it carries no horizontal displacement). Use CE, CM, or CH, or a dynamic liquid surface layer.";
             storage->success        = false;
             this->p_solved          = false;
             this->p_storage_current = true;

@@ -132,11 +132,14 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | `slices_per_layer` | `100` | |
 | `nondimensionalize` | `true` | `true` |
 | `starting_method` | | `"takeuchi"` |
+| `degree1_frame` | | `"CE"` |
 | `start_radius_tolerance` | | `1.0e-5` |
 | `scale_rtols` | | `false` |
 | `max_num_steps`, `expected_size`, `max_ram_mb` | | `500000`, `128`, `500` |
 
 `solve_temperature` carries temperature and heat flow through the structure solve, so each layer's profile follows its cooling model, and its material is evaluated at the local temperature (see [Worlds](../Structures/worlds/worlds.md#temperature-and-heat-flow)). Such a solve relaxes its thermal network against the structure in passes, one structure integration each, until the interface temperatures and heat flows change by less than `thermal_tol` (relative) between passes, or `max_thermal_passes` is reached. `slices_per_layer` only sets the number of radial samples in the profile a solve reports. The Love solves and the profile getters read the solve's dense output at the exact radius, and the integration finds the edges of the solid and liquid zones itself.
+
+`degree1_frame` is the reference frame degree-1 load Love numbers are reported in: `"CE"`, `"CM"`, `"CF"`, `"CL"`, or `"CH"` (Blewitt 2003). Only a degree-1 solve for loading reads it; see [Degree-1 Load Love Numbers](../RadialSolver/calculating_love_numbers.md#degree-1-load-love-numbers).
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same thing for every planet. The packaged values come from a convergence study over the bundled worlds and synthetic homogeneous, rocky, icy-ocean, and liquid-core models at degrees 2 and 3 and periods from a day to a hundred days. DOP853 gave the most accuracy per millisecond at every tolerance on both solves: RK45 needs a hundred times tighter `rtol` for the same Love-number error, RK23 far more, and the implicit methods are slower without being more accurate here.
 

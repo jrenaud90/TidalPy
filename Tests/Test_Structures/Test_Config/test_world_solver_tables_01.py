@@ -101,6 +101,7 @@ def test_the_tables_survive_a_save(tmp_path):
     ({"nondimensionalize": 1}, "eos_solver"),
     ({"starting_method": True}, "radial_solver"),
     ({"starting_method": "bessel"}, "radial_solver"),
+    ({"degree1_frame": "CX"}, "radial_solver"),
     ({"integration_method": "euler"}, "eos_solver"),
     ({"max_num_steps": 0}, "radial_solver"),
     ({"pressure_tol": 1.0e-8}, "radial_solver"),
@@ -149,7 +150,7 @@ def _a_value_for_every_key():
     packaged default."""
     from TidalPy.schema import _SOLVER_KEY_RULES
     choices = {bool: True, int: 7, float: 2.5e-7}
-    names = {"integration_method": "RK45", "starting_method": "power_series"}
+    names = {"integration_method": "RK45", "starting_method": "power_series", "degree1_frame": "CF"}
     return {section: {key: names[key] if kind is str else choices[kind] for key, (kind, _) in rules.items()}
             for section, rules in _SOLVER_KEY_RULES.items()}
 

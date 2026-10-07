@@ -1,4 +1,4 @@
-"""Degree-1 reference-frame singularity, Love-number Q and lag signs, static-ocean h, and non-positive bulk moduli."""
+"""Degree-1 reference frame, Love-number Q and lag signs, static-ocean h, and non-positive bulk moduli."""
 import cmath
 import math
 from pathlib import Path
@@ -19,7 +19,7 @@ _GUO_DATA     = Path(__file__).resolve().parents[2] / 'Benchmarks' / 'RadialSolv
 
 
 # ======================================================================================================================
-# Degree-1 solves: a static body has a rigid-translation mode, a dynamic one does not
+# Degree-1 solves: the frame condition fixes the rigid translation of a static body
 # ======================================================================================================================
 def _core_mantle_inputs(core_type, is_static):
     """A 0.55 R core (11000 kg m-3) under a 4500 kg m-3 solid mantle (mu = 70 GPa)."""
@@ -41,26 +41,26 @@ def _core_mantle_inputs(core_type, is_static):
         slice_per_layer=40)
 
 
-@pytest.mark.parametrize('rtol', (1.0e-6, 1.0e-8, 1.0e-10))
 @pytest.mark.parametrize('core_type', ('liquid', 'solid'))
-def test_degree_one_static_body_is_singular(core_type, rtol):
-    """Every layer static: a degree-1 load fails as singular (-13) at every tolerance, liquid or solid core.
+def test_degree_one_static_body_is_frame_fixed(core_type):
+    """Every layer static: a degree-1 load solves in CE (k' = 0) with the same h' and l' at every tolerance.
 
-    Before the structural check the static liquid core reported success with k' = 0.098, 0.296, 0.996 at rtol 1e-6,
-    1e-8, 1e-10, because integration error held its surface rcond at 1e-11 to 4.5e-14, above the 1e-14 threshold.
+    Before the frame condition the static liquid core reported success with k' = 0.098, 0.296, 0.996 at rtol 1e-6,
+    1e-8, 1e-10 (an arbitrary rigid translation), and later failed as singular.
     """
-    solution = radial_solver(
-        *_core_mantle_inputs(core_type, (True, True)),
-        degree_l=1,
-        solve_for=('loading',),
-        integration_rtol=rtol,
-        integration_atol=rtol * 1.0e-4,
-        warnings=False)
-    assert not solution.success
-    assert solution.error_code == -13
-    assert 'singular' in solution.message
-    assert 'reference frame' in solution.message
-    assert np.isnan(solution.k)
+    love = []
+    for rtol in (1.0e-6, 1.0e-8, 1.0e-10):
+        solution = radial_solver(
+            *_core_mantle_inputs(core_type, (True, True)),
+            degree_l=1,
+            solve_for=('loading',),
+            integration_rtol=rtol,
+            integration_atol=rtol * 1.0e-4,
+            warnings=False)
+        assert solution.success, solution.message
+        assert abs(solution.k) < 1.0e-8
+        love.append((complex(solution.h), complex(solution.l)))
+    np.testing.assert_allclose(np.array(love), np.array([love[-1]] * 3), rtol=1.0e-5)
 
 
 def test_degree_two_static_body_still_solves():
@@ -96,11 +96,11 @@ def _guo_earth_inputs(is_static):
 
 
 @pytest.mark.skipif(not _GUO_DATA.exists(), reason='Guo+2004.npy benchmark data not found')
-def test_degree_one_dynamic_earth_is_determined():
-    """Dynamic solid layers remove the translation: the Guo et al. (2004) Earth solves and matches their h'.
+def test_degree_one_guo_earth_is_in_ce():
+    """The Guo et al. (2004) Earth solves in CE (k' = 0) and matches their h' = -0.285694, static or dynamic.
 
-    A frame change shifts h', l', and k' together, so h' - k' is frame independent; it equals h' in the frame of the
-    Earth's center of mass (k' = 0), where Guo et al. report h' = -0.2856.
+    Before the frame condition the dynamic solve carried a frame offset of k' = -0.00169 at one day (h' = -0.28732),
+    and the static one failed as singular.
     """
     solution = radial_solver(
         *_guo_earth_inputs((False, True, False)),
@@ -111,20 +111,19 @@ def test_degree_one_dynamic_earth_is_determined():
         integration_atol=1.0e-14,
         warnings=False)
     assert solution.success, solution.message
-    h_load = complex(solution.h).real
-    k_load = complex(solution.k).real
-    assert h_load == pytest.approx(-0.28732, abs=2.0e-5)
-    assert k_load == pytest.approx(-0.00169, abs=2.0e-5)
-    assert h_load - k_load == pytest.approx(-0.2856, abs=2.0e-4)
+    assert abs(solution.k) < 1.0e-8
+    assert complex(solution.h).real == pytest.approx(-0.285694, abs=2.0e-4)
 
-    # The same Earth with every layer static fails instead of returning a frame-dependent answer.
     static_solution = radial_solver(
         *_guo_earth_inputs((True, True, True)),
         degree_l=1,
         solve_for=('loading',),
         integration_method='RK45',
+        integration_rtol=1.0e-10,
+        integration_atol=1.0e-14,
         warnings=False)
-    assert static_solution.error_code == -13
+    assert static_solution.success, static_solution.message
+    assert complex(static_solution.h).real == pytest.approx(complex(solution.h).real, abs=1.0e-4)
 
 
 def _propagation_matrix_body(num_slices=25, radius=6.0e6, density=5500.0):

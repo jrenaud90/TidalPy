@@ -13,6 +13,7 @@
 #include <functional>
 
 #include "love_.hpp"
+#include "degree1_frame_.hpp"   // c_degree1_frame_offset
 #include "rs_constants_.hpp"
 #include "layer_kind_.hpp"   // c_layer_layout
 #include "matrix_types/solid_matrix_.hpp"      // c_fundamental_matrix, to continue a propagation-matrix solution
@@ -32,10 +33,12 @@
 // -11 : Numerical integration failed
 // -12 : The surface boundary condition solve returned non-finite constants
 // -13 : The surface boundary condition system is singular to working precision (surface_rcond below
-//       [numerical] minimum_surface_rcond), or singular by construction: degree 1 with every integrated layer
-//       static, where a rigid translation meets every surface condition (both methods)
+//       [numerical] minimum_surface_rcond), or singular by construction: a degree-1 tidal or free solve with every
+//       integrated layer static, or any degree-1 propagation-matrix solve, where a rigid translation meets every
+//       surface condition
 // -14 : Unknown surface boundary condition model, or an unsupported number of them (both methods)
 // -15 : A compressible layer that reads the bulk modulus has a non-positive one
+// -16 : A degree-1 reference frame that reads l' (CF, CL) asked of a static liquid surface, which does not define l'
 //
 // -2X : Error in propagation matrix method
 // -20 : Unknown core starting conditions
@@ -93,6 +96,18 @@ public:
     // amplification cannot give; shooting method only, NaN for the matrix method or before the collapse. See
     // c_estimate_surface_rcond in boundaries_.hpp.
     double surface_rcond = TidalPyConstants::d_NAN;
+
+    // A degree-1 loading solve fixes its frame with y5 = 1 at the surface in place of the last surface condition
+    // (c_apply_surface_bc): how far that condition is from met, relative to the y6 condition, worst across ytypes.
+    // About roundoff for a static body; inertia in some layers but not others leaves about omega^2 R / g. NaN for any
+    // other solve.
+    double surface_frame_residual = TidalPyConstants::d_NAN;
+
+    // The reference frame of a degree-1 loading solve's Love numbers and radial functions (c_Degree1Frame), and the
+    // translation c [ytype] (solve units of y1) that takes the solution there from the frame it was solved in (CE):
+    // y1 and y3 gain c, y5 gains c g(r). Empty, no shift, for CE or any other solve.
+    int p_degree1_frame = 0;
+    std::vector<std::complex<double>> p_degree1_shift = std::vector<std::complex<double>>();
 
     // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any
     // radius and collapses them with the constants below. The matrix method leaves it false and fills
@@ -242,6 +257,9 @@ public:
             this->num_ytypes * C_MAX_NUM_Y, std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN)
         );
 
+        // The Love numbers are found in the frame the solve ran in; a degree-1 frame shift is set again below.
+        this->p_degree1_shift.clear();
+
         if (this->p_uses_interpolants)
         {
             const double surface_r_solve =
@@ -254,6 +272,27 @@ public:
                 this->complex_love_vec[ytype_i] =
                     c_find_love(surface_solutions, this->eos_solution_uptr->surface_gravity);
                 this->cache_surface_y(ytype_i, surface_solutions);
+            }
+
+            // A degree-1 loading solve is in CE; another frame shifts its Love numbers and every radial function by
+            // the same translation (degree1_frame_.hpp), so the surface is collapsed again with the shift.
+            if (this->p_shifts_degree1_frame())
+            {
+                const double surface_gravity = this->eos_solution_uptr->surface_gravity;
+                this->p_degree1_shift.assign(this->num_ytypes, std::complex<double>(0.0, 0.0));
+                for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
+                {
+                    const c_LoveNumbers& love_ce = this->complex_love_vec[ytype_i];
+                    const std::complex<double> offset =
+                        c_degree1_frame_offset(this->p_degree1_frame, love_ce.h, love_ce.l);
+                    this->p_degree1_shift[ytype_i] = -offset / surface_gravity;
+                }
+                for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
+                {
+                    this->p_collapse_basis(basis, basis_found, ytype_i, surface_r_solve, surface_solutions);
+                    this->complex_love_vec[ytype_i] = c_find_love(surface_solutions, surface_gravity);
+                    this->cache_surface_y(ytype_i, surface_solutions);
+                }
             }
             return;
         }
@@ -365,6 +404,7 @@ public:
         this->p_matrix_shear.clear();
         this->p_matrix_first_slice  = 0;
         this->p_matrix_regular_core = false;
+        this->p_degree1_shift.clear();
     }
 
     // The scales that re-dimensionalize this solve's y to SI, from the non-dimensional scales it ran in; null for a
@@ -476,6 +516,22 @@ public:
         return true;
     }
 
+    // Whether this solve's Love numbers and radial functions are shifted out of CE: a degree-1 shooting solve for
+    // loading alone with a frame other than CE.
+    bool p_shifts_degree1_frame() const noexcept
+    {
+        if ((this->degree_l != 1) || (this->p_degree1_frame == static_cast<int>(c_Degree1Frame::CE)) ||
+            !this->p_uses_interpolants || this->p_bc_models.empty())
+        {
+            return false;
+        }
+        for (const int bc_model : this->p_bc_models)
+        {
+            if (bc_model != 2) { return false; }
+        }
+        return true;
+    }
+
     // Collapse an evaluated basis into y1..y6 (solve units) for one ytype; NaN-filled when the basis was not found or
     // the ytype is out of range. Liquid layers store fewer ys, so undefined ys stay NaN.
     bool p_collapse_basis(
@@ -506,12 +562,31 @@ public:
             out6[y_i] = acc;
         }
 
+        // The degree-1 frame translation: y1 and y3 gain c, y5 gains c g(r); y2, y4, and y6 are unchanged.
+        const std::complex<double> shift =
+            (ytype_i < this->p_degree1_shift.size()) ? this->p_degree1_shift[ytype_i] : std::complex<double>(0.0, 0.0);
+        const bool shifted = (shift != std::complex<double>(0.0, 0.0));
+        if (shifted)
+        {
+            double gravity = basis.gravity;
+            if (!calculate_y3)
+            {
+                c_EOSMaterialState material_state;
+                this->eos_solution_uptr->call_material(basis.layer_i, radius_solve, material_state);
+                gravity = material_state.gravity;
+            }
+            out6[4] += shift * gravity;
+            if (layout.slot_of_full_y(0) != C_Y_NOT_STORED) { out6[0] += shift; }
+            if (layout.slot_of_full_y(2) != C_Y_NOT_STORED) { out6[2] += shift; }
+        }
+
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units.
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. The translation cancels in it, so it gains c here.
             const double w = this->p_frequency_solve;
             out6[2] = (1.0 / (w * w * radius_solve))
                 * (out6[0] * basis.gravity - out6[1] / basis.density - out6[4]);
+            if (shifted) { out6[2] += shift; }
         }
         else if ((basis.layer_type != 0) && basis.is_static && (basis.layer_i + 1 == this->num_layers) &&
                  (ytype_i < this->p_static_surface_y2.size()) && !this->p_upper_radii_solve.empty())

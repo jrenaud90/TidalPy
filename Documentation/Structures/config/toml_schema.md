@@ -230,7 +230,7 @@ fixed_q = [1.0e5, 1.0e5, 1.0e5]
 A world's file may pin the solver settings its results depend on, so the file and a TidalPy configuration file reproduce a run on another machine. The two tables take the keys of the same-named sections of `TidalPy_Configs.toml` (see [Configurations](../../Overview/2_TidalPy_Configurations.md)):
 
 - `[eos_solver]`: `integration_method`, `rtol`, `atol`, `pressure_tol`, `max_iters`, `slices_per_layer`, `nondimensionalize`, `solve_temperature`, `max_thermal_passes`, and `thermal_tol`.
-- `[radial_solver]`: `integration_method`, `rtol`, `atol`, `starting_method`, `start_radius_tolerance`, `scale_rtols`, `max_num_steps`, `expected_size`, `max_ram_mb`, and `nondimensionalize`.
+- `[radial_solver]`: `integration_method`, `rtol`, `atol`, `starting_method`, `degree1_frame`, `start_radius_tolerance`, `scale_rtols`, `max_num_steps`, `expected_size`, `max_ram_mb`, and `nondimensionalize`.
 
 A pinned key overrides the configuration for every solve the world runs (`solve_eos`, `solve_love_numbers`, `calc_tides`, and the 3D paths). A call's own argument still overrides the pinned key. A key left out follows the configuration.
 
@@ -243,7 +243,7 @@ rtol = 1.0e-8
 starting_method = "kamata"
 ```
 
-`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed. Every bundled layered world except `earth_prem` and `earth_prem_q` pins `solve_temperature = false` in its `[eos_solver]` table. The two PREM worlds are built from a profile and take `integration_method = "RK45"` (see [Building a World From a Radial Profile](#building-a-world-from-a-radial-profile)). `luna_dynamic` also pins `rtol = 1.0e-8` in a `[radial_solver]` table so that its dynamic liquid core keeps its yearly Love number.
+`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed, except that `degree1_frame` picks the reference frame degree-1 load Love numbers are reported in. Every bundled layered world except `earth_prem` and `earth_prem_q` pins `solve_temperature = false` in its `[eos_solver]` table. The two PREM worlds are built from a profile and take `integration_method = "RK45"` (see [Building a World From a Radial Profile](#building-a-world-from-a-radial-profile)). `luna_dynamic` also pins `rtol = 1.0e-8` in a `[radial_solver]` table so that its dynamic liquid core keeps its yearly Love number.
 
 ## Default Configuration Resolution
 

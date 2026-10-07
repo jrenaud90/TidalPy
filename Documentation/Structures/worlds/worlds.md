@@ -443,7 +443,8 @@ $$k = \sum_i s_i k_i$$
 ### Input Checks
 
 Every Love solve checks its input first and raises `ValueError` for:
-- Degree below 2 in a tidal or free-surface solve. Degree 1 is a translation of the body. A loading-only solve may use degree 1, whose load Love numbers depend on the reference frame.
+- Degree below 2 in a tidal or free-surface solve. Degree 1 is a translation of the body. A loading-only solve may use degree 1; its load Love numbers are given in the reference frame `degree1_frame` (see [Degree-1 Load Love Numbers](../../RadialSolver/calculating_love_numbers.md#degree-1-load-love-numbers)).
+- A loading or free-surface solve with the `homogeneous`, `cpl`, or `ctl` method, whose formulas give tidal Love numbers only.
 - Frequency that is not finite and positive, or that lies outside the `[numerical]` `minimum_frequency` to `maximum_frequency` range. The Love numbers at $-\omega$ are the complex conjugates of those at $\omega$.
 - `start_radius_tol` outside (0, 1).
 - Negative `starting_radius` or `max_step`.
@@ -524,6 +525,7 @@ These describe the world's last `solve_love_numbers` (or `solve_love_numbers_sup
 | `love_method` | str | Canonical name of the method the last solve used. |
 | `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve, recorded on every shooting solve whether or not `warnings` is on; near 1 is healthy, 0 after an analytic solve. |
 | `love_surface_rcond` | float | Reciprocal condition number of the surface boundary-condition system, the rank measures if the solution constants are undetermined. |
+| `love_surface_frame_residual` | float | How far a degree-1 loading solve leaves the surface condition its reference frame replaced (the standalone `surface_frame_residual`); NaN for any other solve. |
 | `love_effective_shear_modulus`, `love_tidal_volume` | complex, float | The tidal-scale-weighted mean of the layers' complex shear moduli \[Pa\] and the volume of the layers that took part \[m$^3$\] in the last quasi-homogeneous solve; NaN after a radial-solver solve. |
 | `love_layer_parts` | list of dict | Each tidal layer's part of the last quasi-homogeneous solve: `layer`, `tidal_scale`, `love_number_k`, `love_number_h`, `love_number_l`, and `shear_modulus`. Empty after a radial-solver solve. |
 

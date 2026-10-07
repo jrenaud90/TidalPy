@@ -191,6 +191,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double fixed_dt
         int core_model
         int starting_method
+        int degree1_frame
         cpp_bool nondimensionalize
         double starting_radius
         double start_radius_tol
@@ -344,6 +345,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         size_t get_love_num_ytypes() const
         double get_love_surface_amplification() const
         double get_love_surface_rcond() const
+        double get_love_surface_frame_residual() const
         cpp_complex[double] get_love_number_k(size_t ytype_idx) const
         cpp_complex[double] get_love_number_h(size_t ytype_idx) const
         cpp_complex[double] get_love_number_l(size_t ytype_idx) const

@@ -22,6 +22,11 @@ struct c_LayerKindLayout {
     // The stored slots the surface boundary conditions constrain, one per solution: y2, y4, y6 for a solid; y2, y6
     // for a dynamic liquid; y7 for a static liquid.
     std::array<std::size_t, 3> surface_condition_slots;
+    // A degree-1 loading solve fixes its reference frame with y5 = 1 at the surface (k' = 0, the frame of the body's
+    // own center of mass), which takes the place of the last surface condition (y6 for a solid or a dynamic liquid,
+    // y7 for a static liquid): the slots it solves, and the slot of the condition it drops.
+    std::array<std::size_t, 3> degree1_frame_slots;
+    std::size_t degree1_dropped_slot;
     // The factor on the integration rtol of each stored slot: tighter on the ys that drive the instability (y2 and y3
     // of a solid, y2 of a dynamic liquid) when the solve scales its tolerances by layer (Issue #44 tests the values).
     std::array<double, 6> rtol_scale;
@@ -36,12 +41,13 @@ struct c_LayerKindLayout {
 };
 
 inline constexpr c_LayerKindLayout C_SOLID_LAYOUT = {
-    3, 6, {0, 1, 2, 3, 4, 5}, {1, 3, 5}, {1.0, 0.1, 0.1, 1.0, 1.0, 1.0}};
+    3, 6, {0, 1, 2, 3, 4, 5}, {1, 3, 5}, {1, 3, 4}, 5, {1.0, 0.1, 0.1, 1.0, 1.0, 1.0}};
 inline constexpr c_LayerKindLayout C_DYNAMIC_LIQUID_LAYOUT = {
-    2, 4, {0, 1, 4, 5, C_Y_NOT_STORED, C_Y_NOT_STORED}, {1, 3, C_Y_NOT_STORED}, {1.0, 0.01, 1.0, 1.0, 1.0, 1.0}};
+    2, 4, {0, 1, 4, 5, C_Y_NOT_STORED, C_Y_NOT_STORED}, {1, 3, C_Y_NOT_STORED}, {1, 2, C_Y_NOT_STORED}, 3,
+    {1.0, 0.01, 1.0, 1.0, 1.0, 1.0}};
 inline constexpr c_LayerKindLayout C_STATIC_LIQUID_LAYOUT = {
     1, 2, {4, 6, C_Y_NOT_STORED, C_Y_NOT_STORED, C_Y_NOT_STORED, C_Y_NOT_STORED},
-    {1, C_Y_NOT_STORED, C_Y_NOT_STORED}, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}};
+    {1, C_Y_NOT_STORED, C_Y_NOT_STORED}, {0, C_Y_NOT_STORED, C_Y_NOT_STORED}, 1, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}};
 
 // layer_type: 0 = solid, anything else a liquid.
 inline constexpr const c_LayerKindLayout& c_layer_layout(int layer_type, bool is_static) noexcept {

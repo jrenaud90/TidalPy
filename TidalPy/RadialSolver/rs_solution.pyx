@@ -56,6 +56,9 @@ EOS_CALL_FIELDS = cy_eos_field_names()
 # The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
 DBL_EPSILON = np.finfo(np.float64).eps
 SEVERE_SURFACE_AMPLIFICATION = 1.0e8
+# A degree-1 loading solve's frame residual above this is warned about. A static body meets the replaced condition to
+# roundoff; a body with inertia in some layers but not others leaves about omega^2 R / g, 3e-3 at a one-day period.
+DEGREE1_FRAME_RESIDUAL_WARNING = 1.0e-2
 
 
 cdef bint cy_check_surface_solve_conditioning(
@@ -100,6 +103,32 @@ cdef bint cy_check_surface_solve_conditioning(
             f"improves conditioning; tightening tolerances cannot beat the roundoff floor.")
         return True
     return False
+
+
+cdef bint cy_check_degree1_frame_residual(double surface_frame_residual) except *:
+    """Log a warning when a degree-1 loading solve's frame residual exceeds ``DEGREE1_FRAME_RESIDUAL_WARNING``.
+
+    The residual is how far the surface condition the frame row replaced (y6, or y7 for a static liquid surface) is
+    from met, relative to the y6 condition (``RadialSolverSolution.surface_frame_residual``). NaN never warns.
+
+    Returns
+    -------
+    bool
+        True when the warning was logged.
+    """
+    if surface_frame_residual > DEGREE1_FRAME_RESIDUAL_WARNING:
+        log_warning(
+            f"Radial solver degree-1 loading solve: the surface condition its reference frame replaced is met only "
+            f"to {surface_frame_residual:0.1e} (relative). A body whose layers are partly static and partly "
+            f"dynamic has no exact degree-1 frame; the Love numbers carry an error of about this size. Make every "
+            f"layer static, or every layer dynamic, for an exact frame.")
+        return True
+    return False
+
+
+def check_degree1_frame_residual(double surface_frame_residual):
+    """Python entry point for :func:`cy_check_degree1_frame_residual`; same argument and return."""
+    return bool(cy_check_degree1_frame_residual(surface_frame_residual))
 
 
 def check_surface_solve_conditioning(
@@ -428,6 +457,8 @@ cdef class RadialSolverSolution:
             log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
         log_message += f"\n\t\tSurface solve amplification:  {self.surface_solve_amplification:0.3e}"
         log_message += f"\n\t\tSurface solve rcond:          {self.surface_solve_rcond:0.3e}"
+        if self.degree_l == 1:
+            log_message += f"\n\t\tDegree-1 frame residual:      {self.surface_frame_residual:0.3e}"
         if self.success:
             log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
             log_message += f"\n\t\th_{self.degree_l} = {self.h}"
@@ -805,6 +836,19 @@ cdef class RadialSolverSolution:
         NaN for the propagation matrix method, or when the solve stopped before the surface.
         """
         return self.solution_storage_ptr.surface_rcond
+
+    @property
+    def surface_frame_residual(self):
+        """How far a degree-1 loading solve leaves the surface condition its reference frame replaced.
+
+        At degree 1 the surface solve fixes the frame of the body's own center of mass (y5 = 1, k' = 0) in place of
+        its last condition (y6, or y7 for a static liquid surface layer). That condition then holds through the
+        consistency relation of a static body (Saito 1974), to roundoff when every layer is static. With inertia in
+        some layers but not others it holds only to about omega^2 R / g; this is the residual, relative to the y6
+        condition (2l + 1) / R, worst across the solved boundary conditions. Above ``DEGREE1_FRAME_RESIDUAL_WARNING``
+        it is warned about. NaN for any other solve.
+        """
+        return self.solution_storage_ptr.surface_frame_residual
 
     def get_result_by_ytype_name(self, str ytype_name):
         cdef size_t ytype_i

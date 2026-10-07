@@ -27,7 +27,8 @@ def apply_surface_bc(
         int layer_type,
         cpp_bool layer_is_static,
         cpp_bool layer_is_incomp,
-        object max_num_y = None):
+        object max_num_y = None,
+        cpp_bool degree1_frame = False):
     """
     Apply surface boundary conditions by solving a linear system.
 
@@ -52,6 +53,9 @@ def apply_surface_bc(
     layer_is_incomp : bool
     max_num_y : int, optional
         The y values per solution, which must equal the array's column count; None (default) takes it from it.
+    degree1_frame : bool, default False
+        A degree-1 loading solve: the frame row y5 = 1 at the surface (k' = 0, the frame of the body's own center of
+        mass) takes the place of the last surface condition (y6, or y7 for a static liquid).
 
     Returns
     -------
@@ -85,7 +89,9 @@ def apply_surface_bc(
         ytype_i,
         layer_type,
         layer_is_static,
-        layer_is_incomp
+        layer_is_incomp,
+        degree1_frame,
+        NULL
         )
 
     return bc_solution_info
