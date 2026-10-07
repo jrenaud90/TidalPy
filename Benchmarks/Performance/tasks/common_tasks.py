@@ -48,7 +48,7 @@ def _build_jupiter_simple():
     build_world("jupiter_simple")
 
 
-@benchmark("build_world:earth_prem", group="structures", note="4-layer PREM-based terrestrial from bundled config")
+@benchmark("build_world:earth_prem", group="structures", note="12-layer PREM-based terrestrial from bundled config")
 def _build_earth_prem():
     build_world("earth_prem")
 
@@ -155,7 +155,7 @@ def _love_world_io():
 # =====================================================================================================================
 # World configuration, TOML, and binary round trips
 # =====================================================================================================================
-@benchmark("world_config:get_config_dict", group="structures", note="get_config_dict of the 4-layer PREM Earth")
+@benchmark("world_config:get_config_dict", group="structures", note="get_config_dict of the 12-layer PREM Earth")
 def _world_get_config_dict():
     _prem.get_config_dict()
 
@@ -175,7 +175,7 @@ _world_restored = TerrestrialWorld("placeholder", 1.0, 1.0)
 
 
 @benchmark("world_binary:round_trip", group="structures",
-           note="save_binary + load_binary of the solved 4-layer PREM Earth")
+           note="save_binary + load_binary of the solved 12-layer PREM Earth")
 def _world_binary_round_trip():
     _prem.save_binary(_world_binary_path)
     _world_restored.load_binary(_world_binary_path)

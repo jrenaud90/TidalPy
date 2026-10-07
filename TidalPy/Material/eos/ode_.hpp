@@ -74,8 +74,7 @@ struct c_EOS_ODEInput
     double G_to_use       = 0.0;
     double planet_radius  = 0.0;
     char*  eos_input_ptr  = nullptr;
-    // Ask the EOS function for the density, moduli, viscosities, and melt fraction (a dense evaluation of the finished
-    // solution) rather than the density alone.
+    // Ask the EOS function for every output (a dense evaluation of the finished solution) rather than the density.
     bool   full_state     = false;
     // Ask it for the thermal properties too (a solve that integrates temperature).
     bool   thermal_state  = false;

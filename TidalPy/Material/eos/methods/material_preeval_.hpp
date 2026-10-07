@@ -1,10 +1,9 @@
 #pragma once
 /* The EOS function of a layer during the whole-planet structure solve: it asks the layer's material (c_Material) for
  * its properties at the current radius, pressure, and temperature, with the layer's switches. While the solve iterates
- * it needs the density alone (and the thermal properties when it integrates temperature); the mechanical state (the
- * moduli, viscosities, and melt fraction) follows only when the input's full_state flag is set, which is every dense
- * evaluation of the finished solution. The material's rigidity margin is the event that splits a layer that can
- * change state into solid and liquid zones.
+ * it needs the density alone (and the thermal properties when it integrates temperature); the full state follows only
+ * when the input's full_state flag is set, which is every dense evaluation of the finished solution. The material's
+ * rigidity margin is the event that splits a layer that can change state into solid and liquid zones.
  */
 
 #include <complex>
@@ -87,23 +86,16 @@ inline void c_preeval_material(
     }
 
     tidalpy::c_MaterialState state;
-    if (!ode_args->full_state)
-    {
-        material.calc_thermal(point, eos_data->switches, state);
-        output->density              = state.density / eos_data->density_scale;
-        output->melt_fraction        = state.melt_fraction;
-        output->thermal_expansion    = state.thermal_expansion;
-        output->heat_capacity        = state.heat_capacity;
-        output->latent_expansion     = state.latent_expansion;
-        output->thermal_conductivity = state.thermal_conductivity;
-        return;
-    }
+    if (ode_args->full_state) { material.calc_state(point, eos_data->switches, state); }
+    else                      { material.calc_thermal(point, eos_data->switches, state); }
+    output->density            = state.density / eos_data->density_scale;
+    output->melt_fraction      = state.melt_fraction;
+    output->thermal_expansion  = state.thermal_expansion;
+    output->heat_capacity      = state.heat_capacity;
+    output->latent_expansion   = state.latent_expansion;
+    output->thermal_conductivity = state.thermal_conductivity;
+    if (!ode_args->full_state) { return; }
 
-    // A dense evaluation (c_EOSSolution::p_evaluate_solver) reads the density, moduli, viscosities, and melt fraction,
-    // never the thermal properties, so the material skips them.
-    material.calc_mechanical(point, eos_data->switches, state);
-    output->density       = state.density / eos_data->density_scale;
-    output->melt_fraction = state.melt_fraction;
     // A tidal deformation is adiabatic, so the radial solver and the getters see the adiabatic bulk modulus.
     output->shear_modulus   = std::complex<double>(state.shear_modulus / eos_data->pascal_scale, 0.0);
     output->bulk_modulus    = std::complex<double>(state.adiabatic_bulk_modulus / eos_data->pascal_scale, 0.0);
