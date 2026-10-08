@@ -1,16 +1,16 @@
 # MatPack (`Material.matpack`)
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
-`TidalPy.Material.matpack` contains the named materials TidalPy ships and the functions that load them. Each MatPack material is a complete `Material`: a solid phase, a liquid phase, or both. Each phase has an equation of state and a thermal conductivity and heat capacity; a solid phase adds a shear-modulus law, a viscosity law, and a default tidal rheology, and most liquid phases a viscosity. A material that melts adds its melting curves, melt weakening, and latent heat. A material is loaded by name, optionally with overrides, and returns its state at a pressure [Pa], temperature [K], and radius [m] through `Material.calc_state` (see [Phases and Materials](materials.md)).
+`TidalPy.Material.matpack` holds the named materials TidalPy ships and the functions that load them. Each is a complete [`Material`](materials.md): every phase has an equation of state, a thermal conductivity, and a heat capacity; a solid phase adds a shear-modulus law, a viscosity law, and a default tidal rheology, and most liquid phases a viscosity; a material that melts adds its melting curves, melt weakening, and latent heat. Load one by name, optionally with overrides.
 
-The values come from the literature, with each file listing its sources and the confidence of the less certain values in its comments. Several values are derived (fits through published data, mineral-physics assemblages computed with BurnMan) or are unsourced estimates; the file says which.
+Each file lists its sources, and the confidence of its less certain values, in its comments. Some values are derived (fits through published data, mineral-physics assemblages computed with BurnMan) or are unsourced estimates; the file says which.
 
 ## Materials
 
 **Simplified**
 
-Constant density, moduli, and viscosity, and no melting. They are quick to evaluate and a good start for a new world.
+Constant density, moduli, and viscosity, and no melting: quick to evaluate and a good start for a new world.
 
 | Material | Description |
 |---|---|
@@ -62,12 +62,12 @@ Constant density, moduli, and viscosity, and no melting. They are quick to evalu
 
 Each material is one phase assemblage at one composition:
 
-- An ice polymorph is valid only in its own pressure band; a deep water layer is one layer per polymorph. Past the end of its band a melting curve holds its value there (ice Ih's about 251 K above its 208.566 MPa triple point), so a layer of ice Ih deeper than that stays ice Ih with that melting temperature.
+- An ice polymorph is valid only in its own pressure band, so a deep water layer is one layer per polymorph. Past its band a melting curve holds its end value (ice Ih's, about 251 K, past its 208.566 MPa triple point), so deeper ice Ih stays ice Ih with that melting temperature.
 - Water's expansivity changes sign near 277 K at 1 bar; `water` uses a positive value, as in a pressurized ocean.
 - Materials whose melt composition changes with temperature (`iron_sulfide`, `ammonia_water`) fix the bulk composition, and their melt is one composition.
 - `serpentinite` and `methane_clathrate` decompose rather than melt, so they ship without melting.
 - The two hydrogen-helium materials share one polytrope, so there is no density step between them.
-- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step, and its latent heat does not enter the effective heat capacity: there is no melting range to spread it over. In a layer that can change state, the boundary between its solid and liquid zones carries the latent heat instead (the world's `calc_layer_latent_capacity`).
+- A material with a single melting temperature (the ices, `olivine`, `iron`, `nitrogen_ice`) melts as a step; its latent heat is carried by the boundary between a layer's solid and liquid zones, not the heat capacity (see [Latent Heat](materials.md#latent-heat)).
 
 ## Python API
 
@@ -86,11 +86,11 @@ state = peridotite.calc_state(
 print(state["density"], state["shear_viscosity"], state["solidus"])
 ```
 
-A material is immutable. `with_parameters` and `replace` return changed copies.
+A material is immutable; `with_parameters` and `replace` return changed copies (see [Changing a Material](materials.md#changing-a-material)).
 
 ### Overrides and Presets
 
-Keyword overrides are merged over the material's table, one table at a time, so they name only what they change. A model table that names a different model than the material's replaces its table instead, since another model reads other keys, and `None` removes a slot. A material must keep a solid or a liquid phase.
+Keyword overrides are merged over the material's table, one table at a time, so they name only what they change. A model table naming a different model replaces the material's table instead, since another model reads other keys, and `None` removes a slot. A solid or a liquid phase must remain.
 
 ```python
 from TidalPy.Material import load_material
@@ -110,7 +110,7 @@ dry_rock = load_material(
     latent_heat_j_kg=0.0)
 ```
 
-The same overrides can be written as one table with a `preset` key, the form a TOML file holds. A `solid` or `liquid` table may name a preset too, and then starts from that material's phase in the same slot:
+The same overrides can be one table with a `preset` key, the form a TOML file holds. A `solid` or `liquid` table may name a preset too, starting from that material's phase in the same slot:
 
 ```python
 from TidalPy.Material import load_material
@@ -139,11 +139,11 @@ print(salty_ocean.calc_state(1.0e7, 260.0, use_melting=True)["melt_fraction"])
 
 ## Data Directory
 
-The packaged files are copied into `<documents>/TidalPy/<version>/Materials` when TidalPy is imported (copy-if-absent), and a material is read from that copy, so an edit there changes the material everywhere it is named. The files are read into memory at the same time (`TidalPy.database`), and each material's presets are resolved the first time it is named and kept, so naming a material in a loop reads no files. A file edited, added, or deleted during a session is noticed the next time a material that draws on it is named. A copy that differs from the packaged file is reported once per session, since it may be an edit or a copy left by an older install; `install_matpack(force=True)` replaces every copy, and `stale_matpack_copy = false` under `[warnings]` in `TidalPy_Configs.toml` silences the report. Without a writable data directory the packaged files are read directly. The WorldPack's bundled worlds work the same way.
+On import, TidalPy copies the packaged files into `<documents>/TidalPy/<version>/Materials` (only those absent) and reads materials from that copy, so an edit there changes the material everywhere it is named. Naming a material in a loop reads no files, and a file edited, added, or deleted during a session is noticed the next time a material that draws on it is named. A copy that differs from the packaged file is reported once per session, since it may be an edit or a leftover from an older install; `install_matpack(force=True)` replaces every copy, and `stale_matpack_copy = false` under `[warnings]` in `TidalPy_Configs.toml` silences the report. Without a writable data directory the packaged files are read directly. The WorldPack's bundled worlds work the same way.
 
 ## Adding a Material
 
-A new file in the data directory is a new material, named by its file name. It holds the material table and three metadata keys, and may start from another material:
+A new file in the data directory is a new material, named by its file name. It holds the material table and three metadata keys, and may start from a preset:
 
 ```toml
 schema_version = "0.2.0"
@@ -164,7 +164,7 @@ model = "constant"
 temperature_k = 2000.0
 ```
 
-A full material table has a `solid` table, a `liquid` table, or both, each with an `eos` table and optional `shear_modulus`, `shear_viscosity`, `bulk_viscosity`, `shear_rheology`, and `bulk_rheology` tables and the thermal parameters; a `melting` table with `solidus`, `liquidus`, and optional `weakening`, `bulk_modulus_mixing`, and `bulk_viscosity_mixing` tables; and `latent_heat_j_kg`. `Material.get_config_dict()` returns this form for any material. To add a material to TidalPy itself, add its file to `TidalPy/MatPack` with its references in the comments.
+A full material table has a `solid` table, a `liquid` table, or both, each with an `eos` table, optional `shear_modulus`, `shear_viscosity`, `bulk_viscosity`, `shear_rheology`, and `bulk_rheology` tables, and the thermal parameters; a `melting` table with `solidus`, `liquidus`, and optional `weakening`, `bulk_modulus_mixing`, and `bulk_viscosity_mixing` tables; and `latent_heat_j_kg`. `Material.get_config_dict()` returns this form. To add a material to TidalPy itself, add its file to `TidalPy/MatPack` with its references in the comments.
 
 ## References
 

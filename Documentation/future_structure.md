@@ -2,15 +2,15 @@
 
 _Updated: 2026-10-07_
 
-TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each.
+TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0 and the calls between them.
 
-The 0.7.X API will receive no new features but will get bug fixes until approx. the end of 2026. We recommend switching to the 0.8.0 API. To keep the 0.7.X API, pin the version:
+The 0.7.X API gets only bug fixes, until approx. the end of 2026. To keep it, pin the version:
 
 ```bash
 pip install "TidalPy<0.8"
 ```
 
-or, with conda, 
+or, with conda,
 
 ```bash
 conda install -c conda-forge "tidalpy<0.8"
@@ -18,12 +18,12 @@ conda install -c conda-forge "tidalpy<0.8"
 
 ## What Changed
 
-- The physics runs in C++, wrapped by thin Cython layers. Without numba, nothing compiles on a function's first call.
+- The physics runs in C++ behind thin Cython layers; nothing compiles on a function's first call.
 - Classes store configuration and return results from explicit `solve_*`, `get_*`, and `calc_*` calls. Changing an attribute no longer updates the world, its layers, and its orbit.
 - Orbital state no longer lives on a world. A `System` holds the orbits and passes them to each tidal calculation.
 - Worlds and systems are described by TOML files that carry a `schema_version`, or by the equivalent Python dict.
-- Every physics family (rheology, viscosity, equations of state, shear-modulus laws, melting curves, melt weakening, bulk mixing, cooling, radiogenics, tides, stellar luminosity) follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, and binary save and load. Every model is declared through a parameter table, so every model has `parameters`, `get_parameter`, `get_parameter_info`, and `with_parameters`, and most families also have direct functions.
-- A layer's interior is a material composed of these laws: a `Phase` (an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) and a `Material` (a solid and a liquid phase with melting curves, melt weakening, and latent heat). MatPack ships 29 named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
+- Every physics family follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, binary save and load, and `parameters`, `get_parameter`, `get_parameter_info`, and `with_parameters`. Most families also have direct functions.
+- A layer's interior is a `Material`: a solid and a liquid `Phase` (each an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) with melting curves, melt weakening, and latent heat. MatPack ships 29 named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
 - One configuration file, `TidalPy_Configs.toml`, in a data directory scoped to the minor version (`<Documents>/TidalPy/0.8.X/`).
 - One logger, written in C++ with spdlog.
 - The new code raises the built-in `ValueError`, `RuntimeError`, `TypeError`, and `NotImplementedError` instead of TidalPy's own exception classes.
@@ -32,7 +32,7 @@ conda install -c conda-forge "tidalpy<0.8"
 
 ## Module Map
 
-Imports are case-sensitive on every operating system, so `import TidalPy.rheology` raises `ModuleNotFoundError` even though `TidalPy.Rheology` exists.
+Imports are case-sensitive on every operating system: `import TidalPy.rheology` raises `ModuleNotFoundError` even though `TidalPy.Rheology` exists.
 
 | 0.7.X | 0.8.0 | Documentation |
 |---|---|---|
@@ -55,7 +55,7 @@ Imports are case-sensitive on every operating system, so `import TidalPy.rheolog
 
 ## Exceptions
 
-`TidalPy.exceptions` keeps `TidalPyException`, `InitializationError`, `ArgumentException`, `ConfigurationException`, `ModelException`, `UnknownModelError`, `TidalPyIntegrationException`, `SolutionFailedError`, and `TidalPyDeprecationWarning`. The other 0.7.X exception classes are removed. An `except TidalPyException` block no longer catches errors from the physics modules:
+`TidalPy.exceptions` keeps `TidalPyException`, `InitializationError`, `ArgumentException`, `ConfigurationException`, `ModelException`, `UnknownModelError`, `TidalPyIntegrationException`, `SolutionFailedError`, and `TidalPyDeprecationWarning`; the other 0.7.X exception classes are removed. An `except TidalPyException` block no longer catches errors from the physics modules:
 
 | 0.7.X | 0.8.0 |
 |---|---|
@@ -102,7 +102,7 @@ TidalPy.reinit(provided_config="default")                                  # Bac
 
 ## Logging
 
-0.7.X logged through Python's `logging` module (`TidalPy.logger.get_logger`). 0.8.0 logs through one C++ logger (spdlog). The C++ code writes to it directly, often with the interpreter lock released. Python code writes to it through `TidalPy.Utilities.logging`:
+0.7.X logged through Python's `logging` module (`TidalPy.logger.get_logger`). 0.8.0 logs through one C++ logger (spdlog), which Python code reaches through `TidalPy.Utilities.logging`:
 
 ```python
 from TidalPy.Utilities.logging import log_info, set_console_level
@@ -122,9 +122,9 @@ The bundled worlds are new TOML files, and the set changed:
 - The warm silicate mantles of the bundled worlds melt: they use the peridotite melting curves, with melting and pressure melting on.
 - `io_simple`, `triton_simple`, `55cnc`, `55cnce`, `55cnce_simple`, and `nereid_dev` are removed.
 
-`TidalPy.Structures.available_worlds()` lists the bundled worlds. The bundled files are copied to `<Documents>/TidalPy/0.8.X/Worlds`, where they can be edited. `TidalPy.Structures.install_worldpack(force=True)` restores the packaged copies and discards those edits.
+`TidalPy.Structures.available_worlds()` lists the bundled worlds. They are copied to `<Documents>/TidalPy/0.8.X/Worlds` for editing; `TidalPy.Structures.install_worldpack(force=True)` restores the packaged copies and discards those edits.
 
-A world computes its interior in `solve_eos` and its Love numbers in `solve_love_numbers`. Its tides come from a direct `calc_tides` call that takes the orbital state as arguments, or, for a world in a `System`, takes any argument left out from the system's orbit. `world.copy()` (and `copy.deepcopy` and `pickle`) gives an independent world with the same layers, models, and settings.
+A world computes its interior in `solve_eos`, its Love numbers in `solve_love_numbers`, and its tides in `calc_tides`, which takes the orbital state as arguments (a world in a `System` takes any argument left out from the system's orbit). `world.copy()`, `copy.deepcopy`, and `pickle` give an independent world with the same layers, models, and settings.
 
 | 0.7.X | 0.8.0 |
 |---|---|
@@ -173,7 +173,7 @@ modified = build_world(config)
 
 ## Layers and Materials
 
-0.7.X built a layer's interior from a material `type` (`rock`, `ice`, `iron`) whose defaults lived in the configuration file, optionally through BurnMan. 0.8.0 has one layer class, `Layer` (`TidalPy.Structures.layers`), and gives each layer a material: a MatPack name, a MatPack preset with overrides, or a full material table of phases and melting laws (see [Materials](Material/index.md) and [Layer](Structures/layers/layer.md)). The layer's physics switches (`use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, and `use_tides`) say how much of the material it uses, and each is off by default except `use_tides`.
+0.7.X built a layer's interior from a material `type` (`rock`, `ice`, `iron`) whose defaults lived in the configuration file, optionally through BurnMan. 0.8.0 has one layer class, `Layer` (`TidalPy.Structures.layers`), and gives each layer a material: a MatPack name, a MatPack preset with overrides, or a full material table of phases and melting laws (see [Materials](Material/index.md) and [Layer](Structures/layers/layer.md)). The layer's physics switches (`use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, and `use_tides`) say how much of the material it uses; each is off by default except `use_tides`.
 
 | 0.7.X layer key | 0.8.0 |
 |---|---|
@@ -241,7 +241,7 @@ mantle = Layer(
 
 ## Systems
 
-`System` replaces `Orbit` (`PhysicsOrbit`). The system returns the rates for the current state, and `System.evolve` integrates a world's orbit, spin, and layer temperatures about its host over time (demo S02); any other time evolution integrates the rates with an integrator of your choice.
+`System` replaces `Orbit` (`PhysicsOrbit`). It returns the rates for the current state, and `System.evolve` integrates a world's orbit, spin, and layer temperatures about its host over time (demo S02); for any other time evolution, integrate the rates with an integrator of your choice.
 
 | 0.7.X | 0.8.0 |
 |---|---|
@@ -285,25 +285,9 @@ print(sol_system.calc_insolation_flux("earth"))   # [W m-2], about 1361
 - `"radial_solver"` (the shooting method, and the default) integrates the radial equations through every layer.
 - `"homogeneous"` treats each tidal layer as a homogeneous sphere of its averaged material, with no radial solve, as `quick_tidal_dissipation` did.
 
-The bundled Io has a core, a mantle, and a thin asthenosphere that does almost all of the dissipating. The example calculates its heating and rates with both methods:
+The bundled Io has a core, a mantle, and a thin asthenosphere that does almost all of the dissipating. Continuing the [Systems](#systems) example:
 
 ```python
-from TidalPy.Structures import build_world
-from TidalPy.Structures.system import System
-
-io = build_world("io")                                # Core, mantle, and a dissipating asthenosphere
-io.solve_eos()                                        # Interior structure, used by both Love methods
-jupiter = build_world("jupiter_simple")               # The host acts as a point mass
-
-system = System("jovian")
-system.add_world(jupiter)
-system.add_world(
-    io,
-    tidal_host=jupiter,
-    semi_major_axis=4.217e8,
-    eccentricity=0.0041)
-io.set_spin_frequency(system.calc_orbital_frequency(io))   # Synchronous rotation
-
 for love_method in ("radial_solver", "homogeneous"):
     io.set_tide_config(love_method=love_method)
     rates = system.calc_world_evolution(io)
@@ -312,9 +296,9 @@ for love_method in ("radial_solver", "homogeneous"):
     print(rates["da_dt"], rates["de_dt"], rates["dspin_dt"])   # [m s-1], [s-1], [rad s-2]
 ```
 
-The radial solver resolves the layering and reproduces the 9.33e13 W that the bundled Io is calibrated to (Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates how a thin weak layer deforms inside a stiffer planet. Here it overestimates the heating and every rate by 47 percent but takes under 0.1 ms. Use it for fast sweeps and first estimates, and the radial solver when the interior structure matters. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
+The radial solver reproduces the 9.33e13 W the bundled Io is calibrated to (Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates a thin weak layer inside a stiffer planet: here it overestimates the heating and every rate by 47 percent, but takes under 0.1 ms. Use it for fast sweeps and first estimates. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
 
-A one-layer world built from bare numbers reproduces `quick_tidal_dissipation`. The world below is its default homogeneous Maxwell body at its default degree 2 and eccentricity truncation 2. The result matches the homogeneous-sphere closed form.
+A one-layer world built from bare numbers reproduces `quick_tidal_dissipation`. The world below is its default homogeneous Maxwell body at degree 2 and eccentricity truncation 2, and the result matches the homogeneous-sphere closed form.
 
 ```python
 import numpy as np
@@ -389,12 +373,12 @@ For dual-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each 
 `radial_solver` takes the same positional arguments and nearly the same keywords as in 0.7.X. The differences:
 
 - `use_prop_matrix=True` is now `love_method="propagation_matrix"`.
-- `use_kamata=True` is now `starting_method="kamata"` (and `use_kamata=False` the default, `starting_method="takeuchi"`). The same key replaces `use_kamata` in the `[radial_solver]` configuration and world tables, and two new methods join it: `"power_series"` and `"unity"` (see [Starting Conditions](RadialSolver/starting_conditions.md)).
-- The solver settings (`integration_method`, `integration_rtol`, `integration_atol`, `expected_size`, the `eos_*` arguments, and the rest) default to `None`, which reads the `[radial_solver]` and `[eos_solver]` sections of the configuration. The packaged tolerances are tighter than the 0.7.X defaults (for example, `integration_rtol` 1e-6 and `integration_atol` 1e-10, against 1e-5 and 1e-8).
+- `use_kamata=True` is now `starting_method="kamata"` (and `use_kamata=False`, the default, is `starting_method="takeuchi"`). The same key replaces `use_kamata` in the `[radial_solver]` configuration and world tables, and two new methods join it: `"power_series"` and `"unity"` (see [Starting Conditions](RadialSolver/starting_conditions.md)).
+- The solver settings (`integration_method`, `integration_rtol`, `integration_atol`, `expected_size`, the `eos_*` arguments, and the rest) default to `None`, which reads the `[radial_solver]` and `[eos_solver]` sections of the configuration. The packaged `integration_rtol` and `integration_atol` are both 3e-8, against 1e-5 and 1e-8 in 0.7.X.
 - `solve_for` is a tuple of case-insensitive strings (_e.g._, `("tidal", "loading")`).
 - Invalid inputs raise `ValueError` instead of `ArgumentException` or `UnknownModelError`.
 - When several boundary conditions are solved for, `k`, `h`, and `l` are complex128 arrays; after a failed solve they are complex128 NaN arrays (float64 in 0.7.X).
-- `moi_factor` is now the conventional $C/(M R^2)$, 0.4 for a uniform sphere. The 0.7.X value, $C/(0.4 M R^2)$, is now the new `moi_sphere_ratio`. Code that reads `moi_factor` gets a value 2.5 times smaller.
+- `moi_factor` is now the conventional $C/(M R^2)$, 0.4 for a uniform sphere. The 0.7.X value, $C/(0.4 M R^2)$, is now `moi_sphere_ratio`. Code that reads `moi_factor` gets a value 2.5 times smaller.
 - The solution is evaluated at any radius through dense output (`get_radial_solution(radius)`), and `plot_ys` and `plot_interior` take `show_plot` and plotting keywords.
 - The input builders `build_rs_input_homogeneous_layers` and `build_rs_input_from_data` keep their argument names. Their rheology arguments take `TidalPy.Rheology` models or model names, and one model can stand in for every layer. `perform_checks` is accepted and ignored: inputs are always validated.
 
@@ -404,7 +388,7 @@ import numpy as np
 from TidalPy.RadialSolver import build_rs_input_homogeneous_layers, radial_solver
 from TidalPy.Rheology import Elastic, Maxwell
 
-# Use a helper function to build the radial solver inputs (see "build_inputs.md" for details on these helpers)
+# Build the radial solver inputs with a helper (see "Helper Functions" below)
 build_data = build_rs_input_homogeneous_layers(
     6000.0e3,                                         # Planet radius [m]
     2.0 * np.pi / (86400.0 * 7.5),                    # Forcing frequency [rad s-1]
@@ -444,10 +428,12 @@ The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity func
 | `Newton`, `SundbergCooper`; the names `voigtkelvin` and `sundbergcooper` | `Viscous`, `Sundberg`; the factory takes `newton`, `voigt-kelvin`, and `sundberg-cooper` as aliases |
 | the complex compliance functions (`rheology.complex_compliance`) | removed: the models return the complex modulus, whose reciprocal is the compliance |
 | `rheology.viscosity` functions (`arrhenius`, `reference`, `constant`) | `make_viscosity(name, config)` and `calc_viscosity(temperature, pressure)` |
-| `rheology.partial_melt` (`spohn`, `henning`, `calculate_melt_fraction`) | `make_melting_curve(name, config)` for the solidus and liquidus and `make_melt_weakening(name, config)` (`none`, `spohn`, `henning`), combined in a `Material`; `Material.calc_state(pressure, temperature, use_melting=True)` returns the melt fraction and the weakened shear modulus and viscosity. Both laws are continuous where 0.7.X stepped: across the breakdown band (`crit_melt_frac` to `crit_melt_frac + crit_melt_frac_width`) the aggregate blends into the liquid's values instead of jumping to them at the band's end, and Spohn starts from the solid's own values at the solidus unless given the absolute anchors `fs_visc_log10_at_solidus = 15.875` and `fs_shear_log10_at_solidus = 10.65` of the 0.7.X fit |
+| `rheology.partial_melt` (`spohn`, `henning`, `calculate_melt_fraction`) | `make_melting_curve(name, config)` for the solidus and liquidus and `make_melt_weakening(name, config)` (`none`, `spohn`, `henning`), combined in a `Material`; `Material.calc_state(pressure, temperature, use_melting=True)` returns the melt fraction and the weakened shear modulus and viscosity (see the note below) |
 | `cooling` functions (`convection`, `conduction`, `off`) | `make_cooling(name, config)` and `calc_cooling`, or the direct functions `convective`, `conductive`, `cooling_off`; `off` reports a boundary-layer thickness of NaN, where 0.7.X gave half the layer thickness |
 | `radiogenics` functions (`isotope`, `fixed`, `off`) with times in Myr | `make_radiogenics(name, config)` and `calc_heating(time, mass)` with times in seconds; isotope sets are named datasets |
 | `stellar.luminosity_from_mass` | `TidalPy.Stellar.mass_to_luminosity(mass)` or `make_luminosity("mass_to_luminosity")` |
+
+Both melt-weakening laws are continuous where 0.7.X stepped: across the breakdown band (`crit_melt_frac` to `crit_melt_frac + crit_melt_frac_width`) the aggregate blends into the liquid's values instead of jumping to them at the band's end. Spohn starts from the solid's own values at the solidus, unless given the absolute anchors `fs_visc_log10_at_solidus = 15.875` and `fs_shear_log10_at_solidus = 10.65` of the 0.7.X fit.
 
 ```python
 import numpy as np
@@ -540,86 +526,29 @@ print(effective_rigidity, love.k)
 
 ## Performance
 
-The timings below compare TidalPy 0.7.6 and 0.8.0. Ratios change with the machine and the problem size, so treat them as rough magnitudes and measure your own workload before relying on them.
-
-The largest gains are where 0.7.X called out to BurnMan or compiled numba kernels. 0.8.0 is slower on the standalone radial solver at tight tolerances, on two vectorized sweeps, and on two single-value model calls.
-
-### Where It Is Faster
+Timings of TidalPy 0.7.6 against 0.8.0 on one machine; treat the ratios as rough magnitudes and measure your own workload.
 
 | Task | 0.7.X | 0.8.0 | Change |
 |---|---|---|---|
 | Build a planet with its interior (Io, 3 layers) | 187 ms | 0.84 ms | 220x faster |
 | Orbit-averaged 3D heating map (50 x 16 x 32), 1 thread | 13.4 ms | 2.14 ms | 6.3x faster |
-| Radiogenic heating, one evaluation | 0.30 us | 0.062 us | 4.8x faster |
 | Global tidal heating, degrees 2 to 4, e^10 | 0.051 ms | 0.0135 ms | 3.8x faster |
 | Rheology, 10k complex moduli | 0.176 ms | 0.057 ms | 3.1x faster |
-| Build a bundled world (earth_simple, 2 layers, no interior solve) | 1.42 ms | 0.43 ms | 3.3x faster |
-| Global tidal heating, e^10 truncation | 0.026 ms | 0.0094 ms | 2.8x faster |
-| Global tidal heating, e^2 truncation | 0.021 ms | 0.0075 ms | 2.8x faster |
-| Global tidal heating, e^4 truncation | 0.022 ms | 0.0080 ms | 2.8x faster |
-| Instantaneous 3D heating map (50 x 16 x 32 x 8 times), 1 thread | 13.2 ms | 5.25 ms | 2.5x faster |
-| Homogeneous Love numbers (closed form) | 0.16 us | 0.063 us | 2.5x faster |
+| `radial_solver`, 1 layer, 200 slices | 0.46 ms | 0.53 ms | 1.1x slower |
+| Convective cooling, one evaluation | 0.17 us | 1.50 us | 9x slower |
+| First call of a tidal heating calculation | 1.1 to 7.0 s (numba compile or cache load) | 0.08 ms | |
 
-For planet building, 0.7.X handed the interior to BurnMan, which does mineral-physics lookups and its own root finding. 0.8.0 integrates the equation of state in C++, and reads the materials and worlds it names from memory (see [Name Resolution](Structures/config/worldpack.md#name-resolution)).
-
-The 3D maps are timed at eccentricity truncation level 2 in both versions, where both keep the same heating terms. The table times 0.8.0 on one thread. At the default thread count (12 threads on the 16-thread test machine; see [Threads for 3D Grids](#threads-for-3d-grids)), the maps take 1.94 ms (instantaneous) and 1.03 ms (orbit averaged), 6.8x and 13x faster than 0.7.X.
-
-The global tidal heating rows use the homogeneous Love method, which solves the same problem as the 0.7.X `quick_tidal_dissipation`. They use eccentricity truncations that both versions tabulate and at which both sum the same heating terms (see [Tides](#tides)). In 0.8.0 the cost follows the number of distinct forcing frequencies, not the number of modes. Love numbers are solved once per frequency and degree. The homogeneous methods form the layer-averaged shear modulus once per frequency and share it across degrees, so adding degrees adds little. With the `radial_solver` Love method, each frequency and degree is a full radial solve, and that solve dominates the cost.
-
-### Where It Is the Same or Slower
-
-The `radial_solver` core is about 3x faster than in 0.7.X. It now also runs a more accurate EOS solve, which takes that gain back, so the speed is about the same between 0.7.X and 0.8.0.
-
-| Task | 0.7.X | 0.8.0 | Change |
-|---|---|---|---|
-| Convective cooling, one evaluation | 0.17 us | 1.50 us | 0.11x, 9x slower |
-| `radial_solver`, 1 layer, 10 slices | 0.31 ms | 0.48 ms | 0.64x, 1.6x slower |
-| Rheology, one complex modulus | 0.060 us | 0.084 us | 0.71x, 1.4x slower |
-| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.46 ms | 0.53 ms | 0.86x, 1.2x slower |
-| `radial_solver`, 1 layer, 200 slices | 0.46 ms | 0.53 ms | 0.88x, 1.1x slower |
-| `radial_solver`, propagation matrix, 200 slices | 0.112 ms | 0.114 ms | 0.98x, the same |
-| Radiogenic heating, 10k times | 0.086 ms | 0.098 ms | 0.88x, 1.1x slower |
-| Convective cooling, 10k evaluations | 0.162 ms | 0.181 ms | 0.89x, 1.1x slower |
-
-The 0.8.0 standalone radial solver wraps the world path. It builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses.
+The largest gains are where 0.7.X called BurnMan or compiled numba kernels; 0.8.0 has nothing to compile on first call. The standalone `radial_solver` is about as fast as in 0.7.X, because it builds a temporary world and runs a more accurate EOS solve.
 
 > [!TIP]
-> We recommend the world-based approach. It is as fast as the standalone solver, and reusing a constructed `BaseWorld` is much faster than repeated calls to the standalone radial solver: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
+> We recommend the world-based approach. It is as fast as the standalone solver, and reusing a constructed `BaseWorld` is much faster than repeated standalone calls: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
 
-These settings reduce the time:
-
-- `integration_rtol` and `integration_atol` set the step count. At the `[radial_solver]` defaults (both 3e-8, looser than the rows above), the 0.8.0 solver takes 0.31, 0.35, and 0.40 ms on the three shooting rows: the same as 0.7.X at its tighter setting on the first and faster on the other two. k2 moves by 3e-11 to 6e-10.
-- The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded.
-- `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps.
-
-Most of the cost of a single scalar call is the crossing from Python, not the arithmetic, so use the vectorized calls, where 0.8.0 is about 3x faster, for more than a handful of values. The direct cooling functions (`convective`, `conductive`) also build their model on every call, which costs about a microsecond; a model object's `calc_cooling` does not. The two slower sweeps are bound by one math-library call per value: an exponential per isotope and time in the radiogenic sweep, and a power per point in convective cooling. Neither version vectorizes these calls. On Windows, Python extensions link the C runtime DLL, whose `pow` is about 20 percent slower than the static runtime's, and that accounts for most of the cooling gap.
-
-### First Call
-
-Steady-state timings leave out the startup cost. 0.7.X compiles its numba kernels on their first run and caches the machine code on disk. The first session after installing or upgrading pays the full compile, and every later session pays to load and dispatch the cached kernels. 0.8.0 has nothing to compile.
-
-| First call | 0.7.X, first session after installing | 0.7.X, later sessions | 0.8.0 |
-|---|---|---|---|
-| Tidal heating, degrees 2 to 4, e^10 | 7.0 s | 1.1 s | 0.08 ms |
-| 3D heating map (50 x 16 x 32 x 8 times) | 4.8 s | 0.91 s | 2.3 ms |
-| Build a planet with its interior (Io) | not measured | 1.4 s | 1.1 ms |
-
-The 0.8.0 3D map uses the default thread count.
+A single scalar call is dominated by the crossing from Python, so use the vectorized calls (about 3x faster than 0.7.X) for more than a handful of values. The direct cooling functions (`convective`, `conductive`) also build their model on every call (about a microsecond); a model object's `calc_cooling` does not.
 
 ### Threads for 3D Grids
 
-The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`) take `num_threads`, which spreads the radial solves and the per-point evaluation over threads. The default, 0, uses the number of logical processors minus 4 (at least 1). Every thread count returns identical values. `calc_tides` also spreads its Love-number solves over threads (see [Parallel Love Solves](RadialSolver/parallel.md)). 0.7.X has no equivalent.
-
-The table times three grids of a homogeneous Io at degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, on 20 radii by 45 colatitudes by 90 longitudes. It uses the `tides_3d:*_1_thread` and `tides_3d:*_all_threads` tasks in `Benchmarks/Performance` on one machine with 16 hardware threads. Each figure is the lowest of four fresh processes, each taking the best of three batches.
-
-| Grid | 1 thread | 16 threads | Change |
-|---|---|---|---|
-| Secular heating map | 148 ms | 22 ms | 6.7x faster |
-| Stress and strain, 4 times | 262 ms | 39 ms | 6.7x faster |
-| Displacements, 24 times | 315 ms | 54 ms | 5.8x faster |
-
-Part of each call (building the waves and the strain coefficients from the radial solutions) runs on the calling thread, so the gain stays below the thread count. On a very small call, starting the threads costs more than they save: a fully collapsed degree-2 heating total on a homogeneous Io takes 0.48 ms on one thread and 0.60 ms at the default thread count, so pass `num_threads=1` for many small calls.
+The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`) take `num_threads`, which 0.7.X lacked. The default, 0, uses the number of logical processors minus 4 (at least 1), and every thread count returns identical values. On a 16-thread machine, 16 threads run a 3D grid about 6 to 7 times faster than one. On a very small call, starting the threads costs more than they save, so pass `num_threads=1` for many small calls. `calc_tides` also spreads its Love solves over threads (see [Parallel Love Solves](RadialSolver/parallel.md)).
 
 ## Learning TidalPy 0.8.0
 
-Start with the [Getting Started](Overview/1_Getting_Started.md) page and the notebooks in the Demos section of the navigation: the `Basics` notebooks (configuration, world building, save and load), the `Physics` notebooks (orbits, tides, rheology, Love numbers, 3D heating, thermal interiors, truncation levels), and the `Systems` notebooks (multi-world systems, coupled thermal-orbital evolution, the Earth-Moon-Sun system). The Benchmarks section validates TidalPy against published results and tracks its performance.
+Start with the [Getting Started](Overview/1_Getting_Started.md) page and the notebooks in the Demos section: `Basics` (configuration, world building, save and load), `Physics` (orbits, tides, rheology, Love numbers, 3D heating, thermal interiors, truncation levels), and `Systems` (multi-world systems, coupled thermal-orbital evolution, the Earth-Moon-Sun system). The Benchmarks section validates TidalPy against published results and tracks its performance.

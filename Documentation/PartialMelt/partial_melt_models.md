@@ -1,227 +1,22 @@
 # Melting Laws (`PartialMelt`)
 
-_Updated: 2026-10-02_
+_Updated: 2026-10-07_
 
-The melting laws describe how a [material](../Material/materials.md) melts. Its two melting curves give the solidus and liquidus temperatures \[K\] at a pressure \[Pa\], and the melt fraction $\phi$ runs linearly between them. Its melt-weakening law gives the partially molten aggregate's shear modulus \[Pa\] and viscosity \[Pa s\] from the solid's and the liquid's values, and its optional bulk-mixing laws give the aggregate's bulk modulus \[Pa\] and bulk viscosity \[Pa s\]. Each law is a model of its own family, and the material combines them. The laws themselves know nothing of the phases' equations of state.
+The melting laws describe how a [material](../Material/materials.md) melts. Two melting curves give the solidus and liquidus \[K\] at a pressure \[Pa\], and the melt fraction $\phi$ runs linearly between them. A melt-weakening law gives the partially molten aggregate's shear modulus \[Pa\] and viscosity \[Pa s\] from the solid's and the liquid's. Optional bulk-mixing laws give its bulk modulus \[Pa\] and bulk viscosity \[Pa s\]. The material combines the laws, which know nothing of the phases' equations of state.
 
-## Inheritance
-
-```
-c_TidalPyBaseClass
-  └── c_PhysicsBase
-        ├── c_MeltingCurveBase  (abstract)
-        │     ├── c_ConstantMeltingCurve       aliases "constant", "const"
-        │     ├── c_SimonGlatzelCurve          aliases "simon_glatzel", "simon-glatzel"
-        │     ├── c_SimonGlatzel2Curve         aliases "simon_glatzel_2", "simon-glatzel-2"
-        │     └── c_InterpolatedMeltingCurve   aliases "interpolate", "interp", "interpolated"
-        ├── c_MeltWeakeningBase  (abstract)
-        │     ├── c_NoMeltWeakening            aliases "none", "off"
-        │     ├── c_SpohnMeltWeakening         aliases "spohn", "fischer", "fischer_spohn"
-        │     └── c_HenningMeltWeakening       alias "henning"
-        ├── c_BulkModulusMixingBase  (abstract)
-        │     └── c_HashinShtrikmanMixing      aliases "hashin_shtrikman", "hs", "hashin-shtrikman"
-        └── c_BulkViscosityMixingBase  (abstract)
-              └── c_CompactionViscosity        aliases "compaction", "mckenzie"
-```
-
-Every concrete law derives from `c_SpecModel`, which gives it its parameters, config dict, and binary record from one table (see [C++ API](#c-api)). The Cython classes mirror the hierarchy: `MeltingCurveBase`, `ConstantMeltingCurve`, `SimonGlatzelCurve`, `SimonGlatzel2Curve`, `InterpolatedMeltingCurve`; `MeltWeakeningBase`, `NoMeltWeakening`, `SpohnMeltWeakening`, `HenningMeltWeakening`; `BulkModulusMixingBase`, `HashinShtrikmanMixing`; and `BulkViscosityMixingBase`, `CompactionViscosity`.
-
-## Inputs and Result
-
-A melting curve takes a pressure and returns a temperature, `calc_melting_temperature(pressure)`, and its slope $dT_m/dP$ \[K Pa$^{-1}$\], `calc_melting_slope(pressure)`.
-
-A weakening law sees everything the material knows at a point, bundled in C++ into a `c_MeltWeakeningInputs` struct:
-
-| Input | Units | Meaning |
-|---|---|---|
-| `temperature` | K | Local temperature. |
-| `solidus`, `liquidus` | K | The melting curves at the local pressure. |
-| `melt_fraction` | m$^3$ m$^{-3}$ | $\phi$. |
-| `solid_shear`, `solid_viscosity` | Pa, Pa s | The solid phase's shear modulus and shear viscosity. |
-| `liquid_shear`, `liquid_viscosity` | Pa, Pa s | The liquid phase's, which floor the result. |
-
-It returns a `c_MeltWeakeningResult` of the aggregate's `shear_modulus` and `viscosity`. The bulk-modulus mixing law takes the solid's and the liquid's bulk moduli, the framework's (post-melt) shear modulus, and the melt fraction. The bulk-viscosity mixing law takes the solid's bulk viscosity, the post-melt shear viscosity, and the melt fraction.
-
-## Melting Curves
-
-The solidus and liquidus are two independent curves. Rock and iron melt at higher temperatures under pressure: peridotite's solidus, for example, rises from about 1660 K at the surface to about 4150 K at Earth's core-mantle boundary. A layer reads the curves at the local pressure when it sets `use_pressure_melting`, and at zero pressure otherwise. The melt fraction, the weakening laws (each anchored at the local solidus), the density mixing, and the bulk effects all use the curves at that pressure.
-
-| Model | Melting temperature $T_m(P)$ \[K\] |
-|---|---|
-| `constant` | $T_0$ at every pressure |
-| `simon_glatzel` | $T_0 \left(1 + (P - P_\mathrm{ref}) / a\right)^{1/c}$ |
-| `simon_glatzel_2` | one Simon and Glatzel branch below a transition pressure $P_t$ and another above it |
-| `interpolate` | linear in pressure between the points of a `pressure` and `temperature` table, held at the end values beyond it |
-
-### Simon and Glatzel
-
-The Simon and Glatzel (1929) law,
-
-$$T_m(P) = T_0 \left(1 + \frac{P - P_\mathrm{ref}}{a}\right)^{1/c},$$
-
-fits most planetary melting data. $T_0$ is the melting temperature at the reference pressure $P_\mathrm{ref}$ (usually zero), $a$ \[Pa\] sets the pressure at which the curve begins to rise, and $c$ sets how quickly the rise flattens. A negative $a$ gives a curve that falls with pressure, as ice Ih's does: MatPack's `ice_ih` uses $T_0$ = 273.16 K, $a$ = -415 MPa, and $c$ = 8.25. Below $P_\mathrm{ref}$ the curve holds $T_0$, and above `maximum_pressure_pa` (default: none), the end of the range the curve was fitted over, it holds its value there. A falling curve would reach 0 K at $P_\mathrm{ref} - a$, so it needs a `maximum_pressure_pa` below that; `ice_ih` ends at its triple point with ice III and liquid water, 208.566 MPa, where it holds about 251 K.
-
-`simon_glatzel_2` joins two branches at a transition pressure $P_t$:
-
-$$T_m(P) = \begin{cases} T_0 \left(1 + (P - P_\mathrm{ref}) / a\right)^{1/c} & P \le P_t \\ T_{0,\mathrm{high}} \left(1 + (P - P_\mathrm{ref,high}) / a_\mathrm{high}\right)^{1/c_\mathrm{high}} & P > P_t \end{cases}$$
-
-Both branches are written in the absolute pressure, as the published fits are. The second branch lets a fit change slope across a phase transition, such as the one near 20 GPa at the top of Earth's lower mantle.
-
-### Peridotite Fits
-
-Monteux et al. (2016) fit two-branch Simon and Glatzel laws to the peridotite and chondritic-mantle melting experiments of Fiquet et al. (2010) and Andrault et al. (2011). MatPack's `peridotite` and `lower_mantle` use them, and they are the `simon_glatzel_2` defaults for the solidus.
-
-| Curve | $T_0$ \[K\] | $a$ \[Pa\] | $c$ | $P_t$ \[Pa\] | $T_{0,\mathrm{high}}$ \[K\] | $a_\mathrm{high}$ \[Pa\] | $c_\mathrm{high}$ |
-|---|---|---|---|---|---|---|---|
-| Solidus | 1661.2 | 1.336e9 | 7.437 | 20.0e9 | 2081.8 | 1.0169e11 | 1.226 |
-| Liquidus | 1982.1 | 6.594e9 | 5.374 | 20.0e9 | 78.74 | 4.054e6 | 2.44 |
-
-These fits give the following melting temperatures.
-
-| Pressure \[GPa\] | Solidus \[K\] | Liquidus \[K\] | Where |
+| Family | Model | Aliases | Python class |
 |---|---|---|---|
-| 0 | 1661 | 1982 | Surface |
-| 5 | 2048 | 2202 | Base of Io's mantle |
-| 20 | 2411 | 2569 | Branch transition |
-| 60 | 3039 | 4030 | Mid lower mantle of the Earth |
-| 135 | 4147 | 5619 | Earth's core-mantle boundary |
+| Melting curve | `constant` | `const` | `ConstantMeltingCurve` |
+| | `simon_glatzel` | `simon-glatzel` | `SimonGlatzelCurve` |
+| | `simon_glatzel_2` | `simon-glatzel-2` | `SimonGlatzel2Curve` |
+| | `interpolate` | `interp`, `interpolated` | `InterpolatedMeltingCurve` |
+| Melt weakening | `none` | `off` | `NoMeltWeakening` |
+| | `spohn` | `fischer`, `fischer_spohn` | `SpohnMeltWeakening` |
+| | `henning` | | `HenningMeltWeakening` |
+| Bulk-modulus mixing | `hashin_shtrikman` | `hs`, `hashin-shtrikman` | `HashinShtrikmanMixing` |
+| Bulk-viscosity mixing | `compaction` | `mckenzie` | `CompactionViscosity` |
 
-The experiments reach about 140 GPa, so the curves are extrapolated in the deeper mantles of planets larger than the Earth.
-
-### Melting Slope
-
-`calc_melting_slope(pressure)` returns $dT_m/dP$ \[K Pa$^{-1}$\]: for a Simon and Glatzel branch $T_0 / (a c) \, (1 + (P - P_\mathrm{ref}) / a)^{1/c - 1}$, and for a table the slope of the interval holding the pressure. It is zero for a constant curve and wherever a curve is held flat (below its reference pressure, past the end of a falling curve, or beyond a table's ends). A material uses the slopes for the latent heat's share of an adiabat's expansivity inside a melting range (see [Latent Heat](../Material/materials.md#latent-heat)).
-
-### Behavior at the Limits
-
-- Tension ($P < P_\mathrm{ref}$), which the structure solve's trial central pressures can reach, holds the reference temperature $T_0$.
-- Past `maximum_pressure_pa` a Simon and Glatzel curve holds its value at that pressure, and a falling curve without one, or with one at or past $P_\mathrm{ref} - a$ where it would reach 0 K, raises `ValueError`. A material is still meant to be used inside the pressure range its curves were fitted over.
-- A non-finite pressure gives a NaN melting temperature and slope, and a material then stays solid.
-- The two curves are independent, but a material refuses a liquidus below its solidus at zero pressure, where every layer reads them without `use_pressure_melting` (`ValueError`). Deeper, where the liquidus falls to or below the solidus, the material melts as a step at the solidus.
-- An `a` of 0 is refused when the curve is built.
-
-### Choosing Melting Curves
-
-We recommend pressure-dependent curves, and `use_pressure_melting` on, for any rocky layer whose base is more than a few GPa deep: the peridotite solidus at the base of Io's mantle (about 5 GPa) is already about 390 K above its zero-pressure value. The curves matter most together with the [compressed expansivity](../Material/material_eos.md#expansivity-under-compression), which sets how much a convecting mantle warms with depth. With a constant expansivity an Earth-like mantle's adiabat climbs above the peridotite solidus at depth. The bundled worlds with warm silicate mantles use the peridotite curves with pressure melting on. A constant curve is the usual choice for a thin layer, for a comparison with a published model that used one, and for a material without a measured curve.
-
-## Melt Weakening
-
-| Model | Behavior |
-|---|---|
-| `NoMeltWeakening` | The solid's shear modulus and viscosity until fully molten, then the liquid's. |
-| `SpohnMeltWeakening` | Fischer and Spohn (1990). Above the solidus, both strengths fall with temperature from their values at the solidus. |
-| `HenningMeltWeakening` | Henning et al. (2009) and Renaud and Henning (2018). Three regimes separated by a critical melt fraction. |
-
-Every law returns the solid pair with no melt ($\phi \le 0$) and the liquid pair when fully molten ($\phi \ge 1$), and floors its result at the liquid's values in between. A NaN solid value (a solid phase with no viscosity law) stays NaN rather than taking the liquid's. A material without a weakening law behaves as `none`. The material, not the law, decides from the returned shear modulus where the radial solver treats the aggregate as a liquid. Both temperature laws are anchored at the solidus, so they carry over to materials whose solidus is not the 1600 K silicate value the published fits assume.
-
-### Breakdown Band
-
-The Spohn and Henning laws describe the partially molten framework up to a rheological transition, the breakdown band of melt fraction from `crit_melt_frac` ($\phi_c$) to `crit_melt_frac + crit_melt_frac_width` ($\phi_c + w$). Across the band the framework's pair blends into the liquid's, so the aggregate reaches the liquid's values at the band's end and holds them past it. With $s = (\phi - \phi_c) / w$, the framework's values $\eta_f$ and $\mu_f$, and the liquid's $\eta_l$ and $\mu_l$:
-
-$$\eta = \eta_f^{\,1 - s} \, \eta_l^{\,s}, \qquad \mu = (1 - s)\,\mu_f + s\,\mu_l$$
-
-The viscosity blends log-linearly, since it spans many orders of magnitude, and the shear modulus linearly, since a liquid's is usually zero. Both laws are therefore continuous in temperature from below the solidus to above the liquidus, which an integration through the melting range (a thermal evolution, say) needs: a step in viscosity at the band's end of about $10^{10}$ makes an implicit integrator crawl where the mantle sits on it. A zero `crit_melt_frac_width` makes the transition a step into the liquid at $\phi_c$.
-
-### None
-
-The solid's values pass through untouched inside the melting range, and the melt fraction is still reported. Use it for a material that melts without a strength change worth modeling, or to isolate the effect of the density and thermal terms.
-
-### Spohn (Fischer and Spohn 1990)
-
-$$\eta = 10^{\,L_\eta + s_\eta (1/T - 1/T_\mathrm{sol})}, \qquad \mu = 10^{\,L_\mu + s_\mu (1/T - 1/T_\mathrm{sol})}$$
-
-below the [breakdown band](#breakdown-band), with the slopes $s$ given by `visc_power_slope` and `shear_power_slope`, and the base-10 logarithms of the strengths at the solidus, $L$, by `visc_log10_at_solidus` and `shear_log10_at_solidus`. Left unset (the default), each $L$ is the solid phase's own value at the solidus and the local pressure, so the law continues the solid's viscosity and shear modulus into the melting range without a step.
-
-Fischer and Spohn (1990) fit silicates with absolute laws, $10^{27000/T - 1}$ Pa s and $10^{82000/T - 40.6}$ Pa. Those are the form above at a 1600 K solidus with $L_\eta$ = 15.875 and $L_\mu$ = 10.65, so setting those two reproduces the published fits there; the strengths then step at the solidus from the solid's values to the fit's. Anchoring the law at the material's own solidus keeps it usable for other materials: the absolute fit at an icy solidus of 273 K would give a shear modulus of $10^{260}$ Pa.
-
-### Henning (2009, 2018)
-
-Three regimes in the melt fraction, separated by the [breakdown band](#breakdown-band) from $\phi_c$ to $\phi_c + w$. Write $T_\mathrm{break} = T_\mathrm{sol} + \phi_c (T_\mathrm{liq} - T_\mathrm{sol})$ for the temperature at which $\phi_c$ is reached. The framework's pair is
-
-| Regime | Viscosity $\eta_f$ | Shear modulus $\mu_f$ |
-|---|---|---|
-| $\phi \le 0$ | $\eta_s$ | $\mu_s$ |
-| $0 < \phi < \phi_c$ | $\eta_s \exp(-a_\eta \phi)$ | $\mu_s \exp[b_1 (1/T - 1/T_\mathrm{sol})]$ |
-| $\phi_c \le \phi < \phi_c + w$ | $\eta_s \exp(-a_\eta \phi_c) \exp(-f_\eta (\phi - \phi_c))$ | $\mu_s \exp[b_1 (1/T_\mathrm{break} - 1/T_\mathrm{sol})] \exp(-f_\mu (\phi - \phi_c))$ |
-
-which the band then blends into the liquid's $\eta_l$ and $\mu_l$, held from $\phi_c + w$ on. Here $\eta_s$ and $\mu_s$ are the solid's values, $a_\eta$ is `visc_slope_1`, $b_1$ is `shear_param_1`, and $f_\eta$ and $f_\mu$ are `visc_falloff_slope` and `shear_falloff_slope`. Every branch is floored at the liquid's values. On its own the falloff reaches only about $10^{-11}$ of the solid's viscosity by the band's end (for the defaults), far above a melt's; the blend closes that gap.
-
-The shear law is Henning et al. (2009) Eq. 20, $\exp(40000/T - 25)$, anchored at the solidus: their constant 25 is $40000/1600$, the silicate solidus they calibrated to, so a 1600 K solidus reproduces it exactly. Written this way the shear modulus is continuous at any solidus, where the published constant would stiffen an icy layer with a 273 K solidus by a factor of about $e^{121}$ ($e^{40000/273 - 25}$) as it began to melt.
-
-Below the critical melt fraction, melt sits in isolated pockets and weakens the solid framework gradually. Above it the framework loses contact and the material behaves as a crystal-laden liquid, a drop of many orders of magnitude. The breakdown band is a steep but finite bridge between the two regimes. Its width is a numerical convenience that keeps the transition continuous, not a measured quantity.
-
-### Choosing a Weakening Law
-
-`henning` is the usual choice for a silicate mantle: it weakens the framework gradually until the critical melt fraction and then collapses it. `spohn` reproduces the earlier Io models built on Fischer and Spohn's fits. `none` suits ices and other materials whose partially molten strength is not constrained, and a material that melts as a step, where no partially molten state exists.
-
-## Bulk Mixing
-
-Melt lowers the bulk modulus far less than the shear modulus. A silicate melt's bulk modulus is of the same order as the rock's (about 20 GPa at low pressure against about 130 GPa) while its shear modulus vanishes (Mavko 1980; Takei 2002). Without a bulk modulus mixing law, a material's bulk modulus blends linearly from the solid's into the liquid's across its weakening law's breakdown band (`calc_band_blend`), the same band over which the shear modulus reaches the liquid's, so the mush the radial solver treats as a liquid has the liquid's bulk modulus too; with no weakening law it steps at full melt, with the shear modulus. Without a bulk viscosity mixing law, the bulk viscosity is the solid's until fully molten, then the liquid's.
-
-### Hashin-Shtrikman
-
-The post-melt bulk modulus is the Hashin and Shtrikman (1963) bound for melt of bulk modulus $K_l$ in a solid framework of bulk modulus $K_s$, evaluated with the framework's post-melt shear modulus $\mu$:
-
-$$K = K_s + \frac{\phi}{\dfrac{1}{K_l - K_s} + \dfrac{1 - \phi}{K_s + \tfrac{4}{3}\mu}}$$
-
-The material applies it to both the isothermal and the adiabatic moduli, each phase's own. While the framework holds, $\mu$ is close to the solid's and this is the upper bound for isolated melt pockets, a weak reduction (about 16 percent at $\phi = 0.1$ for $K_s$ = 130, $\mu$ = 60, $K_l$ = 20 GPa). Once the weakening law has collapsed the framework's shear modulus (Henning past the critical melt fraction), the same expression becomes the Reuss (Wood 1955) average of a crystal suspension, and it reaches $K_l$ at $\phi = 1$.
-
-This is the unrelaxed (undrained) modulus: the melt is held in place over a forcing cycle. Isolated pockets are the stiffest geometry, and melt that wets grain edges or forms films weakens the framework more (Mavko 1980; Takei 2002), so the bound is an upper limit. Its relaxation as melt moves is a bulk rheology's job, at the rate the bulk viscosity sets.
-
-### Compaction Viscosity
-
-A melt-free rock has no viscous compaction, so its bulk response is elastic; melt adds one as it moves through the matrix. The compaction law adds a matrix bulk viscosity in series with the solid's,
-
-$$\frac{1}{\zeta} = \frac{1}{\zeta_s} + \frac{\phi^n}{c\,\eta},$$
-
-with $\eta$ the post-melt shear viscosity, $c$ `coefficient`, and $n$ `exponent`. $n = 1$ with $c$ of order 1 is the classic compaction viscosity $\eta/\phi$ (McKenzie 1984). Micromechanical models give a bulk viscosity of the same order as the shear viscosity instead (Takei and Holtzman 2009), which is $n = 0$. The series form is continuous at the solidus for $n > 0$. A non-finite or non-positive solid bulk viscosity counts as no solid dashpot, so melt alone sets $\zeta$.
-
-The bulk viscosity reaches the tides only through the layer's bulk rheology, which is elastic unless the layer or its material names one. A Maxwell bulk rheology would let the bulk modulus relax to zero at long periods, which is unphysical. The [Zener](../Rheology/rheology_models.md) (standard linear solid) rheology relaxes it to a set fraction $r$ of the unrelaxed modulus instead, the drained-to-undrained ratio. For isolated pockets at 10% melt that ratio is near 0.9, and melt films lower it further. Bulk dissipation in a partially molten layer, while understudied, has been shown to rival the shear dissipation (Kervazo et al. 2021).
-
-## Parameters
-
-Each parameter carries two names: the constructor keyword, which also reads as an attribute, and the config key used in a TOML table, a factory config dict, and `get_config_dict()`. A dimensional config key ends in its unit while the code name does not. Either name is accepted wherever a parameter is given.
-
-**Melting curves**
-
-| Parameter | Config key | Default | Units | Used by |
-|---|---|---|---|---|
-| `temperature` | `temperature_k` | 1600.0 (`simon_glatzel_2` 1661.2; `[1600.0]` for interpolated) | K | All |
-| `simon_a` | `simon_a_pa` | 1.0e9 (`simon_glatzel_2` 1.336e9) | Pa | Simon and Glatzel |
-| `simon_c` | `simon_c` | 5.0 (`simon_glatzel_2` 7.437) | - | Simon and Glatzel |
-| `reference_pressure` | `reference_pressure_pa` | 0.0 | Pa | Simon and Glatzel |
-| `transition_pressure` | `transition_pressure_pa` | 20.0e9 | Pa | `simon_glatzel_2` |
-| `high_temperature` | `high_temperature_k` | 2081.8 | K | `simon_glatzel_2` |
-| `high_simon_a` | `high_simon_a_pa` | 1.0169e11 | Pa | `simon_glatzel_2` |
-| `high_simon_c` | `high_simon_c` | 1.226 | - | `simon_glatzel_2` |
-| `high_reference_pressure` | `high_reference_pressure_pa` | 0.0 | Pa | `simon_glatzel_2` |
-| `pressure` | `pressure_pa` | `[0.0]` | Pa | Interpolated |
-
-**Melt weakening**
-
-| Parameter | Config key | Default | Units | Used by |
-|---|---|---|---|---|
-| `visc_power_slope` | `fs_visc_power_slope_k` | 27000.0 | K | Spohn |
-| `visc_log10_at_solidus` | `fs_visc_log10_at_solidus` | unset (the solid's own) | log10 Pa s | Spohn |
-| `shear_power_slope` | `fs_shear_power_slope_k` | 82000.0 | K | Spohn |
-| `shear_log10_at_solidus` | `fs_shear_log10_at_solidus` | unset (the solid's own) | log10 Pa | Spohn |
-| `crit_melt_frac` | `crit_melt_frac` | 0.5 | - | Spohn, Henning |
-| `crit_melt_frac_width` | `crit_melt_frac_width` | 0.05 | - | Spohn, Henning |
-| `visc_slope_1` | `hn_visc_slope_1` | 13.5 | - | Henning |
-| `visc_falloff_slope` | `hn_visc_falloff_slope` | 370.0 | - | Henning |
-| `shear_param_1` | `hn_shear_param_1_k` | 40000.0 | K | Henning |
-| `shear_falloff_slope` | `hn_shear_falloff_slope` | 700.0 | - | Henning |
-
-**Bulk mixing**
-
-| Parameter | Config key | Default | Units | Used by |
-|---|---|---|---|---|
-| `coefficient` | `coefficient` | 1.0 | - | Compaction |
-| `exponent` | `exponent` | 1.0 | - | Compaction |
-
-The Hashin-Shtrikman law has no parameters. The liquid's shear modulus and viscosity, which every weakening law falls to, belong to the material's liquid phase (a phase with no shear-modulus law has a shear modulus of 0).
-
-## Python API
+## Quick Example
 
 ```python
 import numpy as np
@@ -273,28 +68,7 @@ mixing = make_bulk_modulus_mixing("hs")
 print(mixing.calc_bulk_modulus(1.3e11, 2.0e10, 6.0e10, 0.1))   # [Pa], about 84 percent of the rock's
 ```
 
-Constructors take every parameter their law uses, by its argument name or config key, as keywords or positionally in the order `get_parameter_info()` lists them, with the defaults from the tables above. `make_melting_curve`, `make_melt_weakening`, `make_bulk_modulus_mixing`, and `make_bulk_viscosity_mixing` each take `(model_name, config=None)`, resolve a name or alias case-insensitively, and build the law from `config`. Absent keys take the law's defaults. An unknown name, a key the law does not read, or a value outside a parameter's bounds raises `ValueError` naming the closest accepted name or key.
-
-| Member | Returns | Description |
-|---|---|---|
-| `calc_melting_temperature(pressure)` | `float` or `np.ndarray` \[K\] | The melting temperature (melting curves). |
-| `calc_melting_slope(pressure)` | `float` or `np.ndarray` \[K Pa$^{-1}$\] | $dT_m/dP$ (melting curves). |
-| `calc_weakening(temperature, solidus, liquidus, solid_shear, solid_viscosity, liquid_shear, liquid_viscosity, melt_fraction=None)` | `(shear_modulus, viscosity)` | The aggregate's strengths \[Pa, Pa s\] (weakening laws). Without `melt_fraction` it is the linear $\phi$ from the temperature and the curves, which is NaN at the melting temperature when the solidus equals the liquidus. A material treats that step itself (solid at the melting temperature, liquid above it), so pass `melt_fraction` to reproduce it. |
-| `calc_bulk_modulus(solid_bulk_modulus, liquid_bulk_modulus, framework_shear_modulus, melt_fraction)` | `float` \[Pa\] | The aggregate's bulk modulus (bulk-modulus mixing). |
-| `calc_bulk_viscosity(solid_bulk_viscosity, postmelt_shear_viscosity, melt_fraction)` | `float` \[Pa s\] | The aggregate's bulk viscosity (bulk-viscosity mixing). |
-| `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, `save_config(path)` | | As for every law (see [Equation-of-State and Shear-Modulus Laws](../Material/material_eos.md#python-api)). |
-
-`melting_curve_model_names()` and `melt_weakening_model_names()` list the canonical names, and `TidalPy.PartialMelt.melting` also holds `canonical_melting_curve_name`, `canonical_melt_weakening_name`, `bulk_modulus_mixing_model_names`, and `bulk_viscosity_mixing_model_names`.
-
-### Factory Internals
-
-At the C++ level each family has one registry (`c_melting_curve_registry()`, `c_melt_weakening_registry()`, `c_bulk_modulus_mixing_registry()`, `c_bulk_viscosity_mixing_registry()`) listing each law's names (canonical first, then aliases), its binary class id, and its constructor. `c_find_melting_curve(name, params)` and its siblings build a law from a `c_ParamMap` and throw `std::invalid_argument` for an unknown name or parameter. The Python factories pass the config dict through to them and wrap the result in the matching class.
-
-### Vectorized Evaluation
-
-`calc_melting_temperature` and `calc_melting_slope` take a float or an array and return the same shape. The weakening and mixing laws take floats; a material evaluates them point by point inside its own vectorized `calc_state` (see [Phases and Materials](../Material/materials.md#vectorized-evaluation)), which is the usual way to sweep a melting range.
-
-### Attaching Melting Laws to a `Material`
+## Attaching Melting Laws to a `Material`
 
 ```python
 from TidalPy.Material import Material, Phase
@@ -324,7 +98,7 @@ state = melting_rock.calc_state(
 print(state["melt_fraction"], state["shear_modulus"], state["bulk_viscosity"])
 ```
 
-A material holding laws shares them rather than copying them. The declarative form is the `melting` table of a material, which a MatPack file or a world TOML holds:
+A material shares its laws rather than copying them. In a MatPack file or a world TOML they go in the material's `melting` table:
 
 ```toml
 # Henning weakening with the peridotite melting curves of Monteux et al. (2016)
@@ -354,34 +128,208 @@ model = "henning"
 
 The layer's `use_melting` and `use_pressure_melting` decide whether it uses them. See [Phases and Materials](../Material/materials.md) and the [TOML schema](../Structures/config/toml_schema.md).
 
+## Melting Curves
+
+The solidus and liquidus are independent curves. A layer reads them at the local pressure when it sets `use_pressure_melting`, and at zero pressure otherwise; the melt fraction, the weakening laws (anchored at the local solidus), the density mixing, and the bulk effects all use that reading.
+
+`constant` gives $T_m(P) = T_0$ \[K\] at every pressure. `interpolate` is linear in pressure between the points of a `pressure` and `temperature` table, held at the end values beyond it.
+
+### Simon and Glatzel
+
+The Simon and Glatzel (1929) law fits most planetary melting data:
+
+$$T_m(P) = T_0 \left(1 + \frac{P - P_\mathrm{ref}}{a}\right)^{1/c},$$
+
+with $T_0$ the melting temperature at the reference pressure $P_\mathrm{ref}$ (usually zero), $a$ \[Pa\] the pressure at which the curve begins to rise, and $c$ how quickly the rise flattens. Below $P_\mathrm{ref}$ the curve holds $T_0$; above `maximum_pressure_pa` (default: none), the end of the fitted range, it holds its value there.
+
+A negative $a$ gives a curve that falls with pressure, as ice Ih's does (MatPack's `ice_ih`: $T_0$ = 273.16 K, $a$ = -415 MPa, $c$ = 8.25). A falling curve reaches 0 K at $P_\mathrm{ref} - a$, so it needs a `maximum_pressure_pa` below that; `ice_ih` ends at its triple point with ice III and liquid water, 208.566 MPa, holding about 251 K.
+
+`simon_glatzel_2` joins two branches at a transition pressure $P_t$, both in absolute pressure as the published fits are, so a fit can change slope across a phase transition (such as the one near 20 GPa at the top of Earth's lower mantle):
+
+$$T_m(P) = \begin{cases} T_0 \left(1 + (P - P_\mathrm{ref}) / a\right)^{1/c} & P \le P_t \\ T_{0,\mathrm{high}} \left(1 + (P - P_\mathrm{ref,high}) / a_\mathrm{high}\right)^{1/c_\mathrm{high}} & P > P_t \end{cases}$$
+
+### Peridotite Fits
+
+Monteux et al. (2016) fit two-branch laws to the peridotite and chondritic-mantle experiments of Fiquet et al. (2010) and Andrault et al. (2011). MatPack's `peridotite` and `lower_mantle` use them, and the solidus fit is the `simon_glatzel_2` default.
+
+| Curve | $T_0$ \[K\] | $a$ \[Pa\] | $c$ | $P_t$ \[Pa\] | $T_{0,\mathrm{high}}$ \[K\] | $a_\mathrm{high}$ \[Pa\] | $c_\mathrm{high}$ |
+|---|---|---|---|---|---|---|---|
+| Solidus | 1661.2 | 1.336e9 | 7.437 | 20.0e9 | 2081.8 | 1.0169e11 | 1.226 |
+| Liquidus | 1982.1 | 6.594e9 | 5.374 | 20.0e9 | 78.74 | 4.054e6 | 2.44 |
+
+| Pressure \[GPa\] | Solidus \[K\] | Liquidus \[K\] | Where |
+|---|---|---|---|
+| 0 | 1661 | 1982 | Surface |
+| 5 | 2048 | 2202 | Base of Io's mantle |
+| 20 | 2411 | 2569 | Branch transition |
+| 60 | 3039 | 4030 | Mid lower mantle of the Earth |
+| 135 | 4147 | 5619 | Earth's core-mantle boundary |
+
+The experiments reach about 140 GPa, so the curves are extrapolated in the deeper mantles of planets larger than the Earth.
+
+### Melting Slope
+
+`calc_melting_slope(pressure)` returns $dT_m/dP$ \[K Pa$^{-1}$\]: $T_0 / (a c) \, (1 + (P - P_\mathrm{ref}) / a)^{1/c - 1}$ for a Simon and Glatzel branch, and the interval's slope for a table. It is zero for a constant curve and wherever a curve is held flat. A material uses the slopes for the latent heat's share of an adiabat's expansivity inside a melting range (see [Latent Heat](../Material/materials.md#latent-heat)).
+
+### Choosing Melting Curves
+
+Use pressure-dependent curves, with `use_pressure_melting` on, for a rocky layer whose base is deeper than a few GPa: at the base of Io's mantle (about 5 GPa) the peridotite solidus is already about 390 K above its zero-pressure value. The bundled worlds with warm silicate mantles do so. Pair them with the [compressed expansivity](../Material/material_eos.md#expansivity-under-compression): with a constant expansivity an Earth-like mantle's adiabat climbs above the peridotite solidus at depth. A constant curve suits a thin layer, a comparison with a published model that used one, or a material without a measured curve.
+
+## Melt Weakening
+
+`none` keeps the solid's shear modulus and viscosity until fully molten. `spohn` (Fischer and Spohn 1990) lowers both with temperature from their values at the solidus. `henning` (Henning et al. 2009; Renaud and Henning 2018) has three regimes split by a critical melt fraction.
+
+Every law returns the solid pair at $\phi \le 0$ and the liquid pair at $\phi \ge 1$, floored at the liquid's values in between. A material without a weakening law behaves as `none`. The material decides from the returned shear modulus where the radial solver treats the aggregate as a liquid. Both temperature laws are anchored at the solidus, so they carry over to materials whose solidus is not the 1600 K of the published silicate fits.
+
+`henning` is the usual choice for a silicate mantle: it weakens the framework gradually until the critical melt fraction, then collapses it. `spohn` reproduces the earlier Io models built on Fischer and Spohn's fits. `none` suits ices and other materials whose partially molten strength is not constrained, and a material that melts as a step.
+
+### Breakdown Band
+
+The Spohn and Henning laws describe the partially molten framework up to a rheological transition, the breakdown band from $\phi_c$ (`crit_melt_frac`) to $\phi_c + w$ (`crit_melt_frac + crit_melt_frac_width`). Across the band the framework's values $\eta_f$, $\mu_f$ blend into the liquid's $\eta_l$, $\mu_l$, reached at the band's end and held past it. With $s = (\phi - \phi_c) / w$:
+
+$$\eta = \eta_f^{\,1 - s} \, \eta_l^{\,s}, \qquad \mu = (1 - s)\,\mu_f + s\,\mu_l$$
+
+The viscosity blends log-linearly (it spans many orders of magnitude) and the shear modulus linearly (a liquid's is usually zero). Both laws are therefore continuous in temperature through the melting range, which a time integration needs: a viscosity step of about $10^{10}$ makes an implicit integrator crawl where the mantle sits on it. A zero `crit_melt_frac_width` makes the transition a step into the liquid at $\phi_c$.
+
+### None
+
+The solid's values hold until full melt, and the melt fraction is still reported. Use it when the strength change is not worth modeling, or to isolate the density and thermal terms.
+
+### Spohn (Fischer and Spohn 1990)
+
+Below the [breakdown band](#breakdown-band),
+
+$$\eta = 10^{\,L_\eta + s_\eta (1/T - 1/T_\mathrm{sol})}, \qquad \mu = 10^{\,L_\mu + s_\mu (1/T - 1/T_\mathrm{sol})}$$
+
+with slopes $s$ \[K\] (`visc_power_slope`, `shear_power_slope`) and $L$ the base-10 logarithms of the strengths at the solidus (`visc_log10_at_solidus`, `shear_log10_at_solidus`). Unset (the default), each $L$ is the solid phase's own value at the solidus and local pressure, so the law continues the solid's values into the melting range without a step.
+
+Fischer and Spohn (1990) fit silicates with $10^{27000/T - 1}$ Pa s and $10^{82000/T - 40.6}$ Pa: the form above at a 1600 K solidus with $L_\eta$ = 15.875 and $L_\mu$ = 10.65. Setting those two reproduces the published fits there, with a step at the solidus from the solid's values to the fit's. The absolute fit would fail elsewhere: at an icy 273 K solidus it gives a shear modulus of $10^{260}$ Pa.
+
+### Henning (2009, 2018)
+
+Three regimes in the melt fraction, split by the [breakdown band](#breakdown-band). With $T_\mathrm{break} = T_\mathrm{sol} + \phi_c (T_\mathrm{liq} - T_\mathrm{sol})$ the temperature where $\phi_c$ is reached, the framework's pair is
+
+| Regime | Viscosity $\eta_f$ | Shear modulus $\mu_f$ |
+|---|---|---|
+| $\phi \le 0$ | $\eta_s$ | $\mu_s$ |
+| $0 < \phi < \phi_c$ | $\eta_s \exp(-a_\eta \phi)$ | $\mu_s \exp[b_1 (1/T - 1/T_\mathrm{sol})]$ |
+| $\phi_c \le \phi < \phi_c + w$ | $\eta_s \exp(-a_\eta \phi_c) \exp(-f_\eta (\phi - \phi_c))$ | $\mu_s \exp[b_1 (1/T_\mathrm{break} - 1/T_\mathrm{sol})] \exp(-f_\mu (\phi - \phi_c))$ |
+
+which the band blends into the liquid's pair, held from $\phi_c + w$ on. $\eta_s$ and $\mu_s$ are the solid's values, $a_\eta$ is `visc_slope_1`, $b_1$ is `shear_param_1` \[K\], and $f_\eta$, $f_\mu$ are `visc_falloff_slope`, `shear_falloff_slope`. Every branch is floored at the liquid's values. The falloff alone reaches only about $10^{-11}$ of the solid's viscosity by the band's end (defaults), far above a melt's; the blend closes that gap.
+
+The shear law is Henning et al. (2009) Eq. 20, $\exp(40000/T - 25)$, anchored at the solidus: their 25 is $40000/1600$, their silicate solidus, so a 1600 K solidus reproduces it exactly. The published constant would stiffen an icy layer with a 273 K solidus by about $e^{121}$ ($e^{40000/273 - 25}$) as it began to melt.
+
+Below $\phi_c$ melt sits in isolated pockets; above it the framework loses contact and the material behaves as a crystal-laden liquid (see [Partial Melting](index.md)). The band's width is a numerical convenience that keeps this transition continuous, not a measured quantity.
+
+## Bulk Mixing
+
+Melt lowers the bulk modulus far less than the shear modulus: a silicate melt's bulk modulus (about 20 GPa at low pressure) is of the same order as the rock's (about 130 GPa), while its shear modulus vanishes (Mavko 1980; Takei 2002).
+
+Without a bulk-modulus mixing law, the bulk modulus blends linearly from the solid's to the liquid's across the weakening law's breakdown band, so the mush the radial solver treats as a liquid has the liquid's bulk modulus too. With no weakening law it steps at full melt, with the shear modulus. Without a bulk-viscosity mixing law, the bulk viscosity is the solid's until fully molten, then the liquid's.
+
+### Hashin-Shtrikman
+
+The Hashin and Shtrikman (1963) bound for melt of bulk modulus $K_l$ in a framework of bulk modulus $K_s$ and post-melt shear modulus $\mu$:
+
+$$K = K_s + \frac{\phi}{\dfrac{1}{K_l - K_s} + \dfrac{1 - \phi}{K_s + \tfrac{4}{3}\mu}}$$
+
+The material applies it to both the isothermal and the adiabatic moduli. While the framework holds, $\mu$ is near the solid's and this is the upper bound for isolated melt pockets, a weak reduction (about 16 percent at $\phi = 0.1$ for $K_s$ = 130, $\mu$ = 60, $K_l$ = 20 GPa). Once the weakening law collapses $\mu$ (Henning past $\phi_c$), it becomes the Reuss (Wood 1955) average of a crystal suspension and reaches $K_l$ at $\phi = 1$.
+
+This is the unrelaxed (undrained) modulus, with the melt held in place over a forcing cycle. Melt that wets grain edges or forms films weakens the framework more than isolated pockets do (Mavko 1980; Takei 2002), so it is an upper limit. Its relaxation as melt moves is a bulk rheology's job, at the rate the bulk viscosity sets.
+
+### Compaction Viscosity
+
+Melt-free rock has no viscous compaction; melt adds one as it moves through the matrix. The law adds a matrix bulk viscosity in series with the solid's:
+
+$$\frac{1}{\zeta} = \frac{1}{\zeta_s} + \frac{\phi^n}{c\,\eta},$$
+
+with $\eta$ the post-melt shear viscosity, $c$ `coefficient`, and $n$ `exponent`. $n = 1$ with $c$ of order 1 is the classic compaction viscosity $\eta/\phi$ (McKenzie 1984); $n = 0$ gives a bulk viscosity of the order of the shear viscosity, as micromechanical models do (Takei and Holtzman 2009). The form is continuous at the solidus for $n > 0$. A non-finite or non-positive solid bulk viscosity counts as no solid dashpot, so melt alone sets $\zeta$.
+
+The bulk viscosity reaches the tides only through the layer's bulk rheology, which is elastic unless the layer or its material names one. A Maxwell bulk rheology would relax the bulk modulus to zero at long periods, which is unphysical. A [Zener](../Rheology/rheology_models.md#models) bulk rheology relaxes it to a set fraction $r$ of the unrelaxed modulus, the drained-to-undrained ratio: near 0.9 for isolated pockets at 10% melt, lower with melt films. Bulk dissipation in a partially molten layer, while understudied, has been shown to rival the shear dissipation (Kervazo et al. 2021).
+
+## Parameters
+
+Each parameter has a constructor keyword (also an attribute) and a config key (TOML, factory config dict, `get_config_dict()`), which ends in its unit when dimensional. Either name is accepted.
+
+**Melting curves**
+
+| Parameter | Config key | Default | Units | Used by |
+|---|---|---|---|---|
+| `temperature` | `temperature_k` | 1600.0 (`simon_glatzel_2` 1661.2; `[1600.0]` for interpolated) | K | All |
+| `simon_a` | `simon_a_pa` | 1.0e9 (`simon_glatzel_2` 1.336e9) | Pa | Simon and Glatzel |
+| `simon_c` | `simon_c` | 5.0 (`simon_glatzel_2` 7.437) | - | Simon and Glatzel |
+| `reference_pressure` | `reference_pressure_pa` | 0.0 | Pa | Simon and Glatzel |
+| `maximum_pressure` | `maximum_pressure_pa` | unset (no limit) | Pa | `simon_glatzel` |
+| `transition_pressure` | `transition_pressure_pa` | 20.0e9 | Pa | `simon_glatzel_2` |
+| `high_temperature` | `high_temperature_k` | 2081.8 | K | `simon_glatzel_2` |
+| `high_simon_a` | `high_simon_a_pa` | 1.0169e11 | Pa | `simon_glatzel_2` |
+| `high_simon_c` | `high_simon_c` | 1.226 | - | `simon_glatzel_2` |
+| `high_reference_pressure` | `high_reference_pressure_pa` | 0.0 | Pa | `simon_glatzel_2` |
+| `pressure` | `pressure_pa` | `[0.0]` | Pa | Interpolated |
+
+**Melt weakening**
+
+| Parameter | Config key | Default | Units | Used by |
+|---|---|---|---|---|
+| `visc_power_slope` | `fs_visc_power_slope_k` | 27000.0 | K | Spohn |
+| `visc_log10_at_solidus` | `fs_visc_log10_at_solidus` | unset (the solid's own) | log10 Pa s | Spohn |
+| `shear_power_slope` | `fs_shear_power_slope_k` | 82000.0 | K | Spohn |
+| `shear_log10_at_solidus` | `fs_shear_log10_at_solidus` | unset (the solid's own) | log10 Pa | Spohn |
+| `crit_melt_frac` | `crit_melt_frac` | 0.5 | - | Spohn, Henning |
+| `crit_melt_frac_width` | `crit_melt_frac_width` | 0.05 | - | Spohn, Henning |
+| `visc_slope_1` | `hn_visc_slope_1` | 13.5 | - | Henning |
+| `visc_falloff_slope` | `hn_visc_falloff_slope` | 370.0 | - | Henning |
+| `shear_param_1` | `hn_shear_param_1_k` | 40000.0 | K | Henning |
+| `shear_falloff_slope` | `hn_shear_falloff_slope` | 700.0 | - | Henning |
+
+**Bulk mixing**
+
+| Parameter | Config key | Default | Units | Used by |
+|---|---|---|---|---|
+| `coefficient` | `coefficient` | 1.0 | - | Compaction |
+| `exponent` | `exponent` | 1.0 | - | Compaction |
+
+Hashin-Shtrikman has no parameters. The liquid's shear modulus and viscosity come from the material's liquid phase (a phase with no shear-modulus law has a shear modulus of 0).
+
+## Python API
+
+Constructors take parameters by name or config key, as keywords or positionally in `get_parameter_info()` order. `make_melting_curve`, `make_melt_weakening`, `make_bulk_modulus_mixing`, and `make_bulk_viscosity_mixing` take `(model_name, config=None)` and resolve a name or alias case-insensitively; absent keys take the defaults. An unknown name, an unread key, or an out-of-bounds value raises `ValueError` naming the closest accepted name or key.
+
+| Member | Returns | Description |
+|---|---|---|
+| `calc_melting_temperature(pressure)` | `float` or `np.ndarray` \[K\] | Melting temperature; same shape as `pressure`. |
+| `calc_melting_slope(pressure)` | `float` or `np.ndarray` \[K Pa$^{-1}$\] | $dT_m/dP$; same shape as `pressure`. |
+| `calc_weakening(temperature, solidus, liquidus, solid_shear, solid_viscosity, liquid_shear, liquid_viscosity, melt_fraction=None)` | `(shear_modulus, viscosity)` \[Pa, Pa s\] | Temperatures in K, shear moduli in Pa, viscosities in Pa s, $\phi$ in m$^3$ m$^{-3}$. |
+| `calc_bulk_modulus(solid_bulk_modulus, liquid_bulk_modulus, framework_shear_modulus, melt_fraction)` | `float` \[Pa\] | `framework_shear_modulus` is the post-melt one. |
+| `calc_bulk_viscosity(solid_bulk_viscosity, postmelt_shear_viscosity, melt_fraction)` | `float` \[Pa s\] | |
+| `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, `save_config(path)`, `save_binary(path)`, `load_binary(path)` | | As for every law (see [Equation-of-State and Shear-Modulus Laws](../Material/material_eos.md#python-api)). |
+
+Without `melt_fraction`, `calc_weakening` uses the linear $\phi$ from the temperature and the curves, which is NaN at the melting temperature when the solidus equals the liquidus. A material treats that step itself (solid at the melting temperature, liquid above), so pass `melt_fraction` to reproduce it. The weakening and mixing laws take floats; to sweep a melting range, use a material's vectorized `calc_state` (see [Phases and Materials](../Material/materials.md#vectorized-evaluation)).
+
+`get_config_dict()` gives `model` plus every parameter by config key, ready for the factory. A material saves its laws with itself, in its `melting` table and binary record.
+
+`melting_curve_model_names()` and `melt_weakening_model_names()` list the canonical names; `TidalPy.PartialMelt.melting` also has `canonical_melting_curve_name`, `canonical_melt_weakening_name`, `bulk_modulus_mixing_model_names`, and `bulk_viscosity_mixing_model_names`.
+
+## Limits and Failure Modes
+
+- Tension ($P < P_\mathrm{ref}$), which trial central pressures of a structure solve can reach, holds $T_0$.
+- A falling Simon and Glatzel curve without a `maximum_pressure_pa`, or with one at or past $P_\mathrm{ref} - a$, raises `ValueError`, as does an `a` of 0. Past `maximum_pressure_pa` a curve holds its value there, but a material is still meant for the pressure range its curves were fitted over.
+- A non-finite pressure gives a NaN melting temperature and slope, and a material then stays solid.
+- A material refuses a liquidus below its solidus at zero pressure, where every layer without `use_pressure_melting` reads them (`ValueError`). Deeper, where the liquidus falls to or below the solidus, it melts as a step at the solidus.
+- A NaN solid value (a solid phase with no viscosity law) stays NaN through a weakening law rather than taking the liquid's.
+
 ## C++ API
 
-The laws are in `TidalPy/PartialMelt/melting_curve_.hpp`, `melt_weakening_.hpp`, and `melt_mixing_.hpp` (namespace `tidalpy`, header only).
+Header-only, namespace `tidalpy`: `TidalPy/PartialMelt/melting_curve_.hpp`, `melt_weakening_.hpp`, and `melt_mixing_.hpp`. Classes carry a `c_` prefix (`c_SimonGlatzelCurve`, `c_HenningMeltWeakening`, ...).
 
-- `c_MeltingCurveBase` declares `calc_melting_temperature(pressure)` and `calc_melting_slope(pressure)` pure virtual and provides `calc_melting_temperature_vectorize` and `calc_melting_slope_vectorize`. The free functions `c_simon_glatzel(pressure, temperature, simon_a, simon_c, reference_pressure)` and `c_simon_glatzel_slope(...)` evaluate one branch.
-- `c_MeltWeakeningBase::calc_weakening(const c_MeltWeakeningInputs&)` handles the ends of the range and the liquid floor and calls the protected `p_calc_partial(inputs, out)` inside it, the one method a weakening law implements.
-- `c_BulkModulusMixingBase::calc_bulk_modulus(solid_bulk_modulus, liquid_bulk_modulus, framework_shear_modulus, melt_fraction)` and `c_BulkViscosityMixingBase::calc_bulk_viscosity(solid_bulk_viscosity, postmelt_shear_viscosity, melt_fraction)` are pure virtual.
+- `c_MeltingCurveBase`: `calc_melting_temperature(pressure)`, `calc_melting_slope(pressure)`, and their `_vectorize` forms. `c_simon_glatzel(pressure, temperature, simon_a, simon_c, reference_pressure)` and `c_simon_glatzel_slope(...)` evaluate one branch.
+- `c_MeltWeakeningBase::calc_weakening(const c_MeltWeakeningInputs&)`: the Python arguments as one struct, returning a `c_MeltWeakeningResult` (`shear_modulus`, `viscosity`).
+- `c_BulkModulusMixingBase::calc_bulk_modulus(...)` and `c_BulkViscosityMixingBase::calc_bulk_viscosity(...)`, with the Python arguments.
+- Per family (`melting_curve`, `melt_weakening`, `bulk_modulus_mixing`, `bulk_viscosity_mixing`): `c_find_<family>(name, params)` (throws `std::invalid_argument` for an unknown name or parameter), `c_<family>_from_binary(stream, force)`, `c_<family>_canonical_name(name)`, and, for the first two, `c_<family>_model_names()`.
 
-Each family has `c_find_<family>(name, params)`, `c_<family>_from_binary(stream, force)` (used when a material is loaded), and `c_<family>_canonical_name(name)`, where `<family>` is `melting_curve`, `melt_weakening`, `bulk_modulus_mixing`, or `bulk_viscosity_mixing`; the first two also have `c_<family>_model_names()`. `c_Material` (`Material/material_.hpp`) calls the laws from its `calc_state`.
+### Adding a New Model
 
-## Serialization
-
-| Call | Result |
-|---|---|
-| `get_config_dict()` | `model` plus every parameter under its config key, ready for the factory. |
-| `save_config(path)` | That dict written as TOML. |
-| `save_binary(path)` / `load_binary(path)` | The law's TidalPy binary record, its parameters written by key. |
-
-A material saves and restores its melting laws with itself, under its `melting` table in the config dict and as optional records in its binary record.
-
-## Adding a New Model
-
-To add a weakening law named `Foo` (a melting curve or a mixing law is the same in its own header):
-
-1. Add `c_FooMeltWeakening : public c_SpecModel<c_FooMeltWeakening, c_MeltWeakeningBase>` to `melt_weakening_.hpp`: its `parameter_specs()` table, `C_CLASS_ID`, two constructors that call `p_initialize`, and `p_calc_partial`. Override `p_validate` for checks across parameters and `p_update_derived` for cached values.
-2. Reserve a unique `BinaryClassID` in `Utilities/binary/binary_.hpp`: melting curves occupy the 71X range, weakening laws 72X, bulk-modulus mixing 73X, and bulk-viscosity mixing 74X.
-3. Add one row to `c_melt_weakening_registry()`.
-4. Add a two-line Cython subclass (a docstring and `MODEL_NAME`) to `melting.pyx`, include it in the family's `ModelFamily` list, export it from `TidalPy/PartialMelt/__init__.py`, add its physics tests to `Tests/Test_PartialMelt/`, and document it here. The generic tests in `Tests/Test_Utilities/Test_Classes/test_spec_models_01.py` cover its parameters, config, binary record, and errors without changes.
+A new law is a `c_SpecModel<c_FooMeltWeakening, c_MeltWeakeningBase>` (or the family's base) with a `parameter_specs()` table, `C_CLASS_ID`, and its law (`p_calc_partial` for a weakening law; the base handles the range ends and the liquid floor). Then add a `BinaryClassID` (melting curves 71X, weakening 72X, bulk-modulus mixing 73X, bulk-viscosity mixing 74X), a registry row, a Cython subclass exported from `TidalPy/PartialMelt/__init__.py`, tests in `Tests/Test_PartialMelt/`, and a section here.
 
 ## References
 

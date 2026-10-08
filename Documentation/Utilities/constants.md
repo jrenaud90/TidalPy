@@ -2,9 +2,7 @@
 
 _Updated: 2026-09-30_
 
-TidalPy's constants come in three kinds, set at different times and from different sources. Mathematical and floating-point limits are fixed at compile time. Physical constants are pulled from third-party sources (mostly SciPy) when the package initializes, so TidalPy agrees with the reference values of those dependencies. Numerical floors and ceilings, the values that keep a solver from dividing by a vanishing modulus or evaluating a mode at zero frequency, come from the configuration file and can be changed by the user.
-
-All of them are stored in one place at the C++ level: a struct of static members in `constants_.hpp`, reachable by every compiled module through the shared pointer `tidalpy_config_ptr`, so a value set from Python reaches code running inside a `nogil` inner loop without a lookup.
+TidalPy's constants come in three kinds. Mathematical and floating-point limits are fixed at compile time. Physical constants are read from SciPy (mostly) when the package initializes, so TidalPy agrees with its dependencies. Numerical floors and ceilings, which keep a solver from dividing by a vanishing modulus or evaluating a mode at zero frequency, come from the configuration file and can be changed. A value set from Python reaches every compiled module.
 
 ## Python Usage
 
@@ -21,15 +19,15 @@ constants.seconds_per_myr   # [s]    one Julian mega-year, exact
 constants.min_frequency     # [rad s-1] configurable floor
 ```
 
-Most constants have a short alias beside the descriptive name (`M_sol` for `mass_solar`, `Au` for `au`, `SBC` for `sbc`, `k` for `k_boltzmann`), because both spellings appear throughout the literature. They refer to the same value.
+Most constants also have a short alias (`M_sol` for `mass_solar`, `Au` for `au`, `SBC` for `sbc`, `k` for `k_boltzmann`) with the same value.
 
-The corresponding C++ names carry a `d_` prefix (indicating they are doubles) and full capitals: `d_MASS_SOLAR`, `d_LUMINOSITY_SOLAR`, `d_PI`, `d_NAN`, `d_EPS`. A physics module reads them through `TidalPyConstants::d_MASS_SOLAR` for the compile-time values and through `tidalpy_config_ptr->d_G` for the runtime ones.
+In C++ the names carry a `d_` prefix and full capitals (`d_MASS_SOLAR`, `d_PI`, `d_NAN`, `d_EPS`). Compile-time values are read as `TidalPyConstants::d_MASS_SOLAR` and runtime ones through `tidalpy_config_ptr->d_G`.
 
 ## Compile-Time and Runtime Values
 
 ### Compile-Time Values
 
-Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the Solar System body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values. The number of seconds in a Julian mega-year is compile-time as well, because the Julian year is exact by definition.
+Mathematical constants ($\pi$, infinity, NaN), floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count), the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity (IAU nominal values) are fixed at compile time. So is the number of seconds in a Julian mega-year, which is exact.
 
 ### Values from SciPy
 
@@ -37,20 +35,14 @@ The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant
 
 ### Values from Configuration
 
-The numerical guards are read from the `[numerical]` section of the configuration file: the minimum and maximum tidal frequency, the minimum modulus and solid rigidity, the minimum layer thickness, the shared numerical floor, the layer-boundary continuity tolerance, and the other settings listed on the [configuration page](../Overview/2_TidalPy_Configurations.md#numerical-settings). The `[eos_solver]` and `[radial_solver]` defaults are stored in the same struct. These are the thresholds below which a quantity is treated as zero or a mode is dropped, and their appropriate values depend on the problem, so they are exposed rather than hard-coded.
+The numerical guards (the frequency extremes, the minimum modulus and solid rigidity, the minimum layer thickness, the numerical floor, and the rest) and the `[eos_solver]` and `[radial_solver]` defaults are read from the configuration file (see the [configuration page](../Overview/2_TidalPy_Configurations.md#numerical-settings)). They are the thresholds below which a quantity counts as zero or a mode is dropped, and the right values depend on the problem.
 
-The numerical floor is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `Rheology`, `Cooling`, and `Radiogenics` all read it. A zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, is far below any physical value, so in practice it only replaces a true zero.
+The numerical floor is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, read by `Rheology`, `Cooling`, and `Radiogenics` where a zero forcing frequency, layer thickness, or half life would otherwise divide to infinity. Its default, `1e-100`, only replaces a true zero in practice.
 
 ## Updating
 
-`update_constants()` repopulates the shared C++ struct. It copies the `[numerical]`, `[eos_solver]`, and `[radial_solver]` sections of `TidalPy.config` (loaded from `TidalPy_Configs.toml`) into the struct, reads the physical constants from SciPy, and refreshes the Python names in `TidalPy.constants`.
-
-It runs automatically when the package initializes and whenever `TidalPy.reinit` changes the configuration. Call it again after editing `TidalPy.config` directly in a running session. Each call reconfigures in place.
+`update_constants()` copies the `[numerical]`, `[eos_solver]`, and `[radial_solver]` sections of `TidalPy.config` into the C++ code, rereads the physical constants from SciPy, and refreshes the Python names in `TidalPy.constants`. It runs when the package initializes and whenever `TidalPy.reinit` changes the configuration. Call it yourself after editing `TidalPy.config` directly in a running session.
 
 ## Files
 
-Where the various variables are defined.
-
-- [`constants_.hpp`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants_.hpp) for the compile-time values and the runtime struct layout.
-- [`constants.pyx`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants.pyx) for the Python names and their aliases.
-- [`defaultc.py`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/defaultc.py) for the default values of everything the configuration file controls. See [TidalPy Configurations](../Overview/2_TidalPy_Configurations.md).
+[`constants_.hpp`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants_.hpp) holds the compile-time values, [`constants.pyx`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants.pyx) the Python names and aliases, and [`defaultc.py`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/defaultc.py) the configuration defaults.

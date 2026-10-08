@@ -11,7 +11,7 @@ _Updated: 2026-10-02_
 
 ## First Calculation
 
-TidalPy builds worlds out of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models, from TOML files. Several worlds are bundled with the package (`TidalPy.Structures.available_worlds()` lists them). The example below builds Io, solves its interior, places it in orbit about Jupiter, and finds its Love numbers, tidal heating, and orbital rates.
+TidalPy builds worlds from TOML files as stacks of layers, each made of a material (an equation of state, moduli, viscosities, and melting laws) and carrying its own physics models. Several worlds are bundled (`TidalPy.Structures.available_worlds()` lists them). The example builds Io, solves its interior, places it in orbit about Jupiter, and finds its Love numbers, tidal heating, and orbital rates.
 
 ```python
 from TidalPy.Structures import System, build_world
@@ -46,7 +46,7 @@ TidalPy computes rates only; to evolve a system in time, integrate these rates w
 
 ## Logging to a File
 
-TidalPy's messages (warnings from a radial solve, for example) go to the console by default. To also write them to a file of your choosing for the rest of the session, call `init_logger` after importing TidalPy:
+TidalPy's messages (warnings from a radial solve, for example) go to the console. To also write them to a file of your choosing for the rest of the session, call `init_logger` after importing TidalPy:
 
 ```python
 from pathlib import Path
@@ -67,17 +67,17 @@ init_logger({                                     # Replaces the current console
 flush_logger()                                    # Write buffered info and debug lines before reading the file
 ```
 
-Warnings and errors are written to the file immediately. Lower levels are buffered until `flush_logger` runs or the interpreter exits (so calling `flush_logger` is not required unless you want to look at a log while an interpreter is still running, e.g., while using a Jupyter notebook). The file is appended to, not overwritten. `TidalPy.reinit()` returns the logger to the settings in your configuration file. To write a timestamped log file to the TidalPy data directory in every session, set `write_log_to_disk = true` in the `[logging]` section of the configuration file instead (see [Configurations](2_TidalPy_Configurations.md)). The levels and the other logging functions are described on the [Logging](../Utilities/logging.md) page.
+Warnings and errors reach the file immediately. Lower levels are buffered until `flush_logger` runs or the interpreter exits, so call it only to read a log while the interpreter is still running (in a Jupyter notebook, say). The file is appended to, not overwritten. `TidalPy.reinit()` returns the logger to your configuration file's settings. To write a timestamped log file in every session, set `write_log_to_disk = true` in the `[logging]` section of the configuration file instead (see [Configurations](2_TidalPy_Configurations.md)). The [Logging](../Utilities/logging.md) page covers the levels and the other functions.
 
 ## Learning More
 
-The module pages in this documentation are the reference for each part of the package. The notebooks in the `Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos) walk through the package in order, from configuration and world building to Love numbers, 3D tidal heating, and coupled thermal-orbital evolution. The `Benchmarks` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Benchmarks) compares TidalPy against published results. Users coming from TidalPy 0.7.X should read the [migration guide](../future_structure.md).
+The module pages are the reference for each part of the package. The notebooks in the `Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos) walk through it in order, from configuration and world building to Love numbers, 3D tidal heating, and coupled thermal-orbital evolution. The `Benchmarks` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Benchmarks) compares TidalPy against published results. Users coming from TidalPy 0.7.X should read the [migration guide](../future_structure.md).
 
-If you find an issue, have a question, or want to share an idea for a new feature, please open a GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and users. Contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
+For an issue, a question, or a feature idea, please open a [GitHub issue](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a Slack channel for developers and users; email [TidalPy@gmail.com](mailto:TidalPy@gmail.com) for an invitation.
 
 ## Package Structure
 
-TidalPy is divided into several modules, some of which rely on each other.
+TidalPy is divided into these modules:
 
 - `TidalPy.Structures`: layers, worlds (layered, gas giant, and star), and the `System` that links them; the TOML world builder and the bundled worlds. See [Structures](../Structures/index.md).
 - `TidalPy.Material`: equation-of-state and shear-modulus laws, the phases and materials built from them, MatPack (the bundled materials), and the whole-planet EOS solver. See [Materials](../Material/index.md).

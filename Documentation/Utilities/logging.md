@@ -2,16 +2,9 @@
 
 _Updated: 2026-10-06_
 
-TidalPy's compiled code logs through [spdlog](https://github.com/gabime/spdlog), with a thin Cython wrapper so Python can configure and write to the same logger. A single named logger, `"TidalPy"`, is created at package startup and shared by every compiled extension.
+TidalPy logs through one C++ logger, `"TidalPy"`, built on [spdlog](https://github.com/gabime/spdlog) and shared by every compiled extension. Most messages come from C++ code running without the interpreter lock, where Python's `logging` cannot be called, so Python and Cython code write to the same C++ logger through the functions below. Package startup and `TidalPy.reinit` configure it from the `[logging]` section of `TidalPy_Configs.toml` (see [Configurations](../Overview/2_TidalPy_Configurations.md#logging)).
 
-Most of the code producing the messages runs in C++, often with the interpreter lock released, so a warning raised inside a radial solve cannot call back into Python's `logging`. The logging therefore lives on the C++ side, and the Python entry points let Cython and Python code reach the same sinks.
-
-```
-TidalPy.__init__
-  -> init_logger(config)          Python, in logger.pyx
-       -> cy_init_logger(config)  C++, in logger_.hpp
-            -> spdlog logger -> distribution sink -> console, and optionally a file
-```
+spdlog writes to the console and the log file directly, so Python's `logging` handlers and pytest's `caplog` never see TidalPy's messages. Use [`capture_log`](logging.md#capture_logpathnone-levelwarning) to inspect them.
 
 ## Python API
 
@@ -40,9 +33,11 @@ shutdown_logger()          # flush and turn the logger off
 init_logger(get_logger_config())   # the current configuration, as init_logger takes it: turns the logger back on
 ```
 
+Level names are case-insensitive: `trace`, `debug`, `info`, `warning` or `warn`, `error`, `critical`, and `off`. Integers 0 through 6 are accepted in their place.
+
 ### `capture_log(path=None, level="warning")`
 
-`TidalPy.capture_log` (also `TidalPy.Utilities.logging.capture_log`) is a context manager that collects the log messages of a block of code. spdlog writes to the console and the log file directly, so Python's `logging` handlers and pytest's `caplog` never see TidalPy's messages; `capture_log` is how a script or a notebook inspects them.
+`TidalPy.capture_log` (also `TidalPy.Utilities.logging.capture_log`) is a context manager that collects the log messages of a block of code:
 
 ```python
 import TidalPy
@@ -61,11 +56,11 @@ with TidalPy.capture_log() as records:           # Warnings and above, by defaul
 print(len(records), records[0])                  # Each record as the log file holds it: time, logger, level, text
 ```
 
-The block's messages at `level` and above go to a log file (`path`, appended to, or a temporary file removed afterward), and the list the block receives is filled with them when it ends, one entry per message. The console keeps printing as before, and a log file the logger was writing receives nothing during the block. On exit, through an exception included, the logger returns to the configuration it had on entry (`get_logger_config()`).
+The block's messages at `level` and above go to a log file (`path`, appended to, or a temporary file removed afterward), and the list fills with them, one entry per message, when the block ends. The console keeps printing, and a log file the logger was writing receives nothing during the block. On exit, through an exception included, the logger returns to its configuration on entry.
 
 ### `init_logger(config=None)`
 
-Initialize or reconfigure the logger. It is safe to call repeatedly. Each call replaces the console and file sinks and resets the global threshold of `set_log_level` to `trace`. `TidalPy.reinit()` re-applies the package settings.
+Initialize or reconfigure the logger; safe to call repeatedly. Each call replaces the console and file sinks and resets the global threshold of `set_log_level` to `trace`. `TidalPy.reinit()` re-applies the package settings.
 
 | Config key | Type | Default | Description |
 |---|---|---|---|
@@ -75,35 +70,35 @@ Initialize or reconfigure the logger. It is safe to call repeatedly. Each call r
 | `log_file_path` | str | `""` | Absolute path to that file. Non-ASCII paths work on every platform. |
 | `console_pending` | bool | `False` | Keep the console's messages for `print_pending_messages` instead of writing them to stdout, as a notebook does (see [Notebooks](#notebooks)). |
 
-`get_logger_config()` returns the current configuration in this form (the last `init_logger` call's, with the levels set since by `set_console_level` and `set_file_level`), so `init_logger(get_logger_config())` restores it. `resolve_log_level(level)` converts a level name or integer to the integer.
-
-Level names are case-insensitive: `trace`, `debug`, `info`, `warning` or `warn`, `error`, `critical`, and `off`. Integers 0 through 6 are accepted in their place.
+`get_logger_config()` returns the current configuration in this form (the last `init_logger` call's, with any levels set since), so `init_logger(get_logger_config())` restores it. `resolve_log_level(level)` converts a level name or integer to the integer.
 
 ### Changing Levels at Runtime
 
-Levels filter in two places. The logger level is a global threshold. A message below it reaches no sink. Each sink then applies its own level.
+Levels filter twice: the logger level is a global threshold, below which a message reaches no sink, and each sink then applies its own level.
 
-- `set_log_level(level)` sets the global threshold only. The sinks keep their levels, so it can only narrow what they write. In a notebook, where the console sink starts at warnings, `set_log_level("info")` leaves info messages silent.
-- `set_console_level(level)` sets the console sink's level, for example `set_console_level("info")` to see info messages in a notebook. It returns `True`.
+- `set_log_level(level)` sets the global threshold only, so it can only narrow what the sinks write. In a notebook, where the console sink starts at warnings, `set_log_level("info")` leaves info messages silent.
+- `set_console_level(level)` sets the console sink's level (`set_console_level("info")` shows info messages in a notebook) and returns `True`.
 - `set_file_level(level)` sets the file sink's level. It returns `False` and changes nothing when no log file is being written.
 
-Each takes a level name or integer, as in the table above. The next `init_logger` call, including `TidalPy.reinit()`, restores the configured sink levels and resets the global threshold to `trace`.
+The next `init_logger` call, including `TidalPy.reinit()`, restores the configured sink levels and resets the global threshold to `trace`.
 
 ### `log_message(level, message)` and Level Helpers
 
-`log_trace`, `log_debug`, `log_info`, `log_warning`, `log_error`, and `log_critical` each take just the message. `log_message` takes the level first, named or as an integer. `log_message("off", ...)` emits nothing. These are what TidalPy's Cython and Python code should use, so their output interleaves correctly with the messages the C++ macros emit.
+`log_trace`, `log_debug`, `log_info`, `log_warning`, `log_error`, and `log_critical` take just the message; `log_message` takes the level first, by name or integer (`"off"` emits nothing). TidalPy's Cython and Python code use these, so their output interleaves correctly with the C++ messages.
 
 ### `flush_logger()` and `shutdown_logger()`
 
-Warnings, errors, and critical messages are flushed to every sink as they are written, so they reach the log file even if the process later crashes. Trace, debug, and info lines are buffered, so a log file read while the interpreter is still running (e.g., while using a Jupyter notebook) may be missing them until `flush_logger` runs.
+Warnings, errors, and critical messages are flushed as they are written, so they reach the log file even if the process later crashes. Trace, debug, and info lines are buffered: a log file read while the interpreter runs (in a Jupyter notebook, say) may lack them until `flush_logger` runs. A normal interpreter exit flushes them; a crash loses them.
 
-Importing the logging module registers `flush_logger` with `atexit`, so a normal interpreter exit writes the buffered lines. A crash skips `atexit`, and buffered lines below the warning level are lost.
-
-`shutdown_logger` flushes and turns the logger off, making every `TIDALPY_LOG_*` macro a no-op. The logger keeps its address, so an extension imported while it is off is still wired to it, and a later `init_logger` call (or `set_log_level`) turns it back on for every extension. It is not needed at interpreter exit.
+`shutdown_logger` flushes and turns the logger off for every extension; a later `init_logger` (or `set_log_level`) turns it back on. It is not needed at interpreter exit.
 
 ### Notebooks
 
-A Jupyter kernel does not show what compiled code writes to the process's stdout on every platform (a Windows kernel never does), while Python's `sys.stderr` reaches the running cell. In a notebook the console sink therefore keeps its messages (`console_pending`), and TidalPy registers `print_pending_messages` as an IPython `post_run_cell` hook that writes them below the cell once it finishes. By default only warnings and above print there (`[logging] notebook_console_level`); `print_log_notebook = true` prints everything at `console_level` instead. A notebook message prints as `[TidalPy] [warning] <text>`, without the timestamp the console and the log file carry, and ends with an LF on every platform, so re-running a notebook leaves its saved output unchanged.
+A Jupyter kernel does not show what compiled code writes to stdout on every platform (a Windows kernel never does). In a notebook the console sink therefore holds its messages (`console_pending`), and TidalPy prints them below the cell once it finishes. By default only warnings and above print there (`[logging] notebook_console_level`); `print_log_notebook = true` prints everything at `console_level`. A notebook message prints as `[TidalPy] [warning] <text>`, without the timestamp of the console and log file, and ends with an LF on every platform, so re-running a notebook leaves its saved output unchanged.
+
+## Configuration
+
+The `[logging]` keys, their defaults, and the log file location are listed on the [Configurations](../Overview/2_TidalPy_Configurations.md#logging) page. The log file is named `TidalPy_<YYYYMMDD-HHMMSS>.log`, and test mode (the `TIDALPY_TEST_MODE` environment variable) never writes one. A test that asserts on log output reads a log file, as `capture_log` and the `spdlog_text` fixture of `Tests/conftest.py` do.
 
 ## C++ API
 
@@ -115,13 +110,11 @@ TIDALPY_LOG_WARN("EOS data not populated for layer {}", index);
 TIDALPY_LOG_ERROR("Failed to open binary file: {}", path);
 ```
 
-The macros are `TIDALPY_LOG_TRACE`, `TIDALPY_LOG_DEBUG`, `TIDALPY_LOG_INFO`, `TIDALPY_LOG_WARN`, `TIDALPY_LOG_ERROR`, and `TIDALPY_LOG_CRITICAL`. Each checks for a null logger and does nothing if one has not been created, so they are safe to call from any translation unit at any point in startup. Format strings use the Python-style braces that spdlog's bundled `fmt` provides.
+The macros are `TIDALPY_LOG_TRACE`, `TIDALPY_LOG_DEBUG`, `TIDALPY_LOG_INFO`, `TIDALPY_LOG_WARN`, `TIDALPY_LOG_ERROR`, and `TIDALPY_LOG_CRITICAL`. Each does nothing before the logger exists, so they are safe anywhere in startup, and cheap enough to leave at debug level inside a solver loop. Format strings use spdlog's Python-style braces. Logging from several C++ threads, and reconfiguring while they log, is safe: each message goes wholly to the old sinks or wholly to the new ones.
 
 ## Sharing the Logger Pointer Across Extensions
 
-`logger.pyx` creates the logger at import time and stores a raw pointer to it. The macros use that pointer directly instead of looking the logger up in spdlog's registry on every call, which keeps a debug-level log statement cheap enough to leave inside a solver loop.
-
-As a result, every Cython extension using C++ logging has to wire itself to that pointer at module-init level, outside any function:
+Every Cython extension that logs from C++ must wire itself to the shared logger at module-init level, outside any function:
 
 ```cython
 from TidalPy.Utilities.logging.logger cimport (
@@ -129,33 +122,6 @@ from TidalPy.Utilities.logging.logger cimport (
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 ```
 
-`get_tidalpy_logger_address` is a `cdef api` function, the same mechanism the shared config pointer uses. Because another module must `cimport` it, Cython imports the logger module first, which guarantees the logger exists before its address is taken.
+On Windows each compiled extension is a separate DLL with its own copy of the header-only logger pointer, and this call connects it to the shared logger. On Linux and macOS the pointer is already shared and the call does nothing, so the same source works everywhere. The `cimport` also makes Cython import the logger module first, so the logger exists before its address is taken.
 
-On Linux and macOS the inline variable is process-wide and the pointer is already shared, so the call is a harmless no-op. On Windows each compiled extension is a separate DLL with its own copy of the variable, and the call is what connects that DLL to the shared logger. Writing it unconditionally makes the same source work on all three.
-
-## Thread Safety
-
-The logger object, and so the address every extension holds, never changes after it is created. It writes to a single spdlog distribution sink (`dist_sink_mt`), whose children are the console sink and the optional file sink. Reconfiguring while C++ threads are logging is safe. Each message goes entirely to the old sinks or entirely to the new ones. The configuration functions (`init_logger`, the level setters, `shutdown_logger`) are called from Python with the interpreter lock held, so they never race each other.
-
-## Configuration
-
-Package initialization (and `TidalPy.reinit`) configures this logger from the `[logging]` section of `TidalPy_Configs.toml`:
-
-```toml
-[logging]
-use_cwd = true               # log directory: <run output dir>/Logs, or the TidalPy data directory's Logs folder
-write_log_to_disk = false    # write a timestamped log file
-file_level = "debug"
-console_level = "info"
-print_log_notebook = false   # in a notebook, print every message at console_level when true
-notebook_console_level = "warning"   # otherwise a notebook prints this level and above (and no lower than console_level)
-write_log_notebook = false   # no log file from a notebook unless true
-```
-
-The levels are `"trace"`, `"debug"`, `"info"`, `"warning"`, `"error"`, `"critical"`, and `"off"`. The log file is named `TidalPy_<YYYYMMDD-HHMMSS>.log`. Test mode (the `TIDALPY_TEST_MODE` environment variable) disables the file sink entirely.
-
-spdlog writes to the console directly rather than through Python's `logging`, so pytest's `caplog` does not see these messages. A test that needs to assert on log output enables the file sink and reads the file, which is what `capture_log` and the `spdlog_text` fixture of `Tests/conftest.py` do.
-
-## Dependencies
-
-[spdlog v1.15.3](https://github.com/gabime/spdlog/releases/tag/v1.15.3), a git submodule at `Dependencies/spdlog`. It is header only, so there is no separate compilation step.
+spdlog [v1.15.3](https://github.com/gabime/spdlog/releases/tag/v1.15.3) is header only and ships as a git submodule at `Dependencies/spdlog`.

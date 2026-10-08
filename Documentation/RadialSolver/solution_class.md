@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
+Every radial solve returns a `RadialSolverSolution` (from `TidalPy.RadialSolver.rs_solution`), holding the solve status, the equation-of-state result, the radial functions, and the Love numbers. `radial_solver`, `homogeneous_love_numbers`, and a world's released radial storage all return it.
 
 ```python
 solution = radial_solver(*build_data, degree_l=2, solve_for=("tidal", "loading"))
@@ -19,72 +19,70 @@ Check `success` before trusting anything else. A failed solve returns normally u
 |---|---|---|
 | `success` | bool | The radial solve converged. |
 | `error_code` | int | `0` when there was no error. |
-| `message` | str | Status text, and the first thing to read after a failure. See the troubleshooting section of [Calculating Love Numbers](calculating_love_numbers.md). |
-| `surface_solve_amplification` | float | Worst-case error amplification of the surface boundary-condition solve (shooting method). Near one is healthy. Large values mean the solution constants are cancelling, so roundoff and integration error are being amplified into the Love numbers, and the achievable accuracy is roughly this number times machine epsilon. It measures cancellation only so does not capture all types of semi-failures (like singular matrices). |
-| `surface_solve_rcond` | float | Reciprocal condition number of the surface boundary-condition system (shooting method; NaN for the propagation matrix or a solve that stopped before the surface). Each radial function is scaled by its largest magnitude across the independent solutions and each solution by its largest scaled radial function first, so the value depends on neither units nor how the starting solutions were normalized. At most one; a healthy solve reads about `1e-3` to `1e-1`. The solution constants carry the integration error divided by roughly this value, so a value below the integration `rtol` is logged as poorly conditioned, and a value below `[numerical] minimum_surface_rcond` (default `1e-12`) fails the solve with error code `-13`. A degree-1 loading solve measures the system with its frame row (y5 in place of y6), which is what it solves. |
-| `surface_frame_residual` | float | A degree-1 loading solve fixes its reference frame with y5 = 1 at the surface in place of its last surface condition; this is how far that condition is from met, relative to the y6 condition, worst across the solved boundary conditions. About roundoff when every layer is static, about $\omega^2 R / g$ when some layers are dynamic and others static, and warned about above `1e-2`. NaN for any other solve. See [Degree-1 Load Love Numbers](calculating_love_numbers.md#degree-1-load-love-numbers). |
-| `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer per independent solution. Solid layers use three solutions, dynamic liquid layers two, static liquid layers one; unused entries are zero. A few hundred per solution per layer is normal, a few thousand is tolerable, and ten thousand or more means the solve is likely unstable. |
-| `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | Assemble a readable summary of the solve. Printing it is a quick triage; logging sends the same text to TidalPy's log. |
+| `message` | str | Status text; read it first after a failure. See the troubleshooting section of [Calculating Love Numbers](calculating_love_numbers.md). |
+| `surface_solve_amplification` | float | Worst-case error amplification of the surface boundary-condition solve (shooting method). Near one is healthy; large values mean the solution constants cancel, and the achievable accuracy is roughly this number times machine epsilon. It measures cancellation only, so it misses other semi-failures (like singular matrices). |
+| `surface_solve_rcond` | float | Reciprocal condition number of the surface system (shooting method; NaN for the propagation matrix or a solve that stopped early), independent of units and of the starting normalization. At most one; healthy is about `1e-3` to `1e-1`. The constants carry the integration error divided by roughly this value: below the integration `rtol` is logged as poorly conditioned, below `[numerical] minimum_surface_rcond` (default `1e-12`) fails the solve (error code `-13`). Degree-1 loading measures the system with its frame row (y5 in place of y6). |
+| `surface_frame_residual` | float | Degree-1 loading only (NaN otherwise): how far the surface condition replaced by the frame row is from met, relative to the y6 condition, worst over the boundary conditions. About roundoff when every layer is static, about $\omega^2 R / g$ with mixed static and dynamic layers; warned above `1e-2`. See [Degree-1 Load Love Numbers](calculating_love_numbers.md#degree-1-load-love-numbers). |
+| `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer per independent solution (three in a solid, two in a dynamic liquid, one in a static liquid; unused entries are zero). A few hundred is normal, a few thousand tolerable, ten thousand or more likely unstable. |
+| `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | A readable summary of the solve, printed, logged, or both. |
 
 ## The Interior
 
-The solver runs an equation of state before the deformation problem, and keeps the result. These are the profiles that produced the moduli the deformation solve used, so they should be inspected when a solve behaves oddly. See the [equation of state](../Material/material_eos.md) documentation for the models themselves.
+The solution keeps the equation-of-state result behind the moduli the solve used; inspect it when a solve behaves oddly (models: [equation of state](../Material/material_eos.md)).
 
 | Member | Meaning |
 |---|---|
 | `eos_success`, `eos_error_code`, `eos_message` | Outcome of the equation-of-state solve. |
 | `eos_pressure_error`, `eos_iterations`, `eos_steps_taken` | Convergence of the interior pressure iteration. |
-| `get_gravity(r)`, `get_pressure(r)`, `get_mass(r)`, `get_moi(r)`, `get_density(r)` | The interior at radius `r` [m], a float or an array of radii. The solution keeps the solved EOS it came from and evaluates it, so nothing is tabulated and any radius may be asked for. |
-| `get_shear_modulus(r)`, `get_bulk_modulus(r)` | The material's **static** (unrelaxed) moduli [Pa] at `r`. These are frequency-independent, which is why they are what the dense equation-of-state readout carries. |
-| `get_complex_shear_modulus(r)`, `get_complex_bulk_modulus(r)` | The **complex** moduli [Pa] at `r`, as this solve used them. |
-| `love_frequency` | The forcing frequency [rad s-1] the complex moduli above are evaluated at; NaN when the solve carried no rheology. |
-| `get_shear_viscosity(r)`, `get_bulk_viscosity(r)` | Viscosities [Pa s] at `r`; NaN when the material names none. |
-| `sample_radii(num_points=0)` | The radii [m] `result` was sampled on, used to plot a radius array passed to `radial_solver`, or the world's solve grid for a released solution. With `num_points`, that many evenly spaced radii across the body instead. |
+| `get_gravity(r)`, `get_pressure(r)`, `get_mass(r)`, `get_moi(r)`, `get_density(r)` | The interior at any radius `r` [m] (a float or an array). |
+| `get_shear_modulus(r)`, `get_bulk_modulus(r)` | The **static** (unrelaxed, frequency-independent) moduli [Pa]. |
+| `get_complex_shear_modulus(r)`, `get_complex_bulk_modulus(r)` | The **complex** moduli [Pa] as this solve used them. |
+| `love_frequency` | The forcing frequency [rad s-1] of those complex moduli; NaN when the solve carried no rheology. |
+| `get_shear_viscosity(r)`, `get_bulk_viscosity(r)` | Viscosities [Pa s]; NaN when the material names none. |
+| `sample_radii(num_points=0)` | The radii [m] `result` was sampled on (the radius array passed to `radial_solver`, or the world's solve grid for a released solution). With `num_points`, that many evenly spaced radii across the body. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
-| `moi_factor` | The moment of inertia factor $C/(MR^2)$, with $C$ the moment of inertia `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
-| `moi_sphere_ratio` | The same moment of inertia measured against a uniform sphere of equal mass and radius, $C/(0.4\, MR^2)$: exactly 1 when uniform, below 1 when centrally condensed. It is 2.5 times `moi_factor`. |
+| `moi_factor` | Moment of inertia factor $C/(MR^2)$, with $C$ = `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, smaller the more mass sits near the center. |
+| `moi_sphere_ratio` | $C/(0.4\, MR^2)$, the moment of inertia against a uniform sphere of equal mass and radius: 1 when uniform, below 1 when centrally condensed (2.5 times `moi_factor`). |
 | `central_pressure`, `surface_pressure`, `surface_gravity` | Boundary values. |
-| `eos_call(radius)` | The dense equation-of-state and material state at an SI radius [m] (a float, or an array for arrays out) as a dict of named fields: `gravity`, `pressure`, `mass`, `moi`, `density`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, `temperature`, `heat_flow`, `melt_fraction`, and the `complex_shear_modulus` and `complex_bulk_modulus` the solve used at `love_frequency`. Evaluated from the solver's own interpolant; NaN outside the body. |
+| `eos_call(radius)` | Every field of the interior at an SI radius [m] (float or array) as a dict: `gravity`, `pressure`, `mass`, `moi`, `density`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, `temperature`, `heat_flow`, `melt_fraction`, and the `complex_shear_modulus` and `complex_bulk_modulus` used at `love_frequency`. NaN outside the body. See [Dense Radial Solutions](dense_radial_solution.md). |
 
 ## Radial Functions
 
-`result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions of the first boundary condition, then the six of the next, and so on. Index it by name instead when you have more than one. TidalPy follows the Takeuchi and Saito (1972) convention, so in a solid layer these are the familiar y1 through y6.
+`result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions (Takeuchi and Saito 1972 convention) of the first boundary condition, then the next six, and so on. With more than one, index by name.
 
-Liquid layers do not define all six. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; its y1, y2, y3, y4, and y6 are all NaN, and the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. The free surface of a static liquid top layer is the exception: there y2 is the surface boundary condition and $y_2 = \rho (g y_1 - y_5)$, so y1 and y2 are defined and h is finite (for a tidal solve h = 1 + k), while y3, and with it l, stays NaN. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
+Liquid layers do not define all six; undefined entries are NaN, which keeps the shape uniform. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. At the free surface of a static liquid top layer, y2 is the surface boundary condition and $y_2 = \rho (g y_1 - y_5)$, so y1 and y2 are defined and h is finite (for a tidal solve h = 1 + k), while y3, and with it l, stays NaN.
 
 ```python
 solution.result                            # (num_ytypes * 6, num_slices)
 solution["tidal"]                          # the tidal block by name, always (6, num_slices)
 solution["loading"]                        # the loading block, if it was solved for
 solution.get_radial_solution(1.5e6)        # complex y1..y6 at one radius [m]
-solution.get_radial_solution_array(radii)  # (n, 6) at many radii, all in C++
+solution.get_radial_solution_array(radii)  # (n, 6) at many radii
 ```
 
-A solve run with `love_only=True` keeps only its Love numbers and surface values (`love_only` reports it), so `result`, indexing by name, `get_radial_solution`, `get_radial_solution_array`, and `plot_ys` raise `ValueError` there. The interior members above still answer.
-
-The two dense getters evaluate the shooting method's per-layer interpolants, so they are accurate anywhere, including between grid slices. They are the recommended way to ask for values at a radius; see [Dense Radial Solutions](dense_radial_solution.md).
+The two dense getters are accurate at any radius, including between grid slices, and are the recommended way to ask for values at a radius (see [Dense Radial Solutions](dense_radial_solution.md)). A solve run with `love_only=True` (reported by `love_only`) keeps only the Love numbers and surface values: `result`, indexing by name, the dense getters, and `plot_ys` raise `ValueError`, while the interior members still answer.
 
 ## Love Numbers
 
-`love` is a complex array shaped `(num_solve_for, 3)`: the first axis follows the order you passed to `solve_for`, and the second is k, h, l. The shortcuts return scalars when you solved for one boundary condition and arrays when you solved for several.
+`love` is a complex array shaped `(num_solve_for, 3)`: the first axis follows the order of `solve_for`, the second is k, h, l. The shortcuts return scalars for one boundary condition and arrays for several.
 
 | Member | Meaning |
 |---|---|
 | `love` | The full block, `(num_solve_for, 3)`. |
 | `k`, `h`, `l` | Potential, radial displacement, and tangential displacement Love numbers. |
-| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective dissipation quality factor, $-s \lvert k \rvert / \mathrm{Im}\, k$ with $s$ the sign of $\mathrm{Re}\, k$, which is $\lvert k \rvert / (-\mathrm{Im}\, k)$ for a positive Love number such as the tidal k. A dissipative response has a positive quality factor for either sign of the Love number: the loading k' and h' are negative, and their imaginary part is positive when they lag. Infinite when the imaginary part is zero. `Q == Q_k`. |
-| `lag_k`, `lag_h`, `lag_l`, `lag` | Phase lag \[rad\], $\mathrm{atan2}(-s\, \mathrm{Im}\, k, \lvert \mathrm{Re}\, k \rvert)$ with $s$ as above, so a dissipative response has a positive lag for either sign of the Love number. `lag` follows k. |
-| `degree_l` | The harmonic degree that was solved. |
+| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective quality factor, $-s \lvert k \rvert / \mathrm{Im}\, k$ with $s$ the sign of $\mathrm{Re}\, k$ ($\lvert k \rvert / (-\mathrm{Im}\, k)$ for the positive tidal k). Positive for a dissipative response of either sign (the loading k' and h' are negative, with a positive imaginary part when they lag); infinite when the imaginary part is zero. `Q == Q_k`. |
+| `lag_k`, `lag_h`, `lag_l`, `lag` | Phase lag \[rad\], $\mathrm{atan2}(-s\, \mathrm{Im}\, k, \lvert \mathrm{Re}\, k \rvert)$ with $s$ as above, positive for a dissipative response of either sign. `lag` follows k. |
+| `degree_l` | The harmonic degree solved. |
 
 ## Plotting
 
-Both methods wrap [`Utilities.graphics`](../Utilities/graphics.md) and return the matplotlib figure and axes, so you can keep adjusting them. Extra keyword arguments pass straight through.
+Both methods wrap [`Utilities.graphics`](../Utilities/graphics.md), pass extra keyword arguments through, and return the matplotlib figure and axes.
 
 ```python
-solution.plot_ys()                                             # Plot of the six radial functions against radius
-solution.plot_ys(plot_imaginary=True, benchmarks="tobie2005")  # Used to compare to Tobie et al. (2005)
-solution.plot_interior(planet_name="Enceladus")                # Plot of EOS results: gravity, density, pressure, moduli
+solution.plot_ys()                                             # The six radial functions against radius
+solution.plot_ys(plot_imaginary=True, benchmarks="tobie2005")  # Compare to Tobie et al. (2005)
+solution.plot_interior(planet_name="Enceladus")                # EOS results: gravity, density, pressure, moduli
 ```
 
-`plot_ys` is a fast instability check. A converged solve gives smooth curves; large spikes, ringing, or kinks that do not follow the layer structure mean the integration did not converge. Keep in mind that it is not unusual to get spikes near liquid-solid layer boundaries even in stable solutions. `plot_interior` needs a successful equation-of-state solve, and both raise an informative error rather than returning nothing when the underlying solve failed.
+`plot_ys` is a fast instability check: large spikes, ringing, or kinks that do not follow the layer structure mean the integration did not converge, though spikes near liquid-solid boundaries can occur in stable solutions. `plot_interior` needs a successful equation-of-state solve; both raise an informative error when the solve failed.

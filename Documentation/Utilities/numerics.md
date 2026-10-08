@@ -2,9 +2,7 @@
 
 _Updated: 2026-10-01_
 
-Three small C++ functions, in the header-only `numerics_.hpp`, that the physics modules call in place of their standard-library equivalents.
-
-There is no Python or Cython wrapper. This is infrastructure used from inside C++ model code.
+Three small C++ functions, in the header-only `numerics_.hpp`, that the physics modules call in place of their standard-library equivalents. There is no Python wrapper.
 
 ## Floating-point Comparison
 
@@ -25,9 +23,7 @@ double c_safe_exp(double exponent);
 
 Both wrap the standard-library function and return a quiet NaN whenever the result is not finite, whether from overflow to infinity or from a domain error such as a negative base raised to a fractional power.
 
-Scientific formulas with exponential or power-law growth are evaluated at parameter values chosen by the user. A viscosity model given a temperature far outside the range its Arrhenius parameters were fitted to, or a radiogenics model evaluated at an epoch before its reference time, will overflow. An infinity then propagates through sums and ratios and can emerge as a finite, wrong number several steps later. A NaN propagates to everything that depends on it and shows up in the output, which makes the problem visible.
-
-Returning NaN loses the information that the true answer was large rather than undefined, and a caller that wants to distinguish the two has to check its inputs before calling. In exchange, no silently wrong finite number leaves the function.
+A model evaluated far outside its fitted range (a radiogenics model at an epoch long before its reference time, say) can overflow. An infinity can turn into a finite, wrong number several steps later, while a NaN reaches the output and makes the problem visible. The cost is that a NaN does not say whether the true answer was large or undefined; a caller that cares must check its inputs.
 
 ## Where Numerics are Used
 

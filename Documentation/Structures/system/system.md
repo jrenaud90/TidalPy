@@ -1,15 +1,8 @@
 # System (`Structures.system`)
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
-A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
-
-- A tidal host per world: the body that raises a tide on that world. Every world names its own host, or none.
-- The star: the body that provides insolation to each world in the system.
-
-In the Earth-Moon-Sun system the Moon's tidal host is the Earth, the Earth's can be the Moon, and the star is the Sun. For an exoplanet orbiting its star, the star is also its tidal host, and the orbits about the host and about the star coincide. Each world therefore carries two two-body orbits: one about its tidal host and one about the star. A world interacts only with its tidal host and the star. The `System` is the container on which orbital evolution and insolation are computed.
-
-TidalPy has no N-body dynamics and instead utilizes semi-analytic two-body evolution (orbit/spin) rates. A problem with three or more mutually interacting bodies can be built from TidalPy worlds but needs external scripting to account for the additional forcing.
+A `System` groups worlds (a star, planets, moons) and computes their orbital evolution and insolation. Each world names its own tidal host (the body raising its tides), or none, and one world may be the star (the source of insolation). In Earth-Moon-Sun the Moon's host is the Earth, the Earth's can be the Moon, and the star is the Sun; for an exoplanet the star is also the host. Each world has two two-body orbits, about its host and about the star, and interacts with nothing else. TidalPy has no N-body dynamics: three or more mutually interacting bodies need external scripting.
 
 ## Building a `System`
 
@@ -23,102 +16,78 @@ earth = TerrestrialWorld("earth", 6.371e6, 5.972e24)
 
 system.add_world(
     star,
-    is_star=True)          # The star is tidally forced by nothing here, so it names no host
+    is_star=True)          # Nothing raises the star's tides here
 system.add_world(
     earth,
-    tidal_host=star,       # Exoplanet case: the star is also the world's tidal host
+    tidal_host=star,       # The star is also the host
     semi_major_axis=au,
     eccentricity=0.0167)
 ```
 
-`add_world(world, tidal_host=None, is_star=False, semi_major_axis=None, eccentricity=None, synchronous=False, stellar_semi_major_axis=None, stellar_eccentricity=None)` returns the world's index. `tidal_host` is a world already in the system, given by index, name, or object; `set_tidal_host(world, tidal_host)` names or changes it afterwards. There is no system-wide host. A world with no tidal host is not tidally forced and is skipped by the evolution methods. `is_star` marks the insolation source. `semi_major_axis` and `eccentricity` describe the orbit about the tidal host, and `stellar_semi_major_axis` and `stellar_eccentricity` the orbit about the star (see [Star and Insolation](#star-and-insolation)). `None` leaves an element unset, and an eccentricity that no element set reads as 0. `synchronous=True` sets the world's spin to its mean motion about its tidal host (see [Synchronous Rotation](#synchronous-rotation)). The system co-owns each world with its Python wrapper, so the wrapper you passed stays usable and is the same object the system hands back.
+`add_world(world, tidal_host=None, is_star=False, semi_major_axis=None, eccentricity=None, synchronous=False, stellar_semi_major_axis=None, stellar_eccentricity=None)` returns the world's index.
 
-A world that `add_world` refuses is not added: an orbital element out of range, `synchronous=True` without a `tidal_host` and a `semi_major_axis`, or stellar elements for a world whose tidal host is the star (its orbit about the star is its tidal orbit, given by `semi_major_axis` and `eccentricity`).
+`tidal_host` is a world already in the system (index, name, or object), changed with `set_tidal_host`; a world without one is not tidally forced and evolution skips it. `semi_major_axis` and `eccentricity` give the orbit about the host, and the `stellar_` pair the orbit about the [star](#star-and-insolation). `None` leaves an element unset (an unset eccentricity reads as 0). `synchronous=True` sets the spin to the mean motion ([Synchronous Rotation](#synchronous-rotation)).
 
-For a system where the star is a separate body from a world's tidal host (_e.g._, Earth-Moon-Sun):
+When the star is not a world's tidal host (_e.g._, Earth-Moon-Sun):
 
 ```python
 from TidalPy.Structures import build_world
 
-sun = build_world("sol")                         # Bundled Sun, named "Sol"
-earth = build_world("earth_simple")              # Bundled layered Earth, named "Earth-Simple"
-moon = build_world("luna")                       # Bundled layered Moon, named "Luna"
+sun = build_world("sol")
+earth = build_world("earth_simple")
+moon = build_world("luna")
 
 earth_moon_sun = System()
 earth_moon_sun.add_world(
     sun,
-    is_star=True)                                # The star, and nobody's tidal host
-earth_moon_sun.add_world(earth)                  # The Moon's tidal host, named below
+    is_star=True)
+earth_moon_sun.add_world(earth)
 earth_moon_sun.add_world(
     moon,
-    tidal_host=earth,                            # The Earth raises the Moon's tides
-    semi_major_axis=3.84748e8,                   # Moon about the Earth (tidal); 3.844e8 m is the mean distance
+    tidal_host=earth,
+    semi_major_axis=3.84748e8,                   # About the Earth (3.844e8 m is the mean distance)
     eccentricity=0.0549,
-    synchronous=True,                            # The Moon's spin is its mean motion about the Earth
-    stellar_semi_major_axis=au,                  # Moon about the Sun (insolation)
+    synchronous=True,
+    stellar_semi_major_axis=au,                  # About the Sun
     stellar_eccentricity=0.0167)
-earth_moon_sun.set_tidal_host(earth, moon)       # The Moon raises the Earth's tides in turn
+earth_moon_sun.set_tidal_host(earth, moon)       # A mutual pair
 ```
 
 ### Mutual Pairs
 
-Two worlds that host each other share one orbit, so each of its elements only needs to be specified once, so the semi-major axis can come from one member and the eccentricity from the other. An element both members give must agree, and a disagreement raises `ValueError` from any method that reads the orbit. Setting an element on either member (`set_semi_major_axis`, `set_eccentricity`) sets it on both, so a pair built with the elements on both members, as a saved system file has them, can still be updated from one side. `is_mutual_pair(world)` reports the relation. `calc_system_evolution` gives each member its own entry, and their contributions to the shared orbit add, which is what `calc_pair_evolution` returns for either member.
+Two worlds that host each other share one orbit: each element can come from either member (both must agree), and setting it on one sets it on both. `is_mutual_pair(world)` reports the relation. `calc_system_evolution` gives each member its own entry, and their contributions to the shared orbit add, as in `calc_pair_evolution`.
 
 ### Synchronous Rotation
 
-A synchronously rotating world (most large moons) spins at its orbital mean motion. `set_synchronous_rotation(world)` sets the world's spin frequency to `calc_orbital_frequency(world)` and returns it [rad s-1]; `add_world(..., synchronous=True)` does the same as the world is added. The spin is set once, from the orbit at the time of the call, so call it again after changing the orbit or the masses. It raises `ValueError` for a world with no tidal host or no semi-major axis about it.
+`set_synchronous_rotation(world)` (or `add_world(..., synchronous=True)`) sets the world's spin to `calc_orbital_frequency(world)`, as for most large moons, and returns it \[rad s-1\]. It is set once, so call it again after changing the orbit or the masses. A world with no tidal host or semi-major axis raises `ValueError`.
 
 ```python
-earth_moon_sun.set_synchronous_rotation(moon)    # The Moon's spin [rad s-1], now its mean motion
+earth_moon_sun.set_synchronous_rotation(moon)    # [rad s-1]
 ```
 
 ## Building a `System` from TOML (`build_system`)
 
-A whole system can be described in a single TOML, including all worlds (and their layers), and built in one call, mirroring `build_world`. Each `[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline world config) plus its `tidal_host` (the table key of the world that raises its tides), its star role, and its orbital elements. `system.get_config_dict()` returns the same schema for the system as it stands now (each world inlined with its own live `get_config_dict()`), and `build_system(config)` rebuilds the system from it. A host may be declared after the worlds it hosts. A world that states `semi_major_axis_m` or `eccentricity` must name a `tidal_host` for them to be about. The table key becomes the world's name within the system, so a bundled world template can be reused under different names.
-
-```toml
-schema_version = "0.2.0"
-name = "Sol System"
-
-[worlds.sun]
-world = "sol"  # a bundled world name (also accepts a path or an inline [worlds.sun.world] table)
-is_star = true
-
-[worlds.earth]
-world = "earth_simple"
-tidal_host = "sun"                  # the world that raises this one's tides
-semi_major_axis_m = 1.495978707e11  # orbit about the tidal host
-eccentricity      = 0.0167  # the star is the host, so this is also the orbit about the star (insolation)
-```
+A system file names each member in a `[worlds.<name>]` table: its `world` (a bundled name, a world file, or an inline table), `tidal_host`, star role, and orbital elements ([System Schema](../config/toml_schema.md#system-schema)). The table key becomes the world's name, so one world template can be reused under several names.
 
 ```python
 from TidalPy.Structures import build_system
 
 system = build_system("sol_system")      # a bundled system name, a .toml or binary path, or a dict
 # equivalently: System.build("sol_system")
-system.calc_insolation_flux("earth")     # ~1361 W/m^2 (the solar constant)
+system.calc_insolation_flux("earth")     # ~1361 W/m^2
 
 prem_system = build_system(
     "sol_system",
     overrides={"worlds": {"earth": {"world": "earth_prem"}}})   # The same system with the PREM Earth
 ```
 
-`build_system(source, overrides=None, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `overrides` is a nested dict merged over the configuration before the build, table by table, so it only needs the keys it changes. A dict built in Python without a `schema_version` targets the current schema; a file without one is warned about. A path to a binary file is loaded with `load_system` (see [Serialization](#serialization)). An unknown bundled name, or an unknown key in a system or member table, raises an error naming the closest accepted one. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`). A member's `world` may be a bundled name or a path to a world file. A relative path resolves against the system file's folder first, then the working directory, as a world's `data_file` resolves against the world file's folder first.
+`build_system(source, overrides=None, force=False)` mirrors `build_world`: it validates the source and builds each member with `build_world`; `overrides` needs only the keys it changes. A binary file is loaded with `load_system` ([Serialization](#serialization)). An unknown name or key raises an error naming the closest accepted one.
 
-A system refuses what would give it no bound orbit or an ambiguous member, raising `ValueError`: a semi-major axis that is not positive, an eccentricity outside $[0, 1)$ (from `add_world`, the orbit setters, or a file), a second world with a name already in the system, and the same world object added twice. A world is named by its index (any integer type, numpy's included), its name, or the object itself; a `bool` is refused rather than read as index 0 or 1.
-
-A built system retains its normalized configuration on `source_config` and can be written back out:
-
-```python
-system.save_to_toml("my_system.toml")
-system_cfg = system.get_config_dict()
-```
-
-`save_to_toml` writes the system as it is now (`get_save_config(destination_dir)`): every member's current tidal host, star role, and orbital elements, so an orbit changed after the build is saved. A member built from a world reference (a bundled name or a file) and unchanged since its build keeps that reference, and a relative file path is rewritten to find the same file from the folder saved into. Any other member, a system assembled directly in Python included, is written inline as its world's `get_save_config()`. `get_config_dict` is the self-contained expansion that inlines every world's live `get_config_dict()` with its roles and orbital elements; it rebuilds through `build_system` too. A world whose tidal host is the star is written with its tidal elements only (`semi_major_axis_m` and `eccentricity`), since its orbit about the star is the same orbit. A world given inline in a system file finds a relative `data_file` beside the system file.
+`system.save_to_toml(path)` writes the system as it is now, changed orbits included. An unchanged member built from a bundled name or file keeps that reference (relative paths rewritten for the destination); any other member is written inline. A world whose host is the star is written with its tidal elements only. `system.get_config_dict()` inlines every world's live `get_config_dict()`, and `build_system` rebuilds from it. `source_config` keeps the normalized build configuration. An inline world's relative `data_file` is found beside the system file.
 
 ## Worlds, Host, and Identification
 
-Most methods accept a world by index (int, negatives allowed), by name (str), or as the world object itself:
+Most methods take a world by index (any integer type, negatives allowed; not a `bool`), by name, or as the object.
 
 ```python
 system.get_tidal_host("earth")        # the world that raises Earth's tides (or None)
@@ -127,17 +96,13 @@ system.has_tidal_host("sun")          # False: nothing forces the star here
 system.set_tidal_host("earth", "sun") # name a host by index / name / object (None removes it)
 system.num_worlds                 # 3
 system.worlds                     # [sun, earth, jupiter]
-```
 
-The system is a sequence over its worlds:
-
-```python
-for world in system: ...          # iterate members
+for world in system: ...          # a sequence over its worlds
 len(system)                       # 3
 system[0]                         # the star
 system[1:]                        # [earth, jupiter]
-system.earth                      # attribute access by world name
-system["earth"]                   # or by name via indexing
+system.earth                      # by name, as an attribute
+system["earth"]                   # or by indexing
 ```
 
 ## Orbital Elements and Kepler Helpers
@@ -153,11 +118,11 @@ n  = system.calc_orbital_frequency("earth")                  # sqrt(mu / a^3) [r
 a  = system.calc_semi_major_axis_from_frequency("earth", n)  # inverse [m]
 ```
 
-The mean motion follows Kepler's third law using the combined host and world mass. `calc_gravitational_parameter` returns NaN for a world with no tidal host (it has no orbit within the system). `calc_orbital_frequency` also returns NaN for an unset or non-positive semi-major axis.
+The mean motion uses Kepler's third law with the combined mass. `calc_gravitational_parameter` and `calc_orbital_frequency` return NaN for a world with no tidal host, the latter also for an unset or non-positive semi-major axis.
 
 ## Star and Insolation
 
-The star is designated with `is_star` (or `set_star`) and drives insolation. Each world carries its own orbit about the star, independent of the tidal-host orbit, except for a world whose tidal host is the star.
+The star is set with `is_star` or `set_star` and drives insolation. Each world has its own orbit about the star, separate from its tidal-host orbit unless its host is the star.
 
 ```python
 system.star                              # the star world (or None)
@@ -174,71 +139,65 @@ flux = system.calc_insolation_flux("earth")            # W/m^2 (orbit-averaged)
 temp = system.calc_equilibrium_temperature("earth")    # K
 ```
 
-`calc_insolation_flux` is the orbit-averaged incident stellar flux, using the world's orbital elements about the star,
+`calc_insolation_flux` is the orbit-averaged incident stellar flux, from the world's orbit about the star,
 
 $$F = \frac{L_{\star}}{4\pi a^{2}\sqrt{1-e^{2}}},$$
 
-where the factor $\sqrt{1-e^{2}}$ comes from the time average of $1/r^{2}$ over the eccentric orbit, $\langle 1/r^{2} \rangle = 1/(a^{2}\sqrt{1-e^{2}})$ (Méndez and Rivera-Valentín 2017). A star gives the same flux at any orbit without a system: `star.calc_insolation_flux(distance, eccentricity=0.0)`. `calc_equilibrium_temperature` applies the world's own gray-body radiative balance to that flux,
+where $\sqrt{1-e^{2}}$ comes from the time average $\langle 1/r^{2} \rangle = 1/(a^{2}\sqrt{1-e^{2}})$ over the eccentric orbit (Méndez and Rivera-Valentín 2017). A star gives the same flux without a system: `star.calc_insolation_flux(distance, eccentricity=0.0)`. `calc_equilibrium_temperature` applies the world's gray-body radiative balance,
 
 $$T = \left(\frac{(1-A)\,F}{4\,\varepsilon\,\sigma}\right)^{1/4},$$
 
-with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzmann constant $\sigma$. Both raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar semi-major axis, or a star with no luminosity.
+with the world's albedo $A$, emissivity $\varepsilon$, and the Stefan-Boltzmann constant $\sigma$. Both raise `RuntimeError` if no star is set, and return NaN for the star itself, an unset stellar semi-major axis, or a star with no luminosity.
 
 ## Orbital and Spin Evolution
 
-A world whose tide model is `rheology` (the builder's default for a terrestrial world; a world constructed directly in Python has no tide model until one is set) takes its Love numbers from its interior, so run `world.solve_eos()` on each of these before any of the evolution methods below, they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
+Run `world.solve_eos()` on each world on the `rheology` tide model (the builder's default for terrestrial worlds) before any evolution method, which otherwise raises `RuntimeError`. A later `solve_eos` discards the tidal result, and the next evolution call solves again. A world constructed in Python has no tide model until one is set.
 
-`calc_world_evolution(world)` evolves a single world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about its tidal host, host mass from that host), then turns the tidal-potential derivatives into the orbital element time derivatives and the world's spin rate derivative. Its host is treated as a point mass with no tidal derivatives calculated (its dissipation does not affect the orbit). A world with no tidal host, or no usable orbit about it, comes back with `evolved = False`. The evolution methods hold each world's call lock from its tidal solve through the read of its result, so evolution calls on threads that share a world take turns on it and each reads its own solve.
-
-A world that belongs to a system can be asked for the same state directly: `world.get_tide_state()` returns it as a dict in the argument order of `calc_tides`, or `None` for a world outside a system, with no tidal host, or with no usable orbit. Orbital state is never stored on a world; the system supplies it on request and stops doing so when it is deleted.
+`calc_world_evolution(world)` solves the world's tides in the current system state (Kepler mean motion, the world's spin and obliquity, its orbit about the host, the host's mass) and returns the orbital-element and spin rates. The host is a point mass. A world with no host or usable orbit returns `evolved = False`. Threads sharing a world take turns on it.
 
 ```python
-earth.solve_eos()                         # Interior solve for the Earth's Love numbers
-moon.solve_eos()                          # Interior solve for the Moon's Love numbers
-ev = earth_moon_sun.calc_world_evolution(moon)  # The Moon about the Earth, from the Earth-Moon-Sun system above
+earth.solve_eos()                         # Needed for the Love numbers
+moon.solve_eos()
+ev = earth_moon_sun.calc_world_evolution(moon)  # The Moon about the Earth
 ev["da_dt"], ev["de_dt"], ev["dn_dt"]     # orbital rates [m/s], [1/s], [rad/s^2]
 ev["dspin_dt"]                            # spin rate [rad/s^2]
 ev["tidal_heating"]                       # [W]
 ev["energy_residual"]                     # heating + dE_orbit/dt + dE_spin/dt (~0 under conservation)
 ```
 
-The returned dict also carries the world (`world_index`, `world_name`), the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia`, the `has_spin` and `has_tide_model` flags, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). Every world, stars included, carries a spin model. Either the `solve_eos`-derived MOI or the spin model's `moment_of_inertia_factor` (which comes from `[worlds]` in `TidalPy_Configs.toml`), is used for the spin evolution. `calc_system_evolution()` returns one such dict per world, in index order.
+The dict also holds `world_index`, `world_name`, the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), `dU_dM`, `dU_dw`, `dU_dO`, `moment_of_inertia` (from `solve_eos`, else the spin model's `moment_of_inertia_factor`; every world, stars included, has a spin model), `has_spin`, `has_tide_model`, `dE_orbit_dt`, and `dE_spin_dt`. `calc_system_evolution()` returns one dict per world, in index order. A rigid world (no tide model) returns `evolved = True` with zero rates and `has_tide_model = False`, with a one-time warning. `world.get_tide_state()` gives a member's current state as a dict in the argument order of `calc_tides` (`None` without a system, host, or usable orbit).
 
-A rigid world (no tide model attached) raises no tide. Its entry comes back with `evolved = True`, zero rates and energy terms, and `has_tide_model = False`, and the system logs a warning the first time each such world is evolved.
-
-The rates follow the orbital rate engine (`Dynamics`). With the tidal-potential derivatives $\partial U/\partial X$ of the [global tides](../../Tides/global_tides.md) converted to disturbing-function derivatives $\partial\mathcal{R}/\partial X = -\frac{M_{w} + M_{h}}{M_{w}}\,\partial U/\partial X$, for the world mass $M_{w}$ and the host mass $M_{h}$,
+The rates follow the orbital rate engine ([Dynamics](../../Dynamics/dynamics.md)). The tidal-potential derivatives $\partial U/\partial X$ of the [global tides](../../Tides/global_tides.md) become disturbing-function derivatives $\partial\mathcal{R}/\partial X = -\frac{M_{w} + M_{h}}{M_{w}}\,\partial U/\partial X$, for world mass $M_{w}$ and host mass $M_{h}$, and
 
 $$\frac{da}{dt} = \frac{2}{na}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}}, \qquad \frac{de}{dt} = \frac{\sqrt{1-e^{2}}}{na^{2}e}\left(\sqrt{1-e^{2}}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}} - \frac{\partial\mathcal{R}}{\partial\varpi}\right), \qquad \frac{dn}{dt} = -\frac{3}{2}\,\frac{n}{a}\,\frac{da}{dt},$$
 
-with $de/dt = 0$ at $e = 0$. At small eccentricity the bracket is of order $e^{2}$ while each of its terms is of order one (for a spin that is not synchronous), so it is evaluated as $-\frac{e^{2}}{1 + \sqrt{1-e^{2}}}\,\partial\mathcal{R}/\partial\mathcal{M} + \partial\mathcal{R}/\partial(\mathcal{M} - \varpi)$, the last term summed mode by mode in the tidal collapse, where it holds no cancellation. $de/dt / e$ then stays exact however small $e$ gets. The spin rate comes from the world's attached spin model, $\ddot{\theta} = (M_{h}/C)\,\partial U/\partial\Omega$, with $C$ the polar moment of inertia. The heating and the orbit and spin energy loss balance,
+with $de/dt = 0$ at $e = 0$. At small $e$ the bracket is of order $e^{2}$ while each term is of order one (non-synchronous spin), so it is evaluated as $-\frac{e^{2}}{1 + \sqrt{1-e^{2}}}\,\partial\mathcal{R}/\partial\mathcal{M} + \partial\mathcal{R}/\partial(\mathcal{M} - \varpi)$, the last term summed mode by mode, which keeps $de/dt / e$ exact at any small $e$. The spin rate is $\ddot{\theta} = (M_{h}/C)\,\partial U/\partial\Omega$, with $C$ the polar moment of inertia. Heating balances the orbit and spin energy loss,
 
 $$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\right), \qquad E_\mathrm{orbit} = -\frac{G M_{h} M_{w}}{2a}, \qquad E_\mathrm{spin} = \frac{1}{2}\,C\,\dot{\theta}^{2}.$$
 
-Each world evolves on its own two-body orbit about its tidal host and dissipates independently.
-
 > [!NOTE]
-> A world's spin is its own `spin_frequency`, which a system does not change. A bundled world's spin is the synchronous rate of a rounded rotation period, which differs slightly from the mean motion the system computes by Kepler's third law (by about 2e-4 for Io and Europa). For a strongly dissipative world that small difference adds a slow tide at 2(n - spin) that can dominate the heating, so set the spin from the system first to keep the world synchronous: `system.set_synchronous_rotation(world)`. A tide solve whose spin is within 1e-3 of the mean motion, but not equal to it, logs a warning once per world.
+> A system never changes a world's `spin_frequency`. A bundled world's spin is the synchronous rate of a rounded period, about 2e-4 off the Kepler mean motion for Io and Europa. In a strongly dissipative world that adds a slow tide at 2(n - spin) that can dominate the heating, so call `system.set_synchronous_rotation(world)` first. A spin within 1e-3 of the mean motion, but not equal, warns once per world.
 
 ### Dual-Body Dissipation
 
-`calc_pair_evolution(world)` evolves a world together with its own tidal host, with both bodies raising a tide on their shared orbit. Each body's tides are solved with the other body as the tide raiser (masses swapped), so their orbital-rate contributions add and each body evolves its own spin:
+`calc_pair_evolution(world)` lets a world and its host raise tides on each other: each is solved with the other as raiser, their orbital rates add, and each evolves its own spin:
 
 ```python
-pair = earth_moon_sun.calc_pair_evolution(moon)  # The Moon and the Earth raising tides on each other
+pair = earth_moon_sun.calc_pair_evolution(moon)
 pair["da_dt"], pair["de_dt"], pair["dn_dt"]     # combined shared-orbit rates
 pair["tidal_heating_total"]                     # heating in both bodies
 pair["energy_residual"]                         # ~0: heating_total + dE_orbit/dt + dE_spin_total/dt
-pair["world"]                                   # the orbiting world's single-body contribution (a dict)
-pair["host"]                                    # the host's single-body contribution (a dict)
+pair["world"], pair["host"]                     # each body's own contribution (dicts)
 ```
 
-The result names both bodies (`world_name`, and `host_name`, `None` for a world with no tidal host). The `world` and `host` entries are each a full `calc_world_evolution`-style dict (their own solve, spin, heating, and share of the orbital rates and energy). The combined balance is the sum of the two single-body balances, $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A body with no tide model attached is rigid and contributes nothing, so a rigid host reduces `calc_pair_evolution` to the single-body `calc_world_evolution` result. Each body's `has_tide_model` flag is in its `world` or `host` entry. The top-level `has_tide_model` is `True` when at least one body carries a tide model; when neither does, every rate is zero, the flag is `False`, and a warning is logged once per world. A rigid host beside a dissipating world (a star treated as a point mass) is a normal setup and is not warned about.
+The result also has `world_name` and `host_name`. The balance is $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A rigid body contributes nothing, so a rigid host (a star as a point mass) reduces the result to `calc_world_evolution`'s, without a warning. The top-level `has_tide_model` is `True` when either body has a tide model; when neither does, every rate is zero and a warning is logged once per world.
 
 ### Evolving a World About Its Host
 
-`System.evolve(world, (t_start, t_end))` integrates the rates of `calc_pair_evolution` through time. It evolves the shared orbit ($a$, $e$), the host's spin, the world's spin, and, with `evolve_thermal=True` (the default), the temperature of each of the world's layers, with CyRK's LSODA, and returns an `EvolutionResult` holding every integration step. The system starts from its current state and is left at the final one.
+`System.evolve(world, (t_start, t_end))` integrates the `calc_pair_evolution` rates with CyRK's LSODA: $a$, $e$, both spins, and, with `evolve_thermal=True` (the default), each layer's temperature. It returns an `EvolutionResult` of every step and leaves the system at the final state.
 
 ```python
+import numpy as np
 from TidalPy.constants import au, year
 
 planet = build_world(
@@ -260,39 +219,31 @@ planet.set_spin_frequency(10.0 * system.calc_orbital_frequency(planet))
 
 result = system.evolve(planet, (0.0, 5.0e9 * year))               # 5 Gyr
 result.time, result.semi_major_axis, result.eccentricity          # [s], [m], -
-result.spin_ratio, result.tracked                                  # spin / n, and True where it sat on an equilibrium
+result.spin_ratio, result.tracked                                  # spin / n; True where on an equilibrium
 result.temperature, result.tidal_heating                           # [K] (layers by steps), [W]
-result.segments                                                    # The captures, recenterings, and releases
+result.segments                                                    # Captures, recenterings, releases
 ```
 
-Near a spin-ratio commensurability $s = k/2$ the resonant tidal mode's torque changes sign, and the spin can have a stable equilibrium: a zero of its balance $b(s) = ds/dt = (\ddot{\theta} - s\,\dot{n})/n$ with a restoring torque on both sides. The orbit-averaged spin equation is first order, so a despinning world that reaches one stays. The spin relaxes onto it within years to kyr while the orbit and the interior change over Myr to Gyr, and in a cold mantle the equilibrium is about $10^{-6}$ wide in $s$, narrower than an implicit integrator's usual tolerance on $s$.
+Near a commensurability $s = k/2$ the resonant mode's torque changes sign, and the spin can have a stable equilibrium: a zero of its balance $b(s) = ds/dt = (\ddot{\theta} - s\,\dot{n})/n$ with a restoring torque on both sides. The orbit-averaged spin equation is first order, so a despinning world that reaches one stays. The spin relaxes in years to kyr while the orbit and interior change over Myr to Gyr, and in a cold mantle the equilibrium is about $10^{-6}$ wide in $s$, narrower than an integrator's usual tolerance.
 
 `evolve` therefore runs in segments. Between equilibria the spin is *free*, a state variable. On one it is *tracked*:
 
 * Only the slow state is integrated.
-* Each rate evaluation finds the equilibrium $s^*$ of that state by a bracketed root search warm-started from the last one (Illinois regula falsi to `root_tolerance`).
-* The rates are the combination of the rates on the root's two sides that zeroes the balance (the Filippov combination), so the spin and the orbit take one torque.
+* Each rate evaluation finds that state's equilibrium $s^*$ by a bracketed root search (Illinois regula falsi to `root_tolerance`, warm-started from the last root).
+* The rates are the combination of the two sides' rates that zeroes the balance (the Filippov combination), so the spin and orbit take one torque.
 
-The neglected term is the spin's drift with its equilibrium, of relative size its relaxation time over the evolution time (Walterova and Behounkova 2020 make the same approximation). The transitions are integration events, each a function of the state alone:
+This neglects the spin's drift with its equilibrium, of relative size its relaxation time over the evolution time (as do Walterova and Behounkova 2020). Transitions are integration events on the state alone:
 
-* A free spin entering the band $|s - k/2| <$ `capture_band` of the next commensurability runs a capture test: from the spin, in the direction its balance points, the balance is probed on a grid refined toward $k/2$, and the first sign change brackets the stable equilibrium the spin reaches. Within `capture_margin` of it the spin is set on it; farther, a free segment runs until it comes within `capture_margin` or enters another band.
-* A tracked spin carries a window: an interval about its equilibrium in which sample points spaced by factors of 4 show no other sign change. When the balance at an edge loses its restoring sign, the equilibrium is solved again and the window rebuilt about it (a recentering), or, when no equilibrium is left nearby (it vanished with its unstable neighbor, as a warming mantle moves them together), the spin is released.
+* Capture: a free spin within `capture_band` of the next $k/2$ probes its balance, in the direction it points, on a grid refined toward $k/2$; the first sign change brackets the stable equilibrium it will reach. Within `capture_margin` of it the spin is set on it; otherwise a free segment runs until it comes within `capture_margin` or enters another band.
+* Recentering and release: a tracked spin carries a window about its equilibrium in which samples spaced by factors of 4 show no other sign change. When the balance at an edge loses its restoring sign, the equilibrium is solved again and the window rebuilt, or, when no equilibrium is left nearby (it met its unstable neighbor, as in a warming mantle), the spin is released.
 
-The net torque near an equilibrium is a small difference of large mode torques, so the balance carries the radial solve's error amplified by about the quality factor (for `earth_thermal` about $10^{-3}$ per Myr at a radial-solver `rtol` of $10^{-8}$, and $6 \times 10^{-6}$ at $10^{-10}$). Windows measure that noise and are tested no closer than `resolution` to the equilibrium. A radial `rtol` of $10^{-10}$, as above, costs about 1.3 times a solve at $10^{-8}$ and keeps a warm equilibrium from being released on noise. The orbit changes by fractions of a percent over Gyr, so it takes its own tight tolerance (`orbit_rtol`, $10^{-9}$); the temperatures and a free spin take `thermal_rtol` and `spin_rtol` ($10^{-4}$).
+The net torque near an equilibrium is a small difference of large mode torques, so the balance carries the radial solve's error times about the quality factor: for `earth_thermal`, about $10^{-3}$ per Myr at a radial `rtol` of $10^{-8}$, and $6 \times 10^{-6}$ at $10^{-10}$. Windows are tested no closer than `resolution` to the equilibrium. A radial `rtol` of $10^{-10}$ costs about 1.3 times one of $10^{-8}$ and keeps a warm equilibrium from being released on noise. The orbit, which changes by fractions of a percent over Gyr, uses `orbit_rtol` ($10^{-9}$); temperatures and a free spin use `thermal_rtol` and `spin_rtol` ($10^{-4}$).
 
-With `evolve_thermal`, every new state solves the world's EOS with its temperature profile, its surface at the system's insolation temperature (or `surface_temperature`), and its heat sources at the integration time, and each layer warms at `calc_layer_temperature_rate`; without it the world keeps its solved structure. The host's spin is always free. A tracked step costs a root search, about 20 to 30 pair solves, and most of a run's time goes to recentering near a vanishing equilibrium and to steps at a lock whose resonant mode is nearly static (see `minimum_complex_rigidity` in the [configuration](../../Overview/2_TidalPy_Configurations.md)). `Demos/Systems/S02_thermal_orbital_evolution.ipynb` evolves the example above for 5 Gyr.
-
-`evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a world with no layers or a layer temperature that is not finite and positive, or capture settings out of order (`root_tolerance` < `resolution` < `capture_margin` <= `capture_band` < 0.25). A run that cannot continue returns with `success` False and its `message`:
-
-* a tide or EOS solve failing at a reached state;
-* `max_wall_time` reached;
-* five segments in a row ending where they began, or ten ending on failed evaluations.
-
-A solve failing at a trial state of the integrator only ends the segment, which restarts from its last step.
+With `evolve_thermal`, each new state re-solves the EOS with its temperature profile, a surface at the insolation temperature (or `surface_temperature`), and its heat sources at that time, and each layer warms at `calc_layer_temperature_rate`; without it the solved structure is kept. The host's spin is always free. A tracked step costs about 20 to 30 pair solves; most run time goes to recentering near a vanishing equilibrium and to steps at a lock whose resonant mode is nearly static (see `minimum_complex_rigidity` in the [configuration](../../Overview/2_TidalPy_Configurations.md)). `Demos/Systems/S02_thermal_orbital_evolution.ipynb` runs the example above. A solve failing at an integrator trial state only restarts the segment from its last step; a run that cannot continue returns `success` False and a `message` ([Limits and Failure Modes](#limits-and-failure-modes)).
 
 ## Serialization
 
-A system's binary file ([Binary Serialization](../../Utilities/binary.md)) carries the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's complete record, so every world comes back as its own type with its models and settings. A loaded system evolves as the saved one did once each layered world has re-run `solve_eos`: solved state, the EOS profiles included, is not saved.
+A system's binary file ([Binary Serialization](../../Utilities/binary.md)) holds the name, star, hosts, orbits, and each world's full record, so each world returns as its own type with its models and settings. Solved state is not saved: re-run `solve_eos` on each layered world before evolving.
 
 ```python
 import copy
@@ -302,32 +253,37 @@ from TidalPy.Structures import load_system
 system.save_binary("sol_system.tpyb")            # A str or an os.PathLike path
 loaded = load_system("sol_system.tpyb")          # A new System, each world its own class
 same = build_system("sol_system.tpyb")           # build_system loads a binary file too
-twin = system.copy()                             # An independent copy (copy.copy, copy.deepcopy, and pickle use it)
-pickled = pickle.loads(pickle.dumps(system))     # So a system can be sent to a process pool
+twin = system.copy()                             # Also used by copy.copy, copy.deepcopy, and pickle
+pickled = pickle.loads(pickle.dumps(system))     # e.g., for a process pool
 print(system)                                    # System('Sol System', worlds=['sun', 'earth', 'jupiter'], star='sun')
 ```
 
-`load_system(path, force=False)` reads a system file without a placeholder object and raises `IOError` naming what a file holds when it is not a system's (a world file, or a file that is not a TidalPy binary file). `System.load_binary(path)` loads a file into an existing system instead. `copy()` goes through the same binary record held in memory, so the copy's worlds are unsolved, and it keeps each world's and the system's own copies of the configurations they were built from.
+`System.load_binary(path)` loads into an existing system. `copy()` uses the binary record, so the copy's worlds are unsolved, but it keeps the build configurations.
 
-`load_binary` raises `IOError` for a file whose system record is corrupt: a tidal host index that names no other world, an out-of-range star index, two worlds with one name, or an orbit that is not bound (a semi-major axis that is not positive or an eccentricity outside $[0, 1)$). Any failed load, trailing data after the record included, leaves the system, its worlds, and their wrappers unchanged: the file is read into a new system first.
+## Limits and Failure Modes
+
+* `add_world` refuses, adding nothing: an element out of range, `synchronous=True` without a `tidal_host` and `semi_major_axis`, and stellar elements for a world whose host is the star.
+* `ValueError`: a semi-major axis that is not positive or an eccentricity outside $[0, 1)$ (from `add_world`, a setter, or a file); a duplicate world name or object; a mutual pair whose members disagree on an element (from any method reading the orbit); a system file stating `semi_major_axis_m` or `eccentricity` with no `tidal_host`, or a world as its own host.
+* `RuntimeError`: an evolution method on a `rheology` world whose EOS is not solved; insolation with no star set.
+* `evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a world with no layers or a layer temperature that is not finite and positive, or capture settings out of order (`root_tolerance` < `resolution` < `capture_margin` <= `capture_band` < 0.25).
+* `evolve` stops with `success` False on a tide or EOS solve failing at a reached state, on `max_wall_time`, or after five segments in a row end where they began or ten end on failed evaluations.
+* `load_system` raises `IOError` naming what a non-system file holds. `load_binary` raises `IOError` for a corrupt record (a bad host or star index, two worlds with one name, an unbound orbit, trailing data) and leaves the system unchanged.
 
 ## C++ API
 
-`c_System : c_TidalPyBaseClass, c_TideStateProvider` (`Structures/system/system_.hpp`):
+`c_System : c_TidalPyBaseClass, c_TideStateProvider`:
 
-* `add_world(shared_ptr<c_BaseWorld>, is_star, a, e)` (the elements checked by `c_check_orbit`): owns worlds through `shared_ptr` so the C++ system and the Python wrappers co-own the same world, and registers itself as the world's tide-state provider.
+* `add_world(shared_ptr<c_BaseWorld>, is_star, a, e)`: co-owns the world and becomes its tide-state provider.
 * `get_num_worlds`, `get_world(i)`, `find_world_index(name)`.
-* `set_tidal_host(i, host_i)`, `clear_tidal_host(i)`, `has_tidal_host(i)`, `get_tidal_host_index(i)`, `get_tidal_host(i)`, `get_tidal_host_mass(i)`, `is_mutual_pair(i)`, and `get_host_orbit(i)` (the elements about the host, merged element by element with a mutual partner's; `c_merge_orbit_elements`).
-* `get_tide_state(i, state_out)` and `get_equilibrium_temperature(i)`: the `c_TideStateProvider` interface (`Tides/classes/tide_result_.hpp`). A world reaches it through `c_BaseWorld::get_tide_state(state_out)`; the system clears the world's pointer in its destructor.
+* `set_tidal_host(i, host_i)`, `clear_tidal_host(i)`, `has_tidal_host(i)`, `get_tidal_host_index(i)`, `get_tidal_host(i)`, `get_tidal_host_mass(i)`, `is_mutual_pair(i)`, and `get_host_orbit(i)` (the elements about the host, merged element by element with a mutual partner's).
+* `get_tide_state(i, state_out)` and `get_equilibrium_temperature(i)`: the `c_TideStateProvider` interface, which a world reaches through `c_BaseWorld::get_tide_state(state_out)`.
 * `set_star(i)`, `has_star`, `get_star_index`, `get_star`, `get_star_mass`, `get_star_luminosity`.
-* `set/get_semi_major_axis(i)`, `set/get_eccentricity(i)` (orbit about the tidal host).
-* `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).
-* `calc_gravitational_parameter(i)`, `calc_orbital_frequency(i)`, `calc_semi_major_axis_from_frequency(i, n)` (host orbit), and the `calc_stellar_gravitational_parameter(i)` / `calc_stellar_orbital_frequency(i)` counterparts.
+* `set/get_semi_major_axis(i)`, `set/get_eccentricity(i)` (orbit about the tidal host); `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).
+* `calc_gravitational_parameter(i)`, `calc_orbital_frequency(i)`, `calc_semi_major_axis_from_frequency(i, n)`, and `calc_stellar_gravitational_parameter(i)`, `calc_stellar_orbital_frequency(i)`.
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
-* `calc_world_evolution(i)` and `calc_system_evolution()`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (every world runs the same `c_BaseWorld::calc_tides` and carries a spin model). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
-* `calc_pair_evolution(i)`: dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution` contributions plus the combined shared-orbit rates and energy balance). Built on the shared `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal solve, rate, and spin contribution at its own spin (a body with no tide model is rigid and contributes zero; the primitive itself does not warn). `c_PairEvolution::has_tide_model` is true when either body carries a tide model.
-* `c_WorldEvolution` also carries `dU_dM_minus_dw`. `System.evolve` is Python (`TidalPy/Structures/system/evolution.py`) on CyRK's `pysolve_ivp`.
-* The binary record rebuilds the world list through `c_world_from_binary` (`Structures/worlds/factory_.hpp`), which peeks each record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's concrete type so the Cython layer can pick the matching wrapper. It validates the host and star indices, the world names, and every orbit (`c_check_orbit`) before committing, and throws `std::runtime_error` on corrupt data.
+* `calc_world_evolution(i)` and `calc_system_evolution()`: return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` (which also carries `dU_dM_minus_dw`; `has_tide_model` is false for a rigid world). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` give the energy-balance terms.
+* `calc_pair_evolution(i)`: a `c_PairEvolution` (both bodies' `c_WorldEvolution` plus the combined rates and balance), built on `calc_dissipation(dissipator_i, companion_mass, n, a, e)`, one body's solve and contribution at its own spin (zero, unwarned, for a rigid body).
+* Loading a corrupt binary record throws `std::runtime_error`. `System.evolve` is Python only.
 
 ## References
 

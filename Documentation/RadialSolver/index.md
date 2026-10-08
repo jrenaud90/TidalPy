@@ -2,20 +2,15 @@
 
 _Updated: 2026-10-07_
 
-`TidalPy.RadialSolver` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions $y_1$ through $y_6$ throughout the interior and the Love numbers $k$, $h$, and $l$ at the surface. Those numbers set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and the predicted gravity and displacement signals of a body.
-
-There are three ways to call its functionality:
+`TidalPy.RadialSolver` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions $y_1$ through $y_6$ throughout the interior and the Love numbers $k$, $h$, and $l$ at the surface. These set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and a body's predicted gravity and displacement signals.
 
 | Entry point | Use it when |
 |---|---|
-| `BaseWorld.solve_love_numbers(...)` | You have a built world. The equation of state is already solved, its solid and liquid zones are the solver's layers, and each layer's rheology (its own or its material's) supplies the complex moduli. See [Worlds](../Structures/worlds/worlds.md). |
-| `radial_solver(...)` | You have arrays rather than a world, or you want to drive the solver directly. Documented in [Calculating Love Numbers](calculating_love_numbers.md). |
-| `homogeneous_love_numbers(...)` | You want an estimate for a uniform sphere without building anything. Fast but not realistic for most worlds. |
+| `BaseWorld.solve_love_numbers(...)` | You have a built world. Its equation of state is solved, its solid and liquid zones are the solver's layers, and each layer's rheology supplies the complex moduli. See [Worlds](../Structures/worlds/worlds.md). |
+| `radial_solver(...)` | You have arrays rather than a world, or want to drive the solver directly. See [Calculating Love Numbers](calculating_love_numbers.md); the [helper functions](build_inputs.md) build its inputs. |
+| `homogeneous_love_numbers(...)` | You want a quick estimate for a uniform sphere. Not realistic for most worlds. |
 
-> [!TIP]
-> The `radial_solver` function's inputs are extensive. The [helper functions](build_inputs.md) build them through a simpler API.
-
-Every path returns a [`RadialSolverSolution`](solution_class.md), which carries the radial functions, the Love numbers, the equation-of-state profiles, and the diagnostics used to check them.
+Every path returns a [`RadialSolverSolution`](solution_class.md) with the radial functions, the Love numbers, the equation-of-state profiles, and diagnostics.
 
 ```{toctree}
 :maxdepth: 2
@@ -31,17 +26,11 @@ Parallel Love Solves <parallel.md>
 
 ## Solution Methods
 
-The default method integrates a set of viscoelastic-gravitational ordinary differential equations from a starting radius near the center out to the surface, one layer at a time. Each layer contributes a fixed number of independent solutions depending on its assumptions, and the physical solution in the layer is a linear combination of them. The combination coefficients are fixed by the surface boundary condition and then propagated downward through every interface, so each layer inherits a consistent set of constants. The literature calls this the "shooting method" for Love number calculation.
-
-The propagation-matrix approach is quasi-analytic and restricted to a single solid, static, incompressible layer.
-
-Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve altogether.
-
-[Calculating Love Numbers](calculating_love_numbers.md) covers how to choose between them, [Starting Conditions](starting_conditions.md) covers how the shooting method starts its independent solutions, and [Dense Radial Solutions](dense_radial_solution.md) covers the numerics in more depth.
+The default "shooting method" integrates the viscoelastic-gravitational equations from a starting radius near the center out to the surface, one layer at a time, then fixes the combination of each layer's independent solutions from the surface boundary condition (see [Dense Radial Solutions](dense_radial_solution.md)). [Starting Conditions](starting_conditions.md) covers how it starts. The quasi-analytic propagation matrix is restricted to a single solid, static, incompressible layer. Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve. [Calculating Love Numbers](calculating_love_numbers.md#choosing-a-method) compares them.
 
 ## References
 
-The methods implemented here come from the following work (this is not a comprehensive list but should give you a good starting point).
+A starting point, not a comprehensive list. The starting-condition references are on [Starting Conditions](starting_conditions.md#references).
 
 **Numerical shooting method**
 - Takeuchi, H., and Saito, M. (1972). Seismic Surface Waves. In *Methods in Computational Physics: Advances in Research and Applications*, 11, 217-295.
@@ -51,13 +40,6 @@ The methods implemented here come from the following work (this is not a compreh
 **Interfaces, constants, and assumptions**
 - Saito, M. (1974). Some problems of static deformation of the earth. *Journal of Physics of the Earth*, 22(1), 123-140.
 - Beuthe, M. (2015). Tidal Love numbers of membrane worlds: Europa, Titan, and Co. *Icarus*, 258, 239-266.
-
-**Starting conditions**
-- Kamata, S., Matsuyama, I., and Nimmo, F. (2015). Tidal resonance in icy satellites with subsurface oceans. *Journal of Geophysical Research: Planets*, 120(9), 1528-1542.
-- Martens, H. R. (2016). *Using Earth deformation caused by surface mass loading to constrain the elastic structure of the crust and mantle*. PhD thesis, California Institute of Technology.
-- Martens, H. R., Rivera, L., and Simons, M. (2019). LoadDef: A Python-based toolkit to model elastic deformation caused by surface mass loading on spherically symmetric bodies. *Earth and Space Science*, 6(2), 311-323.
-- Smylie, D. E. (2013). *Earth Dynamics: Deformations and Oscillations of the Rotating Earth*. Cambridge University Press.
-- Crossley, D. J. (1975). The free-oscillation equations at the centre of the Earth. *Geophysical Journal of the Royal Astronomical Society*, 41(2), 153-163.
 
 **Propagation matrix method**
 - Sabadini, R., and Vermeersen, B. (2004). *Global Dynamics of the Earth: Applications of Normal Mode Relaxation Theory to Solid-Earth Geophysics*.
@@ -71,4 +53,4 @@ The methods implemented here come from the following work (this is not a compreh
 
 ## Examples
 
-`Demos/Physics/P05_love_numbers_1d.ipynb` calls the solver directly, and the world notebooks reach it through `solve_love_numbers`. The notebooks in `Benchmarks/RadialSolver/` validate the results against published Earth and Enceladus models and the closed-form homogeneous sphere.
+`Demos/Physics/P05_love_numbers_1d.ipynb` calls the solver directly; the world notebooks reach it through `solve_love_numbers`. The notebooks in `Benchmarks/RadialSolver/` validate the results against published Earth and Enceladus models and the closed-form homogeneous sphere.

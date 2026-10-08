@@ -21,9 +21,9 @@ myr2sec(1.0)       # 3.15576e13      [s]
 sec2myr(3.15576e13) # 1.0            [Myr]
 ```
 
-The period conversions are the pair used most often, because orbital and rotational periods are quoted in days while every TidalPy argument named a frequency is an angular frequency in rad s$^{-1}$.
+Periods are usually quoted in days, while every TidalPy argument named a frequency is an angular frequency in rad s$^{-1}$; `days2rads` converts between them.
 
-The mega-year conversion uses the Julian year of 365.25 days, so one Myr is exactly $3.15576 \times 10^{13}$ s. That is the same constant the radiogenics datasets use for their half lives, available in Python as `TidalPy.constants.seconds_per_myr`, so times converted here and times read from an isotope model agree.
+The mega-year conversion uses the Julian year of 365.25 days, so one Myr is exactly $3.15576 \times 10^{13}$ s (`TidalPy.constants.seconds_per_myr`), the same constant the radiogenics datasets use.
 
 ## Orbital Elements
 
@@ -34,17 +34,15 @@ semi_major_axis   = orbital_motion2semi_a(orbital_motion, host_mass, target_mass
 orbital_motion    = semi_a2orbital_motion(semi_major_axis, host_mass, target_mass=0.0)
 ```
 
-Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$, solved for one element or the other. The orbiting body's mass defaults to zero, which is the test-particle limit and is usually appropriate for a satellite problem. Supply it when the mass ratio is large enough to matter, as in a binary or a planet-moon pair like Pluto and Charon.
+Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$, solved for one element or the other. The orbiting body's mass defaults to zero, the test-particle limit; supply it when the mass ratio matters, as for Pluto and Charon.
 
-Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default, `None`, uses TidalPy's own value, which comes from SciPy through the TidalPy config and is read on every call, so a reinitialized config is used.
+The optional `G_to_use` sets the gravitational constant, to match a published result. The default, `None`, uses TidalPy's current value (from SciPy), read on every call.
 
 A non-positive orbital motion or semi-major axis (NaN included), a non-positive host mass, a negative target mass, or a non-positive `G_to_use` raises `ValueError`.
 
 ## Non-Dimensionalization
 
-The radial structure and deformation problems are integrated in non-dimensional variables. A radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of one linear system thirty orders of magnitude apart, and the solution loses significant digits to that spread. Scaling each variable by a characteristic value of its own dimension brings the system to order unity.
-
-The scales are built from just two properties of the body, its mean radius and its bulk density, plus the gravitational constant:
+The radial structure and deformation problems are integrated in non-dimensional variables. A radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of one linear system thirty orders of magnitude apart, which costs significant digits; scaling each variable by a characteristic value brings the system to order unity. The scales come from the body's mean radius and bulk density plus the gravitational constant:
 
 $$T^2 = \frac{1}{\pi G \bar{\rho}}, \qquad L = R, \qquad \rho_{\text{scale}} = \bar{\rho}$$
 
@@ -64,10 +62,8 @@ scales.mass_conversion       # [kg]
 scales.pascal_conversion     # [Pa]
 ```
 
-Each attribute is the factor a non-dimensional value is multiplied by to recover MKS, and divided by to go the other way. The returned object is a thin wrapper over the C++ `c_NonDimensionalScales` struct, which is what the solvers hold internally.
-
-Callers rarely build these by hand. The radial solver and the world equation-of-state solve non-dimensionalize their inputs, integrate, and re-dimensionalize their results before returning, so the scales are an implementation detail unless you are reading solver internals or writing a new solver stage.
+Multiply a non-dimensional value by the attribute to recover MKS, and divide to go the other way. You rarely need these: the radial solver and the equation-of-state solve convert their inputs and results themselves, so the scales matter only when writing a new solver stage.
 
 ## C++ API
 
-The two Kepler functions wrap `c_orbital_motion2semi_a` and `c_semi_a2orbital_motion` from `conversions_.hpp`. The C++ functions skip the input checks. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, built by its constructor from a mean radius and a bulk density, and are passed by reference into the solvers that need them.
+The Kepler functions are `c_orbital_motion2semi_a` and `c_semi_a2orbital_motion` in `conversions_.hpp`; they skip the input checks. The scales are `c_NonDimensionalScales` in `nondimensional_.hpp`, constructed from a mean radius and a bulk density.

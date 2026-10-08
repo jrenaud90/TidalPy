@@ -2,9 +2,7 @@
 
 _Updated: 2026-10-01_
 
-`TidalPy.Utilities.arrays` provides linear interpolation over a sorted grid. The tabulated material laws use it to get a density, modulus, or viscosity at a radius and a melting temperature at a pressure, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
-
-`interp` is a thin wrapper over the same header-only C++ routine the solvers call, so a Python result and a C++ result agree exactly.
+`TidalPy.Utilities.arrays` provides linear interpolation over a sorted grid. The tabulated material laws, the layer profiles, and the radial solver's dense output use it to evaluate between samples. `interp` wraps the same C++ routine the solvers call, so Python and C++ results agree exactly.
 
 ## Python API
 
@@ -19,9 +17,12 @@ interp(1.5, sample_x, sample_y)                # 7.5, a float for a scalar query
 interp([-1.0, 0.5, 9.0], sample_x, sample_y)   # array([0., 5., 7.]), clamped at both ends
 ```
 
-`interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a Python float for a scalar query and a `float64` array shaped like `x` otherwise, and raises `ValueError` if the sample arrays are empty or differ in length. Complex sample values are interpolated as complex numbers, through the C++ `c_interp_complex`, and give a complex result.
+`interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a float for a scalar query and a `float64` array shaped like `x` otherwise. Complex sample values give a complex result.
 
-The behavior matches `numpy.interp`, including the clamping of out-of-range queries to the nearest endpoint value and NumPy's fallback when an interpolation slope comes out NaN. The one difference is that the sample coordinates are assumed to be sorted ascending and no check is performed, because the routine sits inside inner loops where the check would cost more than the interpolation. Unsorted input gives undefined results rather than an error.
+The behavior matches `numpy.interp`, including clamping out-of-range queries to the nearest endpoint value and NumPy's fallback when a slope comes out NaN. Limits:
+
+- The sample coordinates are not checked for order (the check would cost more than the interpolation). Unsorted input gives undefined results, not an error.
+- Empty sample arrays, or arrays of different lengths, raise `ValueError`.
 
 ## C++ API
 
@@ -42,14 +43,8 @@ const double value = tidalpy::c_interp(0.5e6, radius.data(), density.data(), rad
 | `c_interp_complex(...)` | The same for complex values, interpolating the real and imaginary parts independently. |
 | `c_binary_search_with_guess(key, array, length, guess, int& code)` | The index search underneath both. Returns the index `j` with `array[j] <= key < array[j+1]`, returns `length` past the right end, and sets `code = -1` while returning 0 left of the array. Requires a length of at least three. |
 
-The `guess` argument seeds the binary search. For an isolated lookup, pass zero. When interpolating a monotonic sequence of query points, passing the previous result index turns the search from logarithmic into effectively constant time, which makes a dense-output evaluation over thousands of radial slices cheap.
-
-Short domains are handled without the search: an empty domain gives NaN, a single sample gives that sample's value, and two samples interpolate directly over the one interval, since the guess-seeded search needs at least three points.
+`guess` seeds the binary search: pass zero for an isolated lookup, or the previous result index when walking a monotonic sequence of queries, which makes each search effectively constant time. Short domains skip the search: an empty domain gives NaN, a single sample gives its value, and two samples interpolate over the one interval.
 
 ## Where Interpolation is Used
 
-The tabulated laws (the `interpolate` equation-of-state, shear-modulus, and viscosity laws, in radius, and the `interpolate` melting curve, in pressure) read their tables through `c_TableLookup` (`table_lookup_.hpp`), which seeds `c_interp` from a bucket index over the abscissa so a read costs the same anywhere in a long table, and also gives a table's slope. See [Equation-of-State and Shear-Modulus Laws](../Material/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
-
-## Implementation Notes
-
-The search routine is adapted from NumPy's compiled interpolation. The Python wrapper coerces its three arguments to contiguous `float64` arrays and loops over the queries in C.
+The `interpolate` equation-of-state, shear-modulus, and viscosity laws (in radius) and the `interpolate` melting curve (in pressure) read their tables through it, at the same cost anywhere in a long table (see [Equation-of-State and Shear-Modulus Laws](../Material/material_eos.md)). The layer profiles, the radial solver's retained solution, and the equation-of-state solution use it to answer queries between stored slices. The search is adapted from NumPy's compiled interpolation.

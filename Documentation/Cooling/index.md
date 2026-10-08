@@ -1,12 +1,12 @@
 # Cooling (`Cooling`)
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-07_
 
-`TidalPy.Cooling` contains cooling models which quantify how heat moves through a layer. Each model maps a layer's physical state onto a surface heat flux [W m$^{-2}$], the thickness of the thermal boundary layer that carries it, and the Rayleigh and Nusselt numbers that describe the transport regime. In a world's thermal solve each model also builds its layer's temperature profile: one temperature throughout (`off`), two conducting halves (`conduction`), or conducting boundary layers around an adiabatic interior whose top is at the layer's temperature (`convection`), with a magma-ocean scaling when that interior is liquid.
+`TidalPy.Cooling` holds the cooling models, which say how heat moves through a layer. Each maps a layer's physical state onto a surface heat flux [W m$^{-2}$], the thickness of the thermal boundary layer that carries it, and the Rayleigh and Nusselt numbers of the transport regime. In a world's thermal solve each model also builds its layer's temperature profile: one temperature throughout (`off`), two conducting halves (`conduction`), or conducting boundary layers around an adiabatic interior whose top is at the layer's temperature (`convection`, with a magma-ocean scaling when that interior is liquid).
 
 | Page | Covers |
 |---|---|
-| [Cooling Models](cooling_models.md) | The three models, their flux laws and the profiles they build, the convective reference state and the magma-ocean branch, vectorized and one-shot evaluation, serialization, and how to add a model. |
+| [Cooling Models](cooling_models.md) | The three models, their flux laws and profiles, the convective reference state and magma-ocean branch, vectorized and one-shot evaluation, and the C++ API. |
 
 ```{toctree}
 :maxdepth: 1
@@ -18,9 +18,9 @@ Cooling Models <cooling_models.md>
 
 A layer holds at most one cooling model: `Layer(..., cooling=...)` or `layer.cooling = ...` takes a model, a model name, or a config table, and `layer.cooling = None` removes it. A world built from a TOML file reads it from the layer's `[layers.<name>.cooling]` table. See [Layer](../Structures/layers/layer.md). A layer without one holds one temperature, as with `off`.
 
-The models act in a world's thermal solve, `solve_eos(solve_temperature=True, surface_temperature=...)`. On each pass the thermal network asks every layer's model for its profile against the structure the pass solved: which stretches conduct and which are adiabatic, the resistance of each conducting stretch, and the temperature at the base of a convecting interior. The model reads its layer's material through the network, so it chooses where to evaluate it: the convection model takes its viscosity at the top of its adiabatic interior, where the layer's temperature applies. The network then joins the layers into a chain of thermal resistances, integrates the temperature and heat flow through the planet, and reports each layer's rate of temperature change. See [Temperature and Heat Flow](../Structures/worlds/worlds.md#temperature-and-heat-flow).
+The models act in a world's thermal solve, `solve_eos(solve_temperature=True, surface_temperature=...)`. On each pass every layer's model gives its profile against the structure the pass solved: which stretches conduct and which are adiabatic, the resistance of each conducting stretch, and the temperature at the base of a convecting interior. The model chooses where to evaluate its material: the convection model takes its viscosity at the top of its adiabatic interior, where the layer's temperature applies. The network then joins the layers into a chain of thermal resistances, integrates the temperature and heat flow through the planet, and reports each layer's rate of temperature change. See [Temperature and Heat Flow](../Structures/worlds/worlds.md#temperature-and-heat-flow).
 
-The models are parameterized. They reduce the whole of mantle convection to a boundary-layer scaling with a Rayleigh number and a handful of fitted constants, which is the standard approach for the timescales planetary evolution deals in. When their assumptions fail, usually in a thin layer, at a vanishing temperature drop, or with a viscosity the material cannot give, the models degrade to a defined edge case rather than to a numerical error, and the solve reports it (`layer_boundary_fallback`).
+The models are parameterized: they reduce mantle convection to a boundary-layer scaling with a Rayleigh number and a few fitted constants, the standard approach on planetary-evolution timescales. When their assumptions fail (a thin layer, a vanishing temperature drop, or a viscosity the material cannot give), they degrade to a defined edge case rather than a numerical error, and the solve reports it (`layer_boundary_fallback`).
 
 ## Examples
 
