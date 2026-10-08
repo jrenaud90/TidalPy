@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-08_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0 and the calls between them.
 
@@ -18,17 +18,15 @@ conda install -c conda-forge "tidalpy<0.8"
 
 ## What Changed
 
-- The physics runs in C++ behind thin Cython layers; nothing compiles on a function's first call.
+- The physics runs in C++ behind thin Cython layers (no numba jit compiles).
 - Classes store configuration and return results from explicit `solve_*`, `get_*`, and `calc_*` calls. Changing an attribute no longer updates the world, its layers, and its orbit.
 - Orbital state no longer lives on a world. A `System` holds the orbits and passes them to each tidal calculation.
 - Worlds and systems are described by TOML files that carry a `schema_version`, or by the equivalent Python dict.
-- Every physics family follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, binary save and load, and `parameters`, `get_parameter`, `get_parameter_info`, and `with_parameters`. Most families also have direct functions.
-- A layer's interior is a `Material`: a solid and a liquid `Phase` (each an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) with melting curves, melt weakening, and latent heat. MatPack ships 29 named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
+- Every physics family follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, binary save and load, and `parameters`, `get_parameter`, `get_parameter_info`, and `with_parameters`. Most also have direct helper functions.
+- A layer's interior is a `Material`: a solid and a liquid `Phase` (each an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) with melting curves, melt weakening, and latent heat. MatPack ships many named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
 - One configuration file, `TidalPy_Configs.toml`, in a data directory scoped to the minor version (`<Documents>/TidalPy/0.8.X/`).
-- One logger, written in C++ with spdlog.
-- The new code raises the built-in `ValueError`, `RuntimeError`, `TypeError`, and `NotImplementedError` instead of TidalPy's own exception classes.
-- The required dependencies are NumPy, SciPy, matplotlib, platformdirs, toml, tqdm, and CyRK. numba, dill, pathos, astropy, and astroquery are no longer used. psutil moved to the `dev` extra. The `burnman` and `julia` extras were removed.
-- Importing TidalPy no longer warns about the backend change. `TidalPy.exceptions.TidalPyDeprecationWarning` still exists, so code that filters it keeps working.
+- One logger using spdlog for both the Python and C++ side.
+- Importing TidalPy no longer warns about the backend change. `TidalPy.exceptions.TidalPyDeprecationWarning` still exists, so code that filters is fine.
 
 ## Module Map
 
@@ -52,18 +50,6 @@ Imports are case-sensitive on every operating system: `import TidalPy.rheology` 
 | `TidalPy.toolbox` | no replacement yet (see [Quick Tidal Dissipation](#quick-tidal-dissipation)) | |
 | `TidalPy.Extending` (BurnMan), `TidalPy.output`, `TidalPy.numba_scipy` | removed | |
 | `TidalPy.WorldPack` (bundled worlds) | `TidalPy.WorldPack` (bundled worlds in the new TOML schema) | [WorldPack](Structures/config/worldpack.md) |
-
-## Exceptions
-
-`TidalPy.exceptions` keeps `TidalPyException`, `InitializationError`, `ArgumentException`, `ConfigurationException`, `ModelException`, `UnknownModelError`, `TidalPyIntegrationException`, `SolutionFailedError`, and `TidalPyDeprecationWarning`; the other 0.7.X exception classes are removed. An `except TidalPyException` block no longer catches errors from the physics modules:
-
-| 0.7.X | 0.8.0 |
-|---|---|
-| `ArgumentException` (bad arguments, array sizes, radius ordering) | `ValueError` |
-| `UnknownModelError` (an unknown model, layer type, or integration method name) | `ValueError`; an unknown config key also names the closest accepted key |
-| `SolutionFailedError` from `radial_solver(raise_on_fail=True)` | `SolutionFailedError` (unchanged), also raised when the solver's EOS solve fails |
-| `AttributeNotSetError` (a world state that was never set) | `RuntimeError` (for example, a tidal solve on a world whose EOS is not solved) |
-| a wrong argument type | `TypeError` |
 
 ## Configuration and Data Directory
 
@@ -96,8 +82,8 @@ The configuration functions also changed:
 import TidalPy
 
 TidalPy.reinit(provided_config={"tides": {"eccentricity_trunc_lvl": 20}})   # Override for this session
-TidalPy.save_config("my_run_config.toml")                                  # Record the settings of a run
-TidalPy.reinit(provided_config="default")                                  # Back to your saved file
+TidalPy.save_config("my_run_config.toml")                                   # Record the settings of a run
+TidalPy.reinit(provided_config="default")                                   # Back to your saved file
 ```
 
 ## Logging
@@ -117,9 +103,9 @@ Handlers attached to Python's `logging` (including pytest's `caplog`) do not see
 
 The bundled worlds are new TOML files, and the set changed:
 
-- `earth` is replaced by `earth_prem` (built from the PREM profile) beside `earth_simple`, and `earth_prem_q` takes its loss from PREM's quality factors.
+- `earth` is replaced by `earth_prem` (built from the PREM profile) beside `earth_simple`, and `earth_prem_q` which uses PREM's quality factors.
 - `jupiter_simple` is new, and so are `europa_dynamic`, `luna_dynamic`, `mercury_dynamic`, and `pluto_dynamic`, which solve a liquid layer (an ocean or a fluid outer core) as a dynamic, compressible liquid.
-- The warm silicate mantles of the bundled worlds melt: they use the peridotite melting curves, with melting and pressure melting on.
+- The warm silicate mantles of the bundled worlds now use the peridotite melting curves, with melting and pressure melting on.
 - `io_simple`, `triton_simple`, `55cnc`, `55cnce`, `55cnce_simple`, and `nereid_dev` are removed.
 
 `TidalPy.Structures.available_worlds()` lists the bundled worlds. They are copied to `<Documents>/TidalPy/0.8.X/Worlds` for editing; `TidalPy.Structures.install_worldpack(force=True)` restores the packaged copies and discards those edits.
@@ -196,7 +182,7 @@ from TidalPy.Material import available_materials, load_material
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 
-print(available_materials("rocky"))                 # The MatPack names in one category
+print(available_materials("rocky"))   # The MatPack names in one category
 
 # A world from a dict, in place of a 0.7.X world config
 io_like = build_world({
@@ -208,21 +194,21 @@ io_like = build_world({
     "layers": {
         "core": {
             "radius_fraction": 0.45,
-            "material": "simple_iron_core",           # A MatPack name
-            "use_tides": False,                       # Was is_tidal
+            "material": "simple_iron_core",   # A MatPack name
+            "use_tides": False,               # Was is_tidal
             "temperature_k": 1800.0},
         "mantle": {
             "radius_fraction": 1.0,
             "material": {
-                "preset": "peridotite",               # A MatPack material with an override
+                "preset": "peridotite",       # A MatPack material with an override
                 "solid": {"shear_rheology": {"model": "maxwell"}}},
             "temperature_k": 1600.0,
-            "use_melting": True,                      # Its melting curves and weakening take part
+            "use_melting": True,              # Its melting curves and weakening take part
             "use_pressure_melting": True,
             "cooling": {"model": "convection"}}}})
 io_like.solve_eos(
     solve_temperature=True,
-    surface_temperature=110.0)                        # An adiabatic mantle under a conducting boundary layer
+    surface_temperature=110.0)                # An adiabatic mantle under a conducting boundary layer
 
 # The same mantle built in Python
 mantle = Layer(
@@ -241,7 +227,7 @@ mantle = Layer(
 
 ## Systems
 
-`System` replaces `Orbit` (`PhysicsOrbit`). It returns the rates for the current state, and `System.evolve` integrates a world's orbit, spin, and layer temperatures about its host over time (demo S02); for any other time evolution, integrate the rates with an integrator of your choice.
+`System` replaces `Orbit` (`PhysicsOrbit`). It returns the derivative rates for the current state, and `System.evolve` integrates a world's orbit, spin, and layer temperatures about its host over time (Demo S02); for any other time evolution, integrate the rates with an integrator of your choice.
 
 | 0.7.X | 0.8.0 |
 |---|---|
@@ -296,7 +282,7 @@ for love_method in ("radial_solver", "homogeneous"):
     print(rates["da_dt"], rates["de_dt"], rates["dspin_dt"])   # [m s-1], [s-1], [rad s-2]
 ```
 
-The radial solver reproduces the 9.33e13 W the bundled Io is calibrated to (Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates a thin weak layer inside a stiffer planet: here it overestimates the heating and every rate by 47 percent, but takes under 0.1 ms. Use it for fast sweeps and first estimates. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
+The radial solver reproduces the 9.33e13 W the bundled Io is calibrated to (Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates a thin weak layer inside a stiffer planet. Use it for fast sweeps and first estimates. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
 
 A one-layer world built from bare numbers reproduces `quick_tidal_dissipation`. The world below is its default homogeneous Maxwell body at degree 2 and eccentricity truncation 2, and the result matches the homogeneous-sphere closed form.
 

@@ -51,7 +51,7 @@ The dynamic liquid equations carry no density-gradient term, so a liquid layer's
 
 $$E = \frac{\sqrt{\ell(\ell+1)}}{\omega} \int \frac{\sqrt{-N^2}}{r}\, dr,$$
 
-which rises with the forcing period. Once $e^E$ amplifies the integration tolerance to order one, the independent solutions are nearly dependent by the surface and the solve is wrong or fails. Every bundled liquid except PREM's has constant density: solved dynamically, Earth-Simple's core breaks down by half a day, Mercury's by 3.5 days, the Moon's and PREM's by 10 days, and Pluto's ocean by 30 days.
+which rises with the forcing period. Once $e^E$ amplifies the integration tolerance to order one, the independent solutions are nearly dependent by the surface and the solve is wrong or fails. Every bundled liquid except PREM's has constant density: solved dynamically, Earth-Simple's core breaks down by half a day, Mercury's by 3.5 days, the Moon's and PREM's by 10 days, and Pluto's ocean by 15 days.
 
 Before every radial Love solve (`solve_love_numbers`, `calc_tides`, the 3D calls, and `radial_solver`), TidalPy estimates each dynamic liquid layer's error, $\mathrm{rtol}\, e^E$, from its profile, and logs one warning per world when it passes 1%, naming the layer, the period, and $E$.
 

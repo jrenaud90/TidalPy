@@ -1,11 +1,11 @@
 # Pluto-Dynamic: pluto.toml with its ocean solved as a dynamic, compressible liquid; only the ocean and the core
 # density differ.
-# A constant-density dynamic liquid is unstably stratified and fails (pluto.toml's ocean by a 30 day period), so
+# A constant-density dynamic liquid is unstably stratified and fails (pluto.toml's ocean by a 15 day period), so
 # the ocean's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
-# Ocean density runs from 1044 to 1076 kg/m3 (mean 1061); the isothermal law ignores the layer's 260 K.
-# Fitted: core reference density 2918.9293 kg/m3 to the mass (g = 0.6156 m/s2; central pressure 1.18 GPa).
-# C/MR2 = 0.31979 is a model output: none is measured.
-# k2 = 0.1556 at the 6.3872 day mutual period (pluto.toml: 0.1458); a static ocean is within 1.4e-4, so the
+# Ocean density runs from 1028 to 1081 kg/m3 (mean 1053); the isothermal law ignores the layer's 260 K.
+# Fitted: core reference density 2959.3785 kg/m3 to the mass, keeping pluto.toml's core radius (g = 0.6156 m/s2;
+# central pressure 1.20 GPa). C/MR2 = 0.31940 is a model output: none is measured.
+# k2 = 0.2260 at the 6.3872 day mutual period (pluto.toml: 0.2107); a static ocean is within 1.6e-4, so the
 # difference is the denser, compressible ocean, not its dynamics.
 # Temperatures, viscosities, and spin are as in pluto.toml.
 schema_version = "0.2.0"
@@ -22,7 +22,7 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 910903.0             # TidalPy 0.7 pluto.toml
+radius_outer_m = 898881.4268          # pluto.toml
 use_tides = true
 temperature_k = 300.0
 use_heating = true
@@ -32,7 +32,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.core.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 2918.9293   # fitted to the mass
+reference_density_kg_m3 = 2959.3785   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
@@ -65,7 +65,7 @@ isotopes = "modern_day_chondritic"
 
 [layers.ocean]
 layer_index = 1
-radius_outer_m = 1023300.0            # 165 km below the surface, Nimmo et al. (2016)
+radius_outer_m = 1088300.0            # 100 km below the surface
 use_tides = false
 is_static = false
 temperature_k = 260.0

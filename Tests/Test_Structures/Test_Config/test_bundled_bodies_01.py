@@ -70,7 +70,7 @@ _BODIES = [
     # Pluto and Charon are mutually synchronous; Triton is synchronous and retrograde about Neptune.
     Body("pluto", 1188300.0, 1.3024587e22, 0.615627,
          ["core", "ocean", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.318550, moi_tolerance=1.0e-3, moi_measured=False,
+         6.3872304, moi_factor=0.317205, moi_tolerance=1.0e-3, moi_measured=False,
          liquid_layers=["ocean"]),
     # The *_dynamic worlds: their liquid layers are dynamic, compressible, and carry a pressure-dependent EOS.
     Body("luna_dynamic", 1737400.0, 7.34579e22, 1.6242,
@@ -84,14 +84,14 @@ _BODIES = [
          love_k=0.569, love_period_days=87.9691, love_tolerance=1.0e-2),
     Body("pluto_dynamic", 1188300.0, 1.3024587e22, 0.615627,
          ["core", "ocean", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.31979, moi_tolerance=1.0e-3, moi_measured=False,
+         6.3872304, moi_factor=0.319403, moi_tolerance=1.0e-3, moi_measured=False,
          liquid_layers=["ocean"], dynamic_liquids=True),
     Body("europa_dynamic", 1561000.0, 4.7998e22, 1.3147,
          ["core", "mantle", "ocean", "ice_shell"], ["core", "mantle", "ice_shell"],
          3.551181, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["ocean"], dynamic_liquids=True),
     Body("charon", 606000.0, 1.5896798e21, 0.288915,
          ["core", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.311564, moi_tolerance=1.0e-3, moi_measured=False),
+         6.3872304, moi_factor=0.311780, moi_tolerance=1.0e-3, moi_measured=False),
     Body("triton", 1352600.0, 2.1402926e22, 0.780801,
          ["core", "ice_shell"], ["core", "ice_shell"],
          5.876854, moi_factor=0.315542, moi_tolerance=1.0e-3, moi_measured=False),
@@ -622,24 +622,24 @@ def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia_or_lov
 # =====================================================================================================================
 # Pluto's ocean
 # =====================================================================================================================
-# The 165 km shell is the Nimmo et al. (2016) depth to the ocean; the ocean is what is left above the 0.7 core.
-_PLUTO_SHELL_THICKNESS = 165.0e3
-_PLUTO_OCEAN_THICKNESS = 112.4e3
-_PLUTO_OCEAN_K = 0.145781
-_PLUTO_FROZEN_K = 0.004574
+# The 100 km shell is the Kihoulou et al. (2022) thin shell; the ocean is what is left above the core fitted to mass.
+_PLUTO_SHELL_THICKNESS = 100.0e3
+_PLUTO_OCEAN_THICKNESS = 189.4e3
+_PLUTO_OCEAN_K = 0.210689
+_PLUTO_FROZEN_K = 0.004676
 
 
 def test_pluto_ocean_thickness_follows_from_the_observed_shell():
-    """The ocean thickness is not fitted, and lands inside the 50 to 150 km of thermal evolution models."""
+    """The ocean thickness is not fitted, and lands near the ~200 km ocean a 100 km shell implies."""
     world = build_world("pluto")
     shell = world.radius - world.ocean.radius_outer
     ocean = world.ocean.radius_outer - world.core.radius_outer
     assert shell == pytest.approx(_PLUTO_SHELL_THICKNESS, rel=1e-6)
     assert ocean == pytest.approx(_PLUTO_OCEAN_THICKNESS, rel=1e-3)
-    assert 50.0e3 < ocean < 150.0e3
+    assert 150.0e3 < ocean < 250.0e3
 
 
-def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
+def test_pluto_ocean_is_worth_a_factor_of_forty_in_its_love_number():
     """The static liquid ocean decouples the shell from the core."""
     world = build_world("pluto")
     frequency = world.spin_frequency
@@ -660,7 +660,7 @@ def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
     world.solve_love_numbers(frequency)
     frozen_k = world.love_number_k.real
     assert frozen_k == pytest.approx(_PLUTO_FROZEN_K, rel=1e-3)
-    assert ocean_k > 25.0 * frozen_k
+    assert ocean_k > 40.0 * frozen_k
 
 
 def test_pluto_ocean_takes_none_of_the_tidal_heating():
@@ -697,7 +697,7 @@ def test_dynamic_world_liquid_follows_its_equation_of_state(body):
 
 # k2 at the orbital or mutual period as each file's comment quotes it, and the most the same liquid solved as a
 # static one moves it.
-_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.1556, 2.0e-4), "europa_dynamic": (3.551181, 0.2594, 2.0e-3)}
+_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.2260, 2.0e-4), "europa_dynamic": (3.551181, 0.2594, 2.0e-3)}
 
 
 @pytest.mark.parametrize("name", list(_DYNAMIC_LOVE_K))

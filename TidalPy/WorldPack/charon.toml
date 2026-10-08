@@ -1,9 +1,9 @@
 # Charon: a rock core under a water-ice shell, the smaller half of a mutually synchronous binary; no ocean.
 # Radius 606.0 km (Nimmo et al. 2017); mass 1.5896798e21 kg from GM = 106.1 km3/s2, mean density 1705 kg/m3
-# (Brozovic and Jacobson 2024). The 437.3748 km core radius is TidalPy 0.7's.
-# Pluto's recipe: ice I fixed at 917 kg/m3 and the core reference density, 3007.0339 kg/m3, fitted to the mass
-# (within 3 percent of Pluto's 2943.7302). Shell 168.6 km; the core holds 66.4 percent of the mass (Pluto 71.9).
-# g = 0.2889 m/s2; central pressure 0.29 GPa. C/MR2 = 0.31156 is a model output: none is measured.
+# (Brozovic and Jacobson 2024).
+# Pluto's recipe: ice I 917 kg/m3 and a hydrated-silicate core reference density 3000 kg/m3 are fixed, and the
+# 437.868 km core radius is fitted to the mass. Shell 168.1 km; the core holds 66.4 percent of the mass (Pluto 70.4).
+# g = 0.2889 m/s2; central pressure 0.29 GPa. C/MR2 = 0.31178 is a model output: none is measured.
 # Generic, uncalibrated temperatures and viscosities: core 300 K, 1e22 Pa s; shell 40 K, 1e15 Pa s (E = 59.4 kJ/mol).
 # At the 6.3872 day mutual period the ice shell takes 97.9 percent of the heating.
 # To add an ocean, split the shell and give the lower part a liquid-only material.
@@ -22,7 +22,7 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 437374.8067          # TidalPy 0.7 charon.toml
+radius_outer_m = 437868.0695          # fitted to the mass
 use_tides = true
 temperature_k = 300.0
 use_heating = true
@@ -32,7 +32,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.core.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3007.0339   # fitted to the mass
+reference_density_kg_m3 = 3000.0      # hydrated silicate, as pluto.toml
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5

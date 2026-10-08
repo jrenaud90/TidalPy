@@ -118,7 +118,7 @@ phases           = state["phase"]              # an object array of "solid", "pa
 | `eos` | [equation of state](material_eos.md) | Required; a `Phase` built without one takes a constant-density law at its defaults. |
 | `shear_modulus` | [shear modulus](material_eos.md#shear-modulus-laws) | The phase is a fluid: a shear modulus of 0. |
 | `shear_viscosity`, `bulk_viscosity` | [viscosity](../Viscosity/viscosity_models.md) | A NaN viscosity. |
-| `shear_rheology`, `bulk_rheology` | [rheology](../Rheology/rheology_models.md) | No default; the layer uses its own rheology or none (elastic). A layer reads only the base phase's (the solid, when there is one), so a material with both phases refuses one on its liquid phase. |
+| `shear_rheology`, `bulk_rheology` | [rheology](../Rheology/rheology_models.md) | No default; the layer uses its own rheology or none (elastic). |
 
 The phase's own parameters are its thermal constants. The conductivity and heat capacity are power laws in temperature, $k = k_0 (T / T_\mathrm{ref})^{n_k}$ and $c_p = c_{p0} (T / T_\mathrm{ref})^{n_c}$ (MatPack's `ice_ih`, for example, has $k \propto T^{-0.84}$):
 
@@ -162,9 +162,9 @@ and above the liquidus the material is its liquid phase, $\phi = 1$. When the tw
 
 Inside the range ($0 < \phi < 1$) the material evaluates both phases at the point and combines them:
 
-- Shear modulus and shear viscosity: the [weakening law](../PartialMelt/partial_melt_models.md#melt-weakening), between the solid's and the liquid's values. Without one, the solid's values until fully molten.
+- Shear modulus and shear viscosity: the [weakening law](../PartialMelt/partial_melt_models.md#melt-weakening), between the solid's and the liquid's values. The solid values are used until fully molten if no law is provided.
 - Bulk modulus and bulk viscosity: the [mixing laws](../PartialMelt/partial_melt_models.md#bulk-mixing) when present. Otherwise the bulk modulus (isothermal and adiabatic) blends linearly from the solid's into the liquid's across the weakening law's breakdown band, so it reaches the liquid's with the shear modulus (with no weakening law, it steps at full melt), and the bulk viscosity is the solid's until fully molten.
-- Density: mixed by volume, $(1 - \phi) \rho_s + \phi \rho_l$, with `use_melt_density`; otherwise the solid's.
+- Density: mixed by volume, $(1 - \phi) \rho_s + \phi \rho_l$, with `use_melt_density`. Otherwise use the solid values.
 - Expansivity, heat capacity, and conductivity: linear in $\phi$ between the two phases, with the latent heat added to the heat capacity.
 
 A fully molten material ($\phi = 1$) takes the liquid phase's shear modulus, shear viscosity, and thermal properties. Its bulk modulus and bulk viscosity are the liquid's, or the mixing laws' values at $\phi = 1$ when it has them, and its density stays the solid's without `use_melt_density`.

@@ -1,7 +1,7 @@
 # Triton: a rock core under a water-ice shell, on a retrograde synchronous orbit about Neptune; no ocean.
 # Radius 1352.6 km; mass 2.1402926e22 kg from GM = 1428.49546 km3/s2 (JPL satellite ephemeris NEP097), mean
 # density 2065 kg/m3. The 1064 km core radius is TidalPy 0.7's.
-# Pluto's recipe: ice I fixed at 917 kg/m3 and the core reference density, 3242.4854 kg/m3, fitted to the mass.
+# Ice I fixed at 917 kg/m3 and the core reference density, 3242.4854 kg/m3, fitted to the mass.
 # Shell 288.6 km; the core holds 77.0 percent of the mass; g = 0.7808 m/s2; central pressure 1.93 GPa.
 # C/MR2 = 0.31554 is a model output: none is measured.
 # Generic, uncalibrated temperatures and viscosities: core 273.15 K, 1e22 Pa s; shell 35 K, 1e15 Pa s
