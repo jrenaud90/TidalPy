@@ -1,13 +1,9 @@
-# liquid_iron: liquid iron, for a molten core.
-#
-# A liquid-only material. Anderson and Ahrens (1994) fit liquid iron from 1 bar to core pressure: density 7019 kg m-3 at
-# 1811 K and an adiabatic bulk modulus K_S0 = 109.7 GPa with K_S0' = 4.66. The structure integration uses the
-# isothermal K_T0 = 85 GPa derived from the same work (via BurnMan); K_S0' stands in for K_T0', and the Gruneisen
-# parameter 1.74 is derived from K_S0 / K_T0 = 1 + alpha gamma T, so a tidal (adiabatic) deformation sees K_S. A
-# third-order law drops their K'' of -0.043 GPa-1. The expansivity falls with compression as alpha0 K0 / K_T (the
-# law's thermal pressure keeps alpha K_T constant), so K_S / K_T falls below its 1 bar value at depth. Viscosity at 1811 K and 1 bar (Assael et al. 2006; about 1e-2 Pa s
-# at core conditions, de Wijs et al. 1998). Conductivity: an unsourced Wiedemann-Franz estimate with a resistivity of
-# about 1.35e-6 ohm m.
+# liquid_iron: liquid iron, for a molten core; liquid only.
+# Anderson and Ahrens (1994): 7019 kg m-3 at 1811 K, K_S0 = 109.7 GPa, K_S0' = 4.66. The isothermal K_T0 and the
+# Gruneisen parameter are derived from the same work (via BurnMan), so a tidal deformation sees K_S; K_S0' stands in for
+# K_T0', and their K'' is dropped.
+# Viscosity at 1811 K and 1 bar (Assael et al. 2006; about 1e-2 Pa s at core conditions, de Wijs et al. 1998).
+# Conductivity: an unsourced Wiedemann-Franz estimate (resistivity about 1.35e-6 ohm m).
 schema_version = "0.2.0"
 description = "Liquid iron (Anderson and Ahrens 1994); always liquid."
 category = "rocky"

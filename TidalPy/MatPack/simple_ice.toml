@@ -1,10 +1,7 @@
-# simple_ice: uniform water ice.
-#
-# Round values of ice Ih near the base of an icy shell: constant density, moduli, and viscosity, and no melting.
-#
-# References: density and bulk modulus round IAPWS-06 ice Ih at 250 K (Feistel and Wagner 2006); shear modulus,
-# Gammon et al. (1983); viscosity, a near-melting convective value of Goldsby and Kohlstedt (2001) diffusion creep
-# (grain size 0.3 to 0.5 mm); conductivity and heat capacity near 250 K (Petrenko and Whitworth 1999; IAPWS-06).
+# simple_ice: uniform water ice; round ice Ih values near the base of an icy shell, no melting.
+# Density and bulk modulus: IAPWS-06 at 250 K (Feistel and Wagner 2006). Shear modulus: Gammon et al. (1983). Viscosity:
+# near-melting Goldsby and Kohlstedt (2001) diffusion creep (grain size 0.3 to 0.5 mm). Conductivity and heat capacity
+# near 250 K (Petrenko and Whitworth 1999; IAPWS-06).
 schema_version = "0.2.0"
 description = "Uniform water ice: constant density, moduli, and viscosity; no melting."
 category = "simplified"

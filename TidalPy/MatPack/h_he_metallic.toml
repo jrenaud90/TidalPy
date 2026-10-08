@@ -1,9 +1,8 @@
-# h_he_metallic: the metallic hydrogen-helium envelope of a Jupiter-like planet.
-#
-# A liquid-only material on the same n = 1 polytrope as h2_he_molecular (Hubbard 1984), so there is no density step at
-# the boundary between them: the split labels the layers (to give them different heat transport, say). Temperatures of
-# 6000 to 20000 K (French et al. 2012; Guillot 2005); conductivity of order 1e3 W m-1 K-1 in the deep interior, and the
-# heat capacity, expansivity, and viscosity of the molecular envelope (French et al. 2012).
+# h_he_metallic: the metallic hydrogen-helium envelope of a Jupiter-like planet; liquid only.
+# Same n = 1 polytrope as h2_he_molecular (Hubbard 1984), so there is no density step between them; the split only
+# labels the layers.
+# Temperatures 6000 to 20000 K (French et al. 2012; Guillot 2005). Conductivity, heat capacity, expansivity, and
+# viscosity: French et al. (2012).
 schema_version = "0.2.0"
 description = "Metallic H-He envelope on Jupiter's n = 1 polytrope; always fluid."
 category = "giant"

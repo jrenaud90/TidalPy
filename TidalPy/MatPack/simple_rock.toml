@@ -1,11 +1,7 @@
-# simple_rock: uniform silicate rock.
-#
-# Round values inside the ranges of the detailed rock materials (peridotite at moderate depth): constant density,
-# moduli, and viscosity, and no melting.
-#
-# References: the density and moduli round the peridotite values (Stixrude and Lithgow-Bertelloni 2011, via BurnMan);
-# shear modulus and expansivity as Renaud and Henning (2018) Table 1; viscosity, the classic upper-mantle value
-# (Mitrovica and Forte 2004); conductivity, Turcotte and Schubert (2002).
+# simple_rock: uniform silicate rock; round peridotite values at moderate depth, no melting.
+# Density and moduli: rounded peridotite (Stixrude and Lithgow-Bertelloni 2011, via BurnMan); shear modulus and
+# expansivity as Renaud and Henning (2018), Table 1. Viscosity: the classic upper-mantle value (Mitrovica and
+# Forte 2004). Conductivity: Turcotte and Schubert (2002).
 schema_version = "0.2.0"
 description = "Uniform silicate rock: constant density, moduli, and viscosity; no melting."
 category = "simplified"
@@ -19,7 +15,7 @@ model = "constant"
 reference_density_kg_m3 = 3300.0
 bulk_modulus_pa = 1.3e11
 thermal_expansion_1_k = 3.0e-5
-# The density is an in-situ value of a mantle near 1600 K.
+# The density is an in-situ mantle value near 1600 K.
 reference_temperature_k = 1600.0
 
 [solid.shear_modulus]

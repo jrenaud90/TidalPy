@@ -1,17 +1,9 @@
-# PREM Earth with PREM's own attenuation: the quality factors of the radial data file, not a viscosity, set the loss.
-#
-# The same profile as earth_prem.toml (PREM.csv: radius, density, Vp, Vs, and PREM's Q_mu and Q_kappa). With
-# `q_provided = true` every solid layer takes the `seismic_q` rheology, which builds its complex moduli straight from
-# the profile's static moduli and quality factors:
+# Earth-PREM-Q: earth_prem.toml with PREM's own attenuation; the profile's Q_mu and Q_kappa, not a viscosity, set
+# the loss. Every solid layer takes the seismic_q rheology:
 #     Q(omega) = Q_ref (omega / omega_ref)^a,   Re mu* = mu_ref / (1 + D / Q_ref),   Im mu* = Re mu* / Q(omega),
-# where D is the dispersion that causality ties to the loss, (2 / pi) ln(omega_ref / omega) when a = 0. The quality
-# factors and the moduli are both measured at the reference frequency, PREM's 1 s period. Exponent a = 0 keeps each
-# layer's seismic Q at tidal periods; a > 0 (about 0.1 to 0.3 for Earth's mantle) lets it fall toward them as an
-# absorption band does. Liquid layers (the outer core, Q_mu = 0) take no quality factor.
-#
-# A [layers.layer_N] table (or one with a radius_range_m) may still refine detected layers, and a seismic_q rheology
-# table in it overrides these world settings for those layers; it may not give a layer a viscosity or melting. See
-# Documentation/Structures/config/toml_schema.md.
+# where D is the causal dispersion, (2 / pi) ln(omega_ref / omega) when a = 0. a = 0 keeps the seismic Q at tidal
+# periods; a > 0 (about 0.1 to 0.3 for Earth's mantle) lets it fall toward them. The liquid outer core takes no Q.
+# A layer table may refine detected layers and override these settings, but may not add a viscosity or melting.
 schema_version = "0.2.0"
 name = "Earth-PREM-Q"
 type = "terrestrial"

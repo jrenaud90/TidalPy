@@ -1,15 +1,10 @@
 # nitrogen_ice: beta-N2 ice (stable from 35.6 K to its 63.15 K triple point), melting into liquid nitrogen.
-#
-# Solid: the density at 50 K and its expansivity from rho = 1000 - 2.14 (T - 36 K) (McKinnon et al. 2016, Methods,
-# from Scott 1976). The bulk and shear moduli are unsourced estimates for a van der Waals solid near its melting point.
-#
-# Viscosity: the power law of Yamashita et al. (2010) (as McKinnon et al. 2016 give it; at 0.01 MPa stress, about
-# 1e10 Pa s at 50 K) in parallel with diffusion creep at a 1 mm grain size (McKinnon et al. 2016; about 3e15 Pa s).
-# Conductivity and diffusivity from McKinnon et al. (2016), the heat capacity derived from them.
-#
-# Melting: the triple point (McKinnon et al. 2016) and the enthalpy of fusion. Liquid: unsourced recollections of
-# liquid-nitrogen density and viscosity near 63 K, an expansivity derived from that density and about 807 kg m-3 at
-# the 77 K boiling point (also recalled), an unsourced bulk modulus, and the solid's conductivity and heat capacity.
+# Solid: density at 50 K and expansivity from rho = 1000 - 2.14 (T - 36 K) (McKinnon et al. 2016, from Scott 1976). Bulk
+# and shear moduli: unsourced estimates.
+# Viscosity: the Yamashita et al. (2010) power law (as given by McKinnon et al. 2016) in parallel with diffusion creep
+# (McKinnon et al. 2016). Conductivity and diffusivity: McKinnon et al. (2016); heat capacity derived from them.
+# Melting: the triple point (McKinnon et al. 2016) and the enthalpy of fusion. Liquid: unsourced density, viscosity,
+# expansivity, and bulk modulus near 63 K; the solid's conductivity and heat capacity.
 schema_version = "0.2.0"
 description = "Beta nitrogen ice (Pluto, Triton) with a power-law and diffusion creep, melting at 63.15 K."
 category = "icy"

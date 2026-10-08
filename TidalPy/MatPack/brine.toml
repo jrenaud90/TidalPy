@@ -1,12 +1,10 @@
-# brine: standard seawater (35 g kg-1, NaCl-dominated) at 273 K.
-#
-# A liquid-only material. Ocean-world brines (MgSO4- or NaCl-rich, 1 to 20 wt%) differ. Density, expansivity, and
-# heat capacity from TEOS-10 (IOC et al. 2010); the adiabatic bulk modulus rho c^2 (c = 1449 m s-1) stands in for the
-# isothermal one, and K0' is water's (unsourced). Standard seawater viscosity and conductivity.
-#
-# Seawater freezes at 271.2 K (TEOS-10), and the NaCl-H2O eutectic, where a freezing brine is last liquid, is 251.9 K.
-# A freezing ocean is ice_ih with this liquid and those melting temperatures, for example
-# {preset = "ice_ih", liquid = {preset = "brine"}, melting = {solidus = {model = "constant", temperature_k = 251.9},
+# brine: standard seawater (35 g kg-1, NaCl-dominated) at 273 K; liquid only. Ocean-world brines (MgSO4- or NaCl-rich,
+# 1 to 20 wt%) differ.
+# Density, expansivity, and heat capacity: TEOS-10 (IOC et al. 2010). Bulk modulus: the adiabatic rho c^2
+# (c = 1449 m s-1) stands in for the isothermal one; K0' is water's (unsourced). Standard seawater viscosity and
+# conductivity.
+# A freezing ocean (TEOS-10 freezing point 271.2 K, NaCl-H2O eutectic 251.9 K): {preset = "ice_ih",
+# liquid = {preset = "brine"}, melting = {solidus = {model = "constant", temperature_k = 251.9},
 # liquidus = {model = "constant", temperature_k = 271.2}}}.
 schema_version = "0.2.0"
 description = "Standard seawater (TEOS-10); always liquid."

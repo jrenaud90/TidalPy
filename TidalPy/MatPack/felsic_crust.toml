@@ -1,19 +1,13 @@
 # felsic_crust: granitic continental crust (quartz 0.30, plagioclase An20 0.60, clinopyroxene 0.10 by volume; albite
-# stands in for K-feldspar, which Stixrude and Lithgow-Bertelloni 2011 do not include).
-#
-# Solid: a third-order Birch-Murnaghan law, expansivity, and shear modulus derived from the Stixrude and
-# Lithgow-Bertelloni (2011) end-members with BurnMan; the bulk modulus is lowered from the derived 56 to 59 GPa because
-# their quartz is stiffer than alpha-quartz. The quartz alpha-beta transition spoils an Anderson-Gruneisen fit, so the
-# expansivity is constant. The heat capacity is the derived 300 K value (910 J kg-1 K-1) with the temperature exponent
-# of the other silicates (unsourced); conductivity from Turcotte and Schubert (2002), Table 4.1 (granite, 2.4 to 3.8).
-#
-# Viscosity: dislocation creep of wet quartzite (Gleason and Tullis 1995; A = 1.1e-4 MPa-4 s-1) at 1 MPa stress:
-# about 2e24 Pa s at 800 K.
-#
-# Melting: unsourced round dry values (the water-saturated solidus is near 950 K; Tuttle and Bowen 1958), and a typical
-# silicate latent heat. Liquid: unsourced density and bulk modulus at the liquidus, the basalt and peridotite melts'
-# expansivity (unsourced for a felsic melt), and a viscosity inside the 1e5 (hydrous) to 1e10 (dry) Pa s range of Hess
-# and Dingwell (1996). Confidence low.
+# stands in for K-feldspar, absent from Stixrude and Lithgow-Bertelloni 2011). Confidence low.
+# Solid: Birch-Murnaghan, expansivity, and shear modulus derived from the Stixrude and Lithgow-Bertelloni (2011)
+# end-members with BurnMan; the bulk modulus is set below the derived 56 to 59 GPa because their quartz is too stiff.
+# Expansivity is constant (the quartz alpha-beta transition spoils a fit).
+# Heat capacity: the derived 300 K value with an unsourced exponent. Conductivity: Turcotte and Schubert (2002),
+# Table 4.1. Viscosity: wet quartzite dislocation creep (Gleason and Tullis 1995) at 1 MPa stress.
+# Melting: unsourced round dry values (the water-saturated solidus is near 950 K; Tuttle and Bowen 1958) and a typical
+# silicate latent heat. Liquid: unsourced density, bulk modulus, and expansivity; viscosity inside the 1e5 to 1e10 Pa s
+# range of Hess and Dingwell (1996).
 schema_version = "0.2.0"
 description = "Granitic continental crust with wet-quartzite creep and constant melting temperatures."
 category = "rocky"

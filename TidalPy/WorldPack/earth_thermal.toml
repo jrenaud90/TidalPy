@@ -1,25 +1,12 @@
-# Earth-Thermal: earth_simple's three-layer Earth with a mantle viscosity that follows pressure as well as
-# temperature, for thermal and thermal-orbital evolution. earth_simple's mantle viscosity has no pressure
-# dependence, which fits an isothermal mantle (its default) but not one solved with its temperature profile: the
-# adiabat then softens the deep mantle to about 1e17 Pa s, near the tidal dissipation peak at periods of days, and
-# its M2 quality factor falls to 28. This world solves its temperatures by default, and a call to solve_eos should
-# pass the surface temperature (a world cannot state one; without it the surface carries no heat).
-#
-# Structure
-# As earth_simple: PREM's core boundaries, the same fitted outer-core and mantle densities, the published mass of
-# 5.972e24 kg, and C/MR2 = 0.3307 (Williams 1994).
-#
-# Mantle viscosity
-# MatPack peridotite's dry-olivine diffusion and dislocation creep in parallel (Hirth and Kohlstedt 2003, Table 1;
-# the dislocation activation volume from Dixon and Durham 2018) at a 1 mm grain size and 0.1 MPa stress. The law
-# is fitted to 14 GPa (the upper mantle) and extrapolated below, where it makes the lower mantle elastic at tidal
-# periods. The convection model averages it over the top 30% of the mantle (viscosity_depth_fraction = 0.3), so
-# the Rayleigh number sees the upper mantle rather than only its weakest, shallowest part.
-#
-# Present-day check (solve_eos with solve_temperature = true and a 288 K surface, mantle at 1600 K)
-# k2 = 0.300 and Q = 315 at the M2 period (solid Earth: 0.30 and about 280; neither was fitted), and a mantle
-# heat flow of 8.2e13 W (Earth's mantle loses about 3.5e13 W). Melting, the silicate melt, the Andrade rheology,
-# the conducting core, and the radiogenics are earth_simple's.
+# Earth-Thermal: earth_simple with a mantle viscosity that follows pressure as well as temperature, for thermal and
+# thermal-orbital evolution. Structure, densities, mass, and C/MR2 = 0.3307 are earth_simple's.
+# earth_simple's viscosity suits only an isothermal mantle: with the profile solved, its deep mantle softens to
+# about 1e17 Pa s and its M2 Q falls to 28.
+# Mantle viscosity: MatPack peridotite's dry-olivine diffusion and dislocation creep (Hirth and Kohlstedt 2003,
+# Table 1; activation volume from Dixon and Durham 2018), 1 mm grains, 0.1 MPa; fitted to 14 GPa, extrapolated below.
+# Temperatures are solved by default; pass the surface temperature to solve_eos or the surface carries no heat.
+# With a 288 K surface: k2 = 0.300 and Q = 315 at M2 (solid Earth 0.30 and about 280; neither fitted), and a
+# mantle heat flow of 8.2e13 W (Earth's mantle: about 3.5e13 W).
 schema_version = "0.2.0"
 name = "Earth-Thermal"
 type = "terrestrial"
@@ -27,8 +14,7 @@ radius_m = 6371000.0
 mass_kg = 5.972e24
 spin_frequency_rad_s = 7.292e-5
 
-# The layer temperatures are the state of a thermal solve: the mantle's is the temperature at the top of its
-# adiabat, and its fits hold with the profile solved.
+# Temperatures are solved; the mantle's is the top of its adiabat.
 [eos_solver]
 solve_temperature = true
 
@@ -69,14 +55,14 @@ radius_outer_m = 3480000.0            # PREM core-mantle boundary
 use_tides = false
 temperature_k = 4500.0
 
-# A liquid-only material, so the layer is a liquid: fluid outer core, solved as a static liquid.
+# Liquid-only material: a static fluid outer core.
 [layers.outer_core.material.liquid]
 thermal_conductivity_w_mk = 7.95
 heat_capacity_j_kgk = 840.0
 
 [layers.outer_core.material.liquid.eos]
 model = "constant"
-reference_density_kg_m3 = 11384.6     # fitted, with the mantle density, to the mass and C/MR2
+reference_density_kg_m3 = 11384.6     # fitted to the mass and C/MR2
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
 
@@ -94,16 +80,16 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3516.322    # fitted, with the outer core density, to the mass and C/MR2
+reference_density_kg_m3 = 3516.322    # fitted to the mass and C/MR2
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 2.211e11           # fitted to k2 = 0.30 at the M2 period with the liquid outer core
+shear_modulus_pa = 2.211e11           # fitted to k2 = 0.30 at M2
 
-# MatPack peridotite's creep law (see the header).
+# MatPack peridotite's creep law.
 [layers.mantle.material.solid.shear_viscosity]
 model = "composite"
 
@@ -135,7 +121,7 @@ latent_heat_j_kg = 4.0e5
 [layers.mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.mantle.material.melting]
 preset = "peridotite"
 
@@ -149,7 +135,7 @@ model = "convection"
 convection_alpha = 1.0
 convection_beta = 0.3333333333333333
 critical_rayleigh = 1100.0
-viscosity_depth_fraction = 0.3       # the upper mantle (see the header)
+viscosity_depth_fraction = 0.3       # Rayleigh number sees the upper mantle's viscosity
 
 [layers.mantle.radiogenics]
 model = "isotope"

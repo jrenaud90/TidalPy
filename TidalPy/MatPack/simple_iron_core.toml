@@ -1,10 +1,7 @@
-# simple_iron_core: uniform solid iron-rich core.
-#
-# Round values for the solid core of a moon or small planet: constant density, moduli, and viscosity, and no melting.
-#
-# References: the density sits between solid iron (8270 kg m-3 hcp, 7874 kg m-3 bcc) and Fe-FeS alloys; moduli round
-# hcp iron (Dewaele et al. 2006; Kurnosov et al. 2017); the viscosity of solid iron is poorly constrained (1e16 to
-# 1e22 Pa s); conductivity and heat capacity are high-temperature iron values (CRC handbook; Lide 2008).
+# simple_iron_core: uniform solid iron-rich core of a moon or small planet; round values, no melting.
+# Density between solid iron (8270 kg m-3 hcp, 7874 kg m-3 bcc) and Fe-FeS alloys. Moduli: hcp iron (Dewaele
+# et al. 2006; Kurnosov et al. 2017). Viscosity: poorly constrained (1e16 to 1e22 Pa s). Conductivity and heat capacity:
+# high-temperature iron (CRC handbook; Lide 2008).
 schema_version = "0.2.0"
 description = "Uniform solid iron-rich core: constant density, moduli, and viscosity; no melting."
 category = "simplified"

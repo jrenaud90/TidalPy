@@ -1,18 +1,11 @@
-# Example-Profile: a world built from a radial data file rather than layer tables, showing `data_file`, the ways a
-# table refines detected layers, and a world file overriding the RK45 default such worlds pin.
+# Example-Profile: a world built from a radial data file, showing data_file, refinement of detected layers, and an
+# override of the RK45 default such worlds pin.
 #
-# The profile (radius, density, Vp, Vs, and optionally viscosities; columns found by name) is split into layers at
-# every solid-liquid transition and at every radius it gives twice (a discontinuity), and each layer's slice of it
-# becomes that layer's interpolated material. A profile holds no rheology, cooling model, or radiogenics, so a
-# [layers.<name>] table names the detected layer it refines (by `layer_index`, or by being called layer_N), or every
-# detected layer between two detected boundaries (by `radius_range_m`), and adds them; only the layers being refined
-# need a table, and a provided outer radius has to match the detected boundary. The bundled PREM.csv gives twelve
-# layers: a solid inner core, a liquid outer core, and ten solid mantle and crust layers between PREM's
-# discontinuities. From Python the same world takes a `data` mapping of arrays in place of `data_file`.
-#
-# The reference is resolved relative to this file's directory, then the worlds data directory, then the packaged
-# WorldPack, so "PREM.csv" finds the bundled profile from anywhere. A saved copy of a built world keeps this
-# reference (portable_config), not the expanded profile.
+# The profile (radius, density, Vp, Vs, optional viscosities; columns found by name) splits into layers at each
+# solid-liquid transition and repeated radius. A [layers.<name>] table refines one detected layer (by layer_index or
+# the name layer_N) or every layer within radius_range_m; a given outer radius must match the detected boundary.
+# PREM.csv gives twelve layers. The path resolves against this file's folder, then the worlds data directory, then
+# the WorldPack. From Python, a `data` mapping of arrays can replace data_file.
 
 schema_version = "0.2.0"
 name = "Example-Profile"
@@ -22,7 +15,7 @@ mass_kg = 5.972e24
 spin_frequency_rad_s = 7.292e-5
 data_file = "PREM.csv"
 
-# A data-file world pins RK45 for its equation-of-state solve unless its file says otherwise; this one says so.
+# Data-file worlds pin RK45 for the equation-of-state solve unless the file overrides it, as here.
 [eos_solver]
 integration_method = "DOP853"
 rtol = 1.0e-9
@@ -31,11 +24,9 @@ rtol = 1.0e-9
 global_tidal_model = "rheology"
 love_method = "radial_solver"
 
-# Refines every detected layer from the core-mantle boundary to the surface, naming them mantle_0 to mantle_9 from
-# the inside out, and gives each a rheology, a viscosity, and a temperature; the profile's own density and moduli
-# stay. Its material table merges over each layer's slice of the profile, which is a solid phase of radius-tabulated
-# laws; a law it names is added (or, naming another model, replaces the profile's). Every key applies to each layer,
-# so a share such as tidal_scale is left to its default (each layer's volume fraction).
+# Refines every detected layer from the core-mantle boundary up (named mantle_0 to mantle_9) with a rheology, a
+# viscosity, and a temperature; the profile's density and moduli stay. Each key applies to every one of these
+# layers, so tidal_scale is left at its default.
 [layers.mantle]
 radius_range_m = [3480.0e3, 6371.0e3]
 use_tides = true
@@ -47,10 +38,10 @@ alpha = 0.3
 zeta = 1.0
 
 [layers.mantle.material.solid.shear_viscosity]
-model = "constant"                      # the profile named no viscosity, so give one here
+model = "constant"                      # the profile has no viscosity, so give one
 reference_viscosity_pas = 1.0e21
 
-# Refines the innermost detected layer by its detected name, layer_0, and only to switch its dissipation on.
+# Refines the innermost detected layer, layer_0, to switch its dissipation on.
 [layers.layer_0]
 use_tides = true
 tidal_scale = 0.001

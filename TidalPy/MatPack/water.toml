@@ -1,11 +1,9 @@
-# water: liquid water.
-#
-# A liquid-only material, and the melt of the ice materials. A third-order Birch-Murnaghan law with the density at
-# 273.15 K and 0.1 MPa (IAPWS SR6-08; Patek et al. 2009), K_T0 = 1.965 GPa (IAPWS G12-15; Holten et al. 2014), and
-# K0' = 6.1 derived from it over 0 to 100 MPa. Water's expansivity changes sign near 277 K at 1 bar and rises with
-# pressure, which no expansivity law here represents: the value is the one near 50 MPa and 273 K, positive as in a
-# pressurized ocean. Viscosity (IAPWS 2008; Huber et al. 2009), conductivity (IAPWS 2011; Huber et al. 2012), and heat
-# capacity (Patek et al. 2009) at 273 K.
+# water: liquid water; liquid only, and the melt of the ice materials.
+# Density at 273.15 K and 0.1 MPa (IAPWS SR6-08; Patek et al. 2009); K_T0 (IAPWS G12-15; Holten et al. 2014); K0'
+# derived from it over 0 to 100 MPa. Expansivity: the positive value near 50 MPa and 273 K, as in a pressurized ocean
+# (it changes sign near 277 K at 1 bar).
+# Viscosity (IAPWS 2008; Huber et al. 2009), conductivity (IAPWS 2011; Huber et al. 2012), and heat capacity (Patek
+# et al. 2009) at 273 K.
 schema_version = "0.2.0"
 description = "Liquid water (IAPWS); always liquid, and the melt of the ice materials."
 category = "icy"

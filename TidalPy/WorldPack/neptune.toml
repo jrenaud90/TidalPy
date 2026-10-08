@@ -1,55 +1,18 @@
-# Neptune: a rock core under a dense ice mantle under a hydrogen and helium envelope.
-#
-# Rebuilt from TidalPy 0.7's neptune.toml, which supplied the radius, the mass, and the quality
-# factor. Radius is the volumetric mean at the 1 bar level, 24622 km, and the mass 1.02409e26 kg, a mean
-# density of 1638 kg/m3 (NASA Neptune fact sheet). The solved surface gravity is 11.2745 m/s2 against the
-# published 11.27.
-#
-# Structure
-# Three layers, the standard picture of an ice giant: a rocky core, a mantle of hot dense fluid "ices"
-# (water, ammonia, methane), and a hydrogen and helium envelope. Boundaries sit at 0.20 and 0.70 of the
-# radius, the core is fixed at 6000 kg/m3, and the two outer densities are fitted to two observables at
-# once: the published mass, which they reproduce exactly, and the moment-of-inertia factor. That gives an
-# ice mantle of 4025.727 kg/m3 and an envelope of 367.2022 kg/m3.
-#
-# C/MR2 comes out at 0.2400 by construction. Published values run 0.23 to 0.24, and none is measured
-# directly: the factor is inferred from the observed J2 through the Radau-Darwin relation, so it is a weaker
-# constraint than a solar-system body's measured moment of inertia. The layer masses that follow are a
-# result rather than an input, and they are the check on the model: 0.50 Earth masses of rock, 14.12 of
-# ices, and 2.53 of hydrogen and helium, so 14.6 of the 17.15 total is heavy elements, inside the range
-# published interior models give.
-#
-# Every layer is a fluid, which is what an ice giant is: the hydrogen and helium envelope plainly, the hot
-# dense ices too, and the rock core because at 6000 K and several hundred GPa it is not a viscoelastic solid
-# either. The two inner layers are therefore static liquids and only the envelope is flagged tidal. A rigid
-# rock core also fails numerically, not only physically: a rock shear modulus of 6e10 Pa is negligible
-# against rho g R of about 5e11 Pa here, so the core integrates as a near-fluid solid and the shooting
-# solve fails on its step size.
-#
-# The Love number is then a check nothing was fitted to. Solving this interior for its Love number gives k2 = 0.427
-# against the 0.41 the tide model below states from the literature, a 4 percent difference, so the fitted
-# mass distribution and the published Love number agree without either having been used to find the other.
-#
-# Each layer has a single density, which is what makes the fit above tractable, and it is also this model's
-# main limitation: a real ice giant compresses continuously, so the density profile here is a step
-# approximation to a smooth one. The bulk properties it is fitted to come out right and the central pressure
-# of 818 GPa is close to published estimates, but a calculation that needs a resolved density or pressure
-# profile needs a better interior than this file has.
-#
-# Tides
-# The response is the constant-phase-lag model rather than a rheology, since the envelope is not a
-# viscoelastic solid. k2 = 0.41 (Durda 1992) and Q = 9000, the lower end of the 9e3 to 3.6e4 range that
-# Zhang and Hamilton (2008) derive from the inner satellites. Q is a lower bound, so the dissipation this
-# file gives is an upper bound: Wang et al. (2025) put Q/k2 above 8.2e4 from Triton's motion, against the
-# 2.2e4 of the values here. The per-degree lists carry k_l falling roughly as k_2 / (l - 1) above degree 2,
-# which is the default shape and is not measured. Because the model supplies the response directly, none of
-# it depends on the interior above.
-#
-# Raising a tide with Triton (a = 3.54759e8 m, circular) gives 9.09e11 W in Neptune. Triton's orbit is
-# retrograde, so that dissipation decays the orbit rather than expanding it.
-#
-# Orbital state is not a world property in this schema; add Neptune to a System to give it an orbit. The
-# spin frequency is the 16.11 hour sidereal rotation period from Voyager 2 magnetic-field data.
+# Neptune: a rock core, a mantle of hot dense fluid ices (water, ammonia, methane), and a hydrogen-helium envelope,
+# all fluid. Radius 24622 km (1 bar volumetric mean) and mass 1.02409e26 kg (NASA Neptune fact sheet).
+# g = 11.2745 m/s2 vs 11.27 published. Boundaries at 0.20 and 0.70 of the radius; core held at 6000 kg/m3.
+# Fitted: mantle 4025.727 and envelope 367.2022 kg/m3, to the mass and to C/MR2 = 0.2400. Published values run
+# 0.23 to 0.24, inferred from J2 via Radau-Darwin rather than measured.
+# Resulting layer masses: core 0.503, mantle 14.119, envelope 2.526 Earth masses, within published interior models.
+# Solved k2 = 0.4267, not fitted, vs the 0.41 used below.
+# Caveat: one density per layer. The central pressure, 818 GPa, is close to published estimates, but use a better
+# interior for pressure or density profiles.
+# The inner layers are static liquids. A rigid core would also fail numerically (shear modulus << rho g R).
+# Tides: constant phase lag, k2 = 0.41 (Durda 1992) and Q = 9000, the low end of the 9e3 to 3.6e4 of Zhang and
+# Hamilton (2008). The dissipation is an upper bound: Wang et al. (2025) put Q/k2 above 8.2e4 from Triton's motion
+# (2.2e4 here). Higher degrees use the unmeasured default k_l ~ k_2 / (l - 1). None of it uses the interior.
+# Triton (a = 3.54759e8 m, circular) raises 9.09e11 W; its orbit is retrograde, so this decays it.
+# Spin is the 16.11 h sidereal period (Voyager 2). Add Neptune to a System to give it an orbit.
 schema_version = "0.2.0"
 name = "Neptune"
 type = "gasgiant"
@@ -58,9 +21,7 @@ mass_kg = 1.02409e26
 spin_frequency_rad_s = 1.0833825e-04
 albedo = 0.290
 
-# The layer temperatures below are prescribed, not solved: the layers carry rock and ice thermal constants,
-# which do not describe hydrogen, so the world pins the equation-of-state solve to keep them (a call may still
-# pass solve_temperature = true).
+# Layer temperatures are prescribed, not solved: the rock and ice thermal constants do not describe hydrogen.
 [eos_solver]
 solve_temperature = false
 
@@ -76,7 +37,7 @@ use_tides = false
 temperature_k = 6000.0
 use_heating = true
 
-# A liquid-only material, so the layer is a liquid: rock core, solved as a static liquid.
+# Liquid-only material: the rock core is a static liquid.
 [layers.core.material.liquid]
 thermal_conductivity_w_mk = 3.75
 
@@ -96,7 +57,7 @@ radius_outer_m = 17235400.0           # 0.70 of the radius
 use_tides = false
 temperature_k = 4000.0
 
-# A liquid-only material, so the layer is a liquid: hot dense fluid ices.
+# Liquid-only material: hot dense fluid ices.
 [layers.mantle.material.liquid]
 thermal_conductivity_w_mk = 2.3
 heat_capacity_j_kgk = 2000.0

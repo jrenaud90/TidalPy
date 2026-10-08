@@ -1,19 +1,14 @@
 # olivine: mantle olivine Fo90.
-#
-# Solid: a third-order Birch-Murnaghan law and the shear modulus and its pressure derivative from Stixrude and
-# Lithgow-Bertelloni (2011), Table A1 (Fo90 density, expansivity, and temperature derivative
-# derived with BurnMan); valid to about 14 GPa, where wadsleyite takes over. The Gruneisen parameter is forsterite's
-# (0.99). Conductivity: Xu et al. (2004), k = 4.13 (298 / T)^0.5, written at 1600 K and without its pressure factor
-# (1 + 0.032 P[GPa]). The heat capacity is a power law through the derived values at 300 K (865) and 1600 K
-# (1263 J kg-1 K-1).
-#
-# Viscosity: dry olivine diffusion and dislocation creep in parallel (Hirth and Kohlstedt 2003), as peridotite.
-# Tidal rheology: Sundberg-Cooper (Sundberg and Cooper 2010; Renaud and Henning 2018).
-#
-# Melting: congruent melting of forsterite (Presnall and Walter 1993), a single melting temperature, valid to 10.1 GPa;
-# latent heat of forsterite (Richet et al. 1993). Fo90 melts over an interval (roughly 1900 to 2160 K at 1 bar,
-# unsourced), and for natural olivine the peridotite curves are usually the better choice. Liquid: the peridotite
-# melt.
+# Solid: Birch-Murnaghan and shear modulus from Stixrude and Lithgow-Bertelloni (2011), Table A1 (Fo90 density,
+# expansivity, and temperature derivative derived with BurnMan); valid to about 14 GPa (wadsleyite above). Gruneisen
+# parameter: forsterite's.
+# Conductivity: Xu et al. (2004) at 1600 K, without its pressure factor (1 + 0.032 P[GPa]). Heat capacity: power law
+# through the derived 300 and 1600 K values.
+# Viscosity: dry olivine diffusion and dislocation creep in parallel, as peridotite. Tidal rheology: Sundberg-Cooper
+# (Sundberg and Cooper 2010; Renaud and Henning 2018).
+# Melting: congruent melting of forsterite (Presnall and Walter 1993), valid to 10.1 GPa; latent heat of forsterite
+# (Richet et al. 1993). Fo90 really melts over an interval; for natural olivine the peridotite curves are usually
+# better. Liquid: the peridotite melt.
 schema_version = "0.2.0"
 description = "Mantle olivine (Fo90) with a forsterite melting curve and the peridotite melt."
 category = "rocky"
@@ -77,7 +72,6 @@ voigt_viscosity_frac = 0.02
 [liquid]
 preset = "peridotite"
 
-# Forsterite melts at one temperature: the solidus and liquidus coincide.
 [melting.solidus]
 model = "simon_glatzel"
 temperature_k = 2171.0

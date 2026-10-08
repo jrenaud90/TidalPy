@@ -1,19 +1,13 @@
 # ice_ih: water ice Ih, melting into liquid water.
-#
-# Solid: a third-order Birch-Murnaghan law at 250 K from IAPWS-06 (Feistel and Wagner 2006; K0' derived from it over 0
-# to 200 MPa); ice III takes over above about 210 MPa. The expansivity is set by temperature rather than compression
-# (3.0e-5 at 100 K to 1.6e-4 K-1 at 273 K), which no expansivity law here represents; this is the 250 K value. The
-# shear modulus is the SeaFreeze ice Ih law (Journaux et al. 2020) at 920 kg m-3 and 250 K, with its pressure slope
-# derived from the density term. Conductivity: a power law through 0.4685 + 488.12 / T (Petrenko and Whitworth 1999)
-# at 150 and 273 K. Heat capacity: a power law fitted to IAPWS-06 from 100 to 273 K.
-#
-# Viscosity: volume-diffusion creep (Goldsby and Kohlstedt 2001), at a 0.5 mm grain size: about 1.7e14 Pa s at 273 K.
-# Their basal-slip, grain-boundary-sliding, and dislocation mechanisms are not included. Tidal rheology: Andrade.
-#
-# Melting: a fit to the IAPWS R14-08 (2011) ice Ih curve from 0 to 208.6 MPa (maximum error 0.17 K); it falls with
-# pressure, and above 208.566 MPa, the triple point with ice III and liquid water, it holds its value there (about 251
-# K), where ice III's curve takes over and rises slowly. A single melting temperature, and the IAPWS latent heat.
-# Liquid: water.
+# Solid: Birch-Murnaghan at 250 K from IAPWS-06 (Feistel and Wagner 2006; K0' derived over 0 to 200 MPa); ice III takes
+# over above about 210 MPa. Expansivity: the 250 K value (it varies from 3.0e-5 to 1.6e-4 K-1 with temperature, which no
+# law here represents).
+# Shear modulus: SeaFreeze ice Ih (Journaux et al. 2020) at 920 kg m-3 and 250 K. Conductivity: power law through
+# Petrenko and Whitworth (1999). Heat capacity: power law fit to IAPWS-06 from 100 to 273 K.
+# Viscosity: volume-diffusion creep (Goldsby and Kohlstedt 2001) at a 0.5 mm grain size; their basal-slip,
+# grain-boundary-sliding, and dislocation mechanisms are not included.
+# Melting: a fit to the IAPWS R14-08 (2011) ice Ih curve (maximum error 0.17 K), held at about 251 K above the
+# 208.566 MPa triple point, where ice III takes over. Latent heat: IAPWS. Liquid: water.
 schema_version = "0.2.0"
 description = "Water ice Ih (IAPWS-06) with diffusion creep, melting into liquid water."
 category = "icy"

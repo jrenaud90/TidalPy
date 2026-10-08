@@ -1,17 +1,11 @@
 # ice_vi: water ice VI (about 0.63 to 2.2 GPa), melting into liquid water.
-#
-# Solid: the second-order Birch-Murnaghan law and expansivity of Bezacier et al. (2014) near 300 K (Journaux et al.
-# 2020 give a cold curve of 1322.4 kg m-3, 15.2 GPa, and K0' = 6.5). The shear modulus is the SeaFreeze law (Journaux et
-# al. 2020) near 1330 kg m-3 (about 1 GPa) and 280 K.
-#
-# Viscosity: the activation energy and level of Barr et al. (2018), Eq. 19 (approximating Durham et al. 1997; 1e14 Pa s
-# at 285 K), anchored on the melting curve at 1 GPa. The viscosity is nearly constant along the melting curve (Ahrens
-# et al. 2022), and melting-point viscosities of 1e13 to 1e17 Pa s are used (Choblet et al. 2017; Kalousova et al.
-# 2018); without a pressure term it would fall to about 2.5e10 Pa s at the 2 GPa melting point, so an activation
-# volume (derived here) keeps it near 4e14 Pa s at both ends of the ice VI melting curve. Conductivity, heat capacity,
-# and latent heat are unsourced estimates.
-#
-# Melting: the IAPWS R14-08 (2011) ice VI curve, anchored at its triple point (273.31 K, 632.4 MPa). Liquid: water.
+# Solid: second-order Birch-Murnaghan and expansivity of Bezacier et al. (2014) near 300 K. Shear modulus: SeaFreeze law
+# (Journaux et al. 2020) near 1330 kg m-3 (about 1 GPa) and 280 K.
+# Viscosity: activation energy and level of Barr et al. (2018), Eq. 19 (after Durham et al. 1997), anchored on the
+# melting curve at 1 GPa; the activation volume (derived here) keeps it near 4e14 Pa s at both ends of the melting
+# curve, inside the 1e13 to 1e17 Pa s used for high-pressure ices (Choblet et al. 2017; Kalousova et al. 2018).
+# Conductivity, heat capacity, and latent heat: unsourced estimates.
+# Melting: IAPWS R14-08 (2011) ice VI curve, anchored at its triple point (273.31 K, 632.4 MPa). Liquid: water.
 schema_version = "0.2.0"
 description = "Water ice VI (Bezacier et al. 2014) with the IAPWS melting curve, melting into liquid water."
 category = "icy"

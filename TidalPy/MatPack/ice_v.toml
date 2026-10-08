@@ -1,15 +1,10 @@
-# ice_v: water ice V (about 0.35 to 0.63 GPa), melting into liquid water.
-#
-# Solid: the bulk modulus and K0' of the cold-curve Birch-Murnaghan parameters of Journaux et al. (2020), Table 3. Their
-# cold reference density (1244.6 kg m-3) gives about 1288 kg m-3 at 0.5 GPa, so it is rescaled here to 1193.5 kg m-3,
-# which gives the 1235 kg m-3 at 0.5 GPa where the shear modulus is anchored (derived here). The expansivity is an
-# unsourced estimate. The shear modulus is the SeaFreeze law (Journaux et al. 2020) at 1235 kg m-3 and 260 K.
-#
-# Viscosity: an unsourced reference-law placeholder; melting-point viscosities of 1e13 to 1e17 Pa s are used for
-# high-pressure ices (Choblet et al. 2017; Kalousova et al. 2018). Conductivity, heat capacity, and latent heat are
-# unsourced estimates. Confidence low.
-#
-# Melting: the IAPWS R14-08 (2011) ice V curve, anchored at its triple point (256.164 K, 350.1 MPa). Liquid: water.
+# ice_v: water ice V (about 0.35 to 0.63 GPa), melting into liquid water (low confidence).
+# Solid: bulk modulus and K0' of the Journaux et al. (2020), Table 3 cold curve, with the reference density rescaled
+# (derived here) to 1235 kg m-3 at 0.5 GPa. Expansivity: unsourced estimate. Shear modulus: SeaFreeze law (Journaux
+# et al. 2020) at 1235 kg m-3 and 260 K.
+# Viscosity: unsourced placeholder (melting-point viscosities of 1e13 to 1e17 Pa s are used for high-pressure ices;
+# Choblet et al. 2017; Kalousova et al. 2018). Conductivity, heat capacity, and latent heat: unsourced.
+# Melting: IAPWS R14-08 (2011) ice V curve, anchored at its triple point (256.164 K, 350.1 MPa). Liquid: water.
 schema_version = "0.2.0"
 description = "Water ice V with the IAPWS melting curve, melting into liquid water."
 category = "icy"

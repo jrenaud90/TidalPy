@@ -1,35 +1,12 @@
-# Europa-Dynamic: europa.toml with a subsurface ocean, solved as a dynamic, compressible liquid.
-#
-# The bundled europa.toml has no ocean: its 140 km water layer is solid ice. This file splits that layer 25 km
-# below the surface into a 115 km liquid ocean under a 25 km ice shell and keeps the core, the mantle, their
-# boundaries, and every temperature, viscosity, and rheology. The whole water layer, 140 km, matches the
-# 138.7 +/- 7.7 km that Gomez Casajus et al. (2021, Icarus 358, 114187) derive from the Galileo and Juno gravity
-# fields. The shell thickness is a representative value; published estimates run from a few km to about 30 km.
-#
-# Why the equation of state matters
-# A dynamic liquid whose density does not follow its bulk modulus is unstably stratified: a constant-density
-# liquid with a finite bulk modulus has N^2 = -rho g^2 / K < 0, and its solutions grow as exp(E), with E rising
-# with the forcing period, until the integration fails. A pressure-dependent law keeps the density on
-# d rho / dr = -rho^2 g / K, which is neutral (N^2 = 0), so a dynamic liquid stays well behaved at tidal periods.
-# The dynamic liquids demo (Demos/Physics/P12_dynamic_liquids.ipynb) works through the difference.
-#
-# Ocean
-# Birch-Murnaghan for liquid water at 273.15 K, fitted to the IAPWS-95 equation of state from 0 to 0.2 GPa:
-# rho0 = 999.84 kg/m3, K_T0 = 1.937 GPa, K0' = 6.84, with a largest density misfit of 0.014 percent. The density
-# runs from 1015 kg/m3 at the top of the ocean (0.031 GPa) to 1082 at its base (0.199 GPa), a mean of 1050.
-#
-# Fit
-# The mantle's Birch-Murnaghan reference density, 3498.1963 kg/m3 (europa.toml: 3532.3413), gives the published
-# mass. C/MR2 = 0.3457 lies within the 0.346 +/- 0.005 of Anderson et al. (1998) but 2.5 percent below the
-# 0.3547 +/- 0.0024 of Gomez Casajus et al. (2021), the price of keeping europa.toml's layer boundaries. Surface
-# gravity is 1.3147 m/s2 and the central pressure 4.79 GPa.
-#
-# Tides
-# The ocean decouples the shell from the interior: k2 = 0.2594 at the 3.551181 day orbital period, with Q = 116,
-# against 0.0153 for the ocean-free europa.toml. The same ocean solved as a static liquid gives k2 within
-# 1.3e-3. At the default solver tolerance k2 holds to 5e-7 out to 1000 days.
-#
-# The temperatures, viscosities, and orbit are as documented in europa.toml.
+# Europa-Dynamic: europa.toml with its 140 km water layer split into a 115 km dynamic, compressible ocean under a
+# 25 km ice shell (a representative thickness; estimates run from a few km to about 30 km).
+# The 140 km water layer matches the 138.7 +/- 7.7 km of Gomez Casajus et al. (2021, Icarus 358, 114187).
+# The ocean's density must follow its bulk modulus or the dynamic solve is unstably stratified and fails
+# (see Demos/Physics/P12_dynamic_liquids.ipynb); it runs from 1015 to 1082 kg/m3.
+# Fitted: mantle reference density 3498.1963 kg/m3 reproduces the mass (g = 1.3147 m/s2; central pressure 4.79 GPa).
+# C/MR2 = 0.3457: within 0.346 +/- 0.005 (Anderson et al. 1998), below 0.3547 +/- 0.0024 (Gomez Casajus et al. 2021).
+# k2 = 0.2594, Q = 116 at the 3.551181 day orbital period (europa.toml: 0.0153); a static ocean is within 1.3e-3.
+# Temperatures, viscosities, and spin are as in europa.toml.
 schema_version = "0.2.0"
 name = "Europa-Dynamic"
 type = "terrestrial"
@@ -38,8 +15,7 @@ mass_kg = 4.7998e22
 spin_frequency_rad_s = 2.047827e-05
 albedo = 0.67
 
-# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# Temperatures are prescribed (the fit holds at these values), so the EOS solve keeps them.
 [eos_solver]
 solve_temperature = false
 
@@ -110,7 +86,7 @@ latent_heat_j_kg = 4.0e5
 [layers.mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.mantle.material.melting]
 preset = "peridotite"
 
@@ -133,7 +109,7 @@ isotopes = "modern_day_chondritic"
 layer_index = 2
 radius_outer_m = 1536000.0            # under a 25 km ice shell
 use_tides = false
-is_static = false                     # subsurface ocean, solved with the dynamic equations
+is_static = false
 temperature_k = 273.0
 
 [layers.ocean.material.liquid]
@@ -142,7 +118,7 @@ heat_capacity_j_kgk = 2000.0
 
 [layers.ocean.material.liquid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 999.84      # liquid water at 273.15 K, fitted to IAPWS-95 to 0.2 GPa
+reference_density_kg_m3 = 999.84      # IAPWS-95 fit at 273.15 K, 0 to 0.2 GPa
 reference_bulk_modulus_pa = 1.937e9
 bulk_modulus_derivative = 6.84
 thermal_expansion_1_k = 5.0e-5

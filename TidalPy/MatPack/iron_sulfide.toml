@@ -1,22 +1,14 @@
-# iron_sulfide: an Fe-FeS core alloy with 16 wt% S (atomic sulfur fraction 0.25 in the melt).
-#
-# A preset needs a fixed composition, and 16 wt% S is a reasonable small-body core default. Most of the values below
-# are derived here or unsourced; confidence low.
-#
-# Solid: iron (bcc, 7874 kg m-3) and troilite (4800 kg m-3) at 300 K mixed at 16 wt% S by additive volumes (56 wt% Fe,
-# 44 wt% FeS), the bulk modulus as a Reuss average of iron (166 GPa, a standard bcc value not in the sources here) and
-# FeS V (54.3 GPa; Urakawa et al. 2004) with K0' = 4, and the expansivity as the volume average of iron (3.5e-5) and
-# FeS V (1.04e-4 K-1; Urakawa et al. 2004). The FeS V values are for about 1000 K while the density is a 300 K value,
-# so the reference state is mixed. The shear modulus, viscosity, conductivity, and heat capacity are unsourced
-# estimates between FeS and iron. FeS goes through several phase changes below 12 GPa.
-#
-# Melting: the Fe-FeS eutectic, constant to at least 8 GPa (Buono and Walker 2015), and the 1 bar liquidus at 16 wt% S
-# (read from the Fe-S diagram; unsourced). Latent heat: iron's (unsourced for the alloy).
-#
-# Liquid: K_T0 = K_Fe^(1 - X_S) K_S^(X_S) and K0' = 6.5 + 3 X_S at 1900 K (Morard et al. 2018, as used by Xu et al.
-# 2021) at X_S = 0.25; the density mixes liquid iron (7019) and liquid FeS (about 3900 kg m-3, an unsourced estimate) by
-# additive volumes (derived here); the viscosity and expansivity are assumed close to liquid iron's (liquid_iron.toml).
-# The solid weakens through the melting range by the Henning law.
+# iron_sulfide: an Fe-FeS core alloy with 16 wt% S (atomic S fraction 0.25 in the melt). Most values are derived here or
+# unsourced; confidence low.
+# Solid: bcc iron and troilite at 300 K mixed by additive volumes; bulk modulus a Reuss average of iron (166 GPa,
+# unsourced) and FeS V (Urakawa et al. 2004) with K0' = 4; expansivity a volume average of the same. The FeS V values
+# are near 1000 K, so the reference state is mixed. FeS phase changes below 12 GPa are not represented.
+# Shear modulus, viscosity, conductivity, and heat capacity: unsourced estimates between FeS and iron.
+# Melting: the Fe-FeS eutectic, constant to at least 8 GPa (Buono and Walker 2015); the liquidus at 16 wt% S is
+# unsourced. Latent heat: iron's (unsourced for the alloy).
+# Liquid: bulk modulus and K0' of Morard et al. (2018), as used by Xu et al. (2021), at X_S = 0.25 and 1900 K; density
+# mixes liquid iron and liquid FeS (unsourced, about 3900 kg m-3) by additive volumes; viscosity and expansivity assumed
+# close to liquid iron's.
 schema_version = "0.2.0"
 description = "Fe-FeS core alloy at 16 wt% S with a eutectic solidus (low confidence)."
 category = "rocky"

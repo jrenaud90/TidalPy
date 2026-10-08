@@ -1,25 +1,15 @@
-# peridotite: upper-mantle peridotite (olivine Fo90 0.60, orthopyroxene 0.20, clinopyroxene 0.10, garnet 0.10 by
-# volume).
-#
-# Solid: a third-order Birch-Murnaghan law with its expansivity at the 300 K reference state, and a
-# shear modulus linear in pressure and temperature, all derived from the Stixrude and Lithgow-Bertelloni (2011)
-# end-members with BurnMan (Voigt-Reuss-Hill averages; fit 0 to 14 GPa, the upper mantle; transition-zone phases are
-# not included). The Gruneisen parameter is forsterite's (0.99; Stixrude and Lithgow-Bertelloni 2011). The heat
-# capacity is a power law through the derived values at 300 K (860) and 1600 K (1260 J kg-1 K-1); the conductivity is
-# the mantle-temperature value of Turcotte and Schubert (2002).
-#
-# Viscosity: dry olivine diffusion and dislocation creep in parallel (Hirth and Kohlstedt 2003, Table 1; the
-# dislocation activation volume from Dixon and Durham 2018), at a 1 mm grain size and 0.1 MPa stress: about 2e18 Pa s
-# at 1600 K and 3 GPa. Tidal rheology: Andrade (Jackson and Faul 2010; Efroimsky 2012).
-#
-# Melting: the solidus and liquidus of Monteux et al. (2016), Eqs. 10 to 13 (fits to Herzberg and Zhang 1996,
-# Andrault et al. 2011, and Fiquet et al. 2010), two Simon-Glatzel branches each, joined at 20 GPa; latent heat after
-# Ghosh and McSween (1998), as used by Monteux et al. (2016). Melt weakening after Henning et al. (2009).
-#
-# Liquid: the Fe-bearing surface melt density of Monteux et al. (2016) (Thomas and Asimow 2013), with the bulk modulus
-# and expansivity of the de Koker et al. (2013) Mg-silicate liquids at 2200 K (via BurnMan) and the viscosity of
-# peridotite liquid near its liquidus (Dingwell et al. 2004). No source was found for the melt's conductivity and heat
-# capacity; they are the solid's mantle-temperature values.
+# peridotite: upper mantle (olivine Fo90 0.60, orthopyroxene 0.20, clinopyroxene 0.10, garnet 0.10 by volume).
+# Solid: Birch-Murnaghan (fit 0 to 14 GPa; transition-zone phases not included), expansivity, and shear modulus derived
+# from the Stixrude and Lithgow-Bertelloni (2011) end-members with BurnMan (Voigt-Reuss-Hill). Gruneisen parameter:
+# forsterite's. Heat capacity: power law through the derived 300 and 1600 K values. Conductivity: Turcotte and Schubert
+# (2002).
+# Viscosity: dry olivine diffusion and dislocation creep in parallel (Hirth and Kohlstedt 2003, Table 1; dislocation
+# activation volume from Dixon and Durham 2018). Tidal rheology: Andrade (Jackson and Faul 2010; Efroimsky 2012).
+# Melting: Monteux et al. (2016), Eqs. 10 to 13, two Simon-Glatzel branches each, joined at 20 GPa; latent heat after
+# Ghosh and McSween (1998). Melt weakening after Henning et al. (2009).
+# Liquid: density of Monteux et al. (2016) (Thomas and Asimow 2013); bulk modulus and expansivity of the de Koker et al.
+# (2013) Mg-silicate liquids at 2200 K (via BurnMan); viscosity near the liquidus (Dingwell et al. 2004). Conductivity
+# and heat capacity: unsourced, the solid's values.
 schema_version = "0.2.0"
 description = "Upper-mantle peridotite with Monteux et al. (2016) melting curves and a silicate melt."
 category = "rocky"
@@ -50,7 +40,7 @@ reference_temperature_k = 300.0
 [solid.shear_viscosity]
 model = "composite"
 
-# Diffusion creep: A = 1.5e9 MPa-1 um3 s-1, so eta = 3.33e14 d^3 exp[(E + P V) / (R T)].
+# Diffusion creep: A = 1.5e9 MPa-1 um3 s-1.
 [[solid.shear_viscosity.mechanisms]]
 model = "arrhenius"
 arrhenius_coeff = 3.33e14

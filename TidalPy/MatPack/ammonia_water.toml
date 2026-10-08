@@ -1,20 +1,10 @@
-# ammonia_water: water ice with 10 wt% NH3, melting into an ammonia-water liquid.
-#
-# A preset needs a fixed bulk composition; 10 wt% NH3 is a common choice (5 wt% is the other). Below the peritectic the
-# solid is water ice plus ammonia dihydrate (about 31 wt% of the solid at 10 wt% NH3); the dihydrate is not
-# represented, and the solid is ice_ih. Confidence low.
-#
-# Melting: the peritectic (176.15 K; Kargel 1992; Leliwa-Kopystynski et al. 2002) and an unsourced liquidus of about
-# 258 K at 10 wt% NH3 (it falls from 273.1 K for pure water to the peritectic). The melt's composition changes with
-# temperature, which one liquid phase cannot follow: the liquid is the 10 wt% melt near its liquidus, with the density
-# and viscosity of Hammond et al. (2018), Eqs. 12 and 13 (fits to Croft et al. 1988 and Kargel et al. 1991), at
-# 258 K (the melt near the peritectic is NH3-rich, 946 kg m-3, and about 5 Pa s). Its bulk modulus is an unsourced
-# estimate near water's, and its expansivity is the water liquid's (water.toml), unsourced for the solution: the
-# Hammond et al. fit follows the liquidus, along which the composition changes, so it gives no expansivity at a fixed
-# composition. Latent heat: ice Ih's. The ice weakens through the melting range by the Henning law's melt-fraction
-# terms: its viscosity falls exponentially with melt and the framework breaks down into the liquid at the critical melt
-# fraction. Its temperature term for the shear modulus is off (hn_shear_param_1_k = 0): fitted to silicates in 1/T, it
-# would take the ice's shear modulus to about 1e-2 Pa within 25 K of this solidus, while the framework still holds.
+# ammonia_water: water ice with 10 wt% NH3 melting into an ammonia-water liquid (low confidence).
+# Solid: ice_ih; the ammonia dihydrate below the peritectic is not represented.
+# Solidus: the 176.15 K peritectic (Kargel 1992; Leliwa-Kopystynski et al. 2002). Liquidus: about 258 K, unsourced.
+# Liquid: the 10 wt% melt at 258 K, density and viscosity from Hammond et al. (2018) Eqs. 12 and 13; bulk modulus and
+# expansivity are unsourced estimates near water's. Latent heat: ice Ih's.
+# Henning weakening by melt fraction only: its temperature term (hn_shear_param_1_k = 0) would soften the ice to about
+# 1e-2 Pa within 25 K of the solidus.
 schema_version = "0.2.0"
 description = "Water ice with 10 wt% NH3 and an ammonia-water melt below the water melting point (low confidence)."
 category = "icy"

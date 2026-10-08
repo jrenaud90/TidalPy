@@ -1,39 +1,14 @@
-# Luna-Dynamic: luna.toml with its fluid outer core solved as a dynamic, compressible liquid.
-#
-# The bundled luna.toml solves its outer core as a static liquid of constant density. This file keeps every other
-# layer, temperature, viscosity, and rheology of that model and changes only the outer core and the numbers
-# refitted after it, so the two files differ only in how the core responds. Made dynamic with its constant
-# density, luna.toml's core breaks down by a 10 day forcing period.
-#
-# Why the equation of state matters
-# A dynamic liquid whose density does not follow its bulk modulus is unstably stratified: a constant-density
-# liquid with a finite bulk modulus has N^2 = -rho g^2 / K < 0, and its solutions grow as exp(E), with E rising
-# with the forcing period, until the integration fails. A pressure-dependent law keeps the density on
-# d rho / dr = -rho^2 g / K, which is neutral (N^2 = 0), so a dynamic liquid stays well behaved at tidal periods.
-# The dynamic liquids demo (Demos/Physics/P12_dynamic_liquids.ipynb) works through the difference.
-#
-# Outer core
-# Birch-Murnaghan, with the isothermal bulk modulus K_T0 = 72.2 GPa and K0' = 4.75 of Fe80S20 liquid (Nishida et
-# al. 2020, Nat. Commun. 11, 1954: K_S0 = 93.1 GPa from their fit that includes shock data, converted to K_T with
-# the K_S / K_T ratio of liquid iron at 1811 K, 109.7 / 85.1). Its reference density, 4803.56 kg/m3, is fitted so
-# the layer's mean density is the 5100 kg/m3 of Weber et al. (2011), which luna.toml uses as a constant. Across
-# the layer the density runs from 5112 kg/m3 at 5.21 GPa to 5090 at 4.80 GPa, and K from 96.2 to 94.3 GPa.
-#
-# Fits
-# As in luna.toml, one number per observable. The mantle's Birch-Murnaghan reference density, 3324.9486 kg/m3,
-# gives the published mass; the crust thickness, 33.98 km, gives C/MR2 = 0.39312; and the mantle shear modulus,
-# 6.385106e10 Pa, gives k2 = 0.02422 at 27.3217 days. The zone viscosity and top are unchanged from luna.toml
-# and still give Q = 37.9 at the month and 41.0 at the year. Surface gravity is 1.6242 m/s2 and the central
-# pressure 5.44 GPa.
-#
-# Solver tolerance
-# The dynamic liquid equations recover the core's tangential displacement through a division by the forcing
-# frequency squared, which in a core this size costs accuracy at long periods. At the default tolerances (rtol and
-# atol 3e-8) the yearly k2 is within 3e-4 and the monthly within 3e-7; rtol 1e-6 put the yearly k2 0.8 percent off
-# (Q = 39.1). Tighten rtol and atol together for more at periods of a year and longer.
-#
-# The temperatures, viscosities, the reasoning behind the tidal fits, and the orbit are as documented in
-# luna.toml.
+# Luna-Dynamic: luna.toml with its fluid outer core solved as a dynamic, compressible liquid; only the core and
+# the refitted numbers below differ.
+# A constant-density dynamic liquid is unstably stratified and fails (luna.toml's core by a 10 day period), so
+# the core's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
+# Outer core: Birch-Murnaghan with Fe80S20 liquid K_T0 = 72.2 GPa, K0' = 4.75 (Nishida et al. 2020, Nat. Commun.
+# 11, 1954); reference density 4803.56 kg/m3 fitted to the 5100 kg/m3 mean of Weber et al. (2011).
+# Fitted: mantle reference density 3324.9486 kg/m3 to the mass (g = 1.6242 m/s2; central pressure 5.44 GPa);
+# crust 33.98 km to C/MR2 = 0.39312; mantle rigidity 6.385106e10 Pa to k2 = 0.02422 at 27.3217 days.
+# The zone is unchanged from luna.toml and still gives Q = 37.9 at the month and 41.0 at the year.
+# At the default solver tolerances the yearly k2 is within 3e-4; tighten rtol and atol together for longer periods.
+# Temperatures, viscosities, and spin are as in luna.toml.
 schema_version = "0.2.0"
 name = "Luna-Dynamic"
 type = "terrestrial"
@@ -42,8 +17,7 @@ mass_kg = 7.34579e22
 spin_frequency_rad_s = 2.661667e-06
 albedo = 0.12
 
-# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# Temperatures are prescribed (the fits hold at these values), so the EOS solve keeps them.
 [eos_solver]
 solve_temperature = false
 
@@ -60,7 +34,7 @@ heat_capacity_j_kgk = 840.0
 
 [layers.inner_core.material.solid.eos]
 model = "constant"
-reference_density_kg_m3 = 8000.0     # solid inner core, Weber et al. (2011)
+reference_density_kg_m3 = 8000.0     # Weber et al. (2011)
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
 
@@ -82,7 +56,7 @@ model = "maxwell"
 layer_index = 1
 radius_outer_m = 350000.0
 use_tides = false
-is_static = false                    # fluid outer core, solved with the dynamic equations
+is_static = false
 temperature_k = 1700.0
 
 [layers.outer_core.material.liquid]
@@ -91,14 +65,14 @@ heat_capacity_j_kgk = 840.0
 
 [layers.outer_core.material.liquid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 4803.5627  # fitted to the 5100 kg/m3 mean of Weber et al. (2011)
-reference_bulk_modulus_pa = 7.222252e10   # isothermal Fe80S20 liquid, from Nishida et al. (2020)
+reference_density_kg_m3 = 4803.5627  # fitted to a 5100 kg/m3 mean
+reference_bulk_modulus_pa = 7.222252e10   # Fe80S20 liquid (Nishida et al. 2020)
 bulk_modulus_derivative = 4.75
 thermal_expansion_1_k = 1.2e-5
 
 [layers.lower_mantle]
 layer_index = 2
-radius_outer_m = 475000.0             # fitted, with the zone viscosity, to Q at the month and the year
+radius_outer_m = 475000.0             # fitted to Q
 use_tides = true
 temperature_k = 1600.0
 use_pressure_melting = true
@@ -117,11 +91,11 @@ thermal_expansion_1_k = 5.2e-5
 
 [layers.lower_mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 6.385106e10        # the mantle's, fitted to the measured k2
+shear_modulus_pa = 6.385106e10        # the mantle's
 
 [layers.lower_mantle.material.solid.shear_viscosity]
 model = "reference"
-reference_viscosity_pas = 4.241e16    # fitted, with the zone top, to Q at the month and the year
+reference_viscosity_pas = 4.241e16    # fitted to Q
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
@@ -132,7 +106,7 @@ latent_heat_j_kg = 4.0e5
 [layers.lower_mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.lower_mantle.material.melting]
 preset = "peridotite"
 
@@ -151,7 +125,7 @@ isotopes = "modern_day_chondritic"
 
 [layers.mantle]
 layer_index = 3
-radius_outer_m = 1703421.57            # fitted to the moment of inertia
+radius_outer_m = 1703421.57            # fitted to C/MR2
 use_tides = true
 temperature_k = 1300.0
 use_pressure_melting = true
@@ -163,14 +137,14 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3324.9486   # fitted to the published mass
+reference_density_kg_m3 = 3324.9486   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 6.385106e10        # fitted to the measured k2 with the liquid outer core and the zone
+shear_modulus_pa = 6.385106e10        # fitted to k2
 
 [layers.mantle.material.solid.shear_viscosity]
 model = "reference"
@@ -185,7 +159,7 @@ latent_heat_j_kg = 4.0e5
 [layers.mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.mantle.material.melting]
 preset = "peridotite"
 
@@ -222,7 +196,7 @@ thermal_expansion_1_k = 5.2e-5
 
 [layers.crust.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 4.0e10             # anorthositic crust, softer than the mantle
+shear_modulus_pa = 4.0e10             # anorthositic crust
 
 [layers.crust.material.solid.shear_viscosity]
 model = "reference"

@@ -1,19 +1,12 @@
-# lower_mantle: bridgmanite-dominated lower mantle (bridgmanite 0.75, ferropericlase 0.18, Ca-perovskite 0.07 by
-# volume).
-#
-# Solid: a third-order Birch-Murnaghan law fitted from 0 to 135 GPa, its expansivity, and its shear modulus, derived
-# from the Stixrude and Lithgow-Bertelloni (2011) end-members with BurnMan. The zero-pressure values are extrapolations:
-# the assemblage is not stable below about 23 GPa. The Gruneisen parameter is bridgmanite's (1.57; Stixrude and
-# Lithgow-Bertelloni 2011). The heat capacity is a power law through the derived values at 300 K (810) and 2500 K
-# (1230 J kg-1 K-1). The conductivity (range 5 to 12) is an unsourced estimate from bridgmanite lattice conductivity
-# near core-mantle-boundary conditions.
-#
-# Viscosity: a reference law at 1e22 Pa s and 2500 K (Mitrovica and Forte 2004 give 1e22 to 1e23 Pa s); its activation
-# energy is poorly constrained (Yamazaki and Karato 2001) and the combination is unsourced. Confidence low.
-#
-# Melting: the peridotite curves (Monteux et al. 2016), whose high-pressure branches (Eqs. 12 and 13) apply at lower
-# mantle pressures (with pressure melting off a layer reads the curves at zero pressure, their low branches), and the
-# peridotite melt and latent heat.
+# lower_mantle: bridgmanite-dominated (bridgmanite 0.75, ferropericlase 0.18, Ca-perovskite 0.07 by volume).
+# Solid: Birch-Murnaghan (fit 0 to 135 GPa), expansivity, and shear modulus derived from the Stixrude and
+# Lithgow-Bertelloni (2011) end-members with BurnMan; zero-pressure values are extrapolations (unstable below about
+# 23 GPa). Gruneisen parameter: bridgmanite's. Heat capacity: power law through the derived 300 and 2500 K values.
+# Conductivity: unsourced estimate.
+# Viscosity: reference law at 1e22 Pa s and 2500 K (Mitrovica and Forte 2004); the activation energy is poorly
+# constrained (Yamazaki and Karato 2001), so the combination is unsourced. Confidence low.
+# Melting: the peridotite curves (Monteux et al. 2016); their high-pressure branches (Eqs. 12 and 13) apply here, but
+# with pressure melting off a layer reads the low branches. Liquid and latent heat: peridotite's.
 schema_version = "0.2.0"
 description = "Bridgmanite-dominated lower mantle with the peridotite melting curves."
 category = "rocky"

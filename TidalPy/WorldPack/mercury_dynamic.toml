@@ -1,33 +1,14 @@
-# Mercury-Dynamic: mercury.toml with its fluid outer core solved as a dynamic, compressible liquid.
-#
-# The bundled mercury.toml solves its outer core as a static liquid of constant density. This file keeps every
-# other layer, temperature, viscosity, and rheology of that model and changes only the outer core and the numbers
-# refitted after it. Made dynamic with its constant density, mercury.toml's core breaks down by a 3.5 day
-# forcing period.
-#
-# Why the equation of state matters
-# A dynamic liquid whose density does not follow its bulk modulus is unstably stratified: a constant-density
-# liquid with a finite bulk modulus has N^2 = -rho g^2 / K < 0, and its solutions grow as exp(E), with E rising
-# with the forcing period, until the integration fails. A pressure-dependent law keeps the density on
-# d rho / dr = -rho^2 g / K, which is neutral (N^2 = 0), so a dynamic liquid stays well behaved at tidal periods.
-# The dynamic liquids demo (Demos/Physics/P12_dynamic_liquids.ipynb) works through the difference.
-#
-# Outer core
-# Birch-Murnaghan with K0 = 115.47 GPa and K0' = 4.93, the liquid core of the preferred reference model of Margot
-# et al. (2018, "Mercury's Internal Structure", in Mercury: The View after MESSENGER, Table 6; a core with
-# 12.83 wt% Si at 1945 K). Its reference density, 6653.47 kg/m3, is fitted to the published mass; Margot et al.
-# give 6471.29, and the 2.8 percent difference stands in for the composition and temperature this model does not
-# carry. The inner core keeps mercury.toml's constant 7305.6948 kg/m3. Across the outer core the density runs from
-# 7657 kg/m3 at 22.98 GPa to 6975 at 6.12 GPa, and K from 220.5 to 144.9 GPa, with a mean of 7305.6 kg/m3, the
-# value mercury.toml fits as a constant.
-#
-# Fits
-# The mass is exact. C/MR2 = 0.34549, not fitted, against the measured 0.346 +/- 0.009 (Margot et al. 2018). The
-# mantle shear modulus, 4.364771e10 Pa, gives k2 = 0.569 at the 87.9691 day orbital period (Genova et al. 2019:
-# 0.569 +/- 0.025), with Q = 120. Surface gravity is 3.7006 m/s2 and the central pressure 35.15 GPa. At the
-# default solver tolerance k2 holds to about 4e-6 out to a year.
-#
-# The temperatures, viscosities, and orbit are as documented in mercury.toml.
+# Mercury-Dynamic: mercury.toml with its fluid outer core solved as a dynamic, compressible liquid; only the core
+# and the refitted numbers below differ.
+# A constant-density dynamic liquid is unstably stratified and fails (mercury.toml's core by a 3.5 day period), so
+# the core's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
+# Outer core: Birch-Murnaghan with K0 = 115.47 GPa, K0' = 4.93 (Margot et al. 2018, Table 6); reference density
+# 6653.47 kg/m3 fitted to the mass (Margot et al.: 6471.29). Its mean, 7305.6 kg/m3, matches mercury.toml's core.
+# C/MR2 = 0.34549 (not fitted) vs 0.346 +/- 0.009 measured (Margot et al. 2018); g = 3.7006 m/s2; central
+# pressure 35.15 GPa.
+# Fitted: mantle rigidity 4.364771e10 Pa gives k2 = 0.569 at the 87.9691 day orbital period (Genova et al. 2019),
+# with Q = 120.
+# Temperatures, viscosities, and spin are as in mercury.toml.
 schema_version = "0.2.0"
 name = "Mercury-Dynamic"
 type = "terrestrial"
@@ -36,8 +17,7 @@ mass_kg = 3.30103e23
 spin_frequency_rad_s = 1.240013e-06
 albedo = 0.068
 
-# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# Temperatures are prescribed (the fits hold at these values), so the EOS solve keeps them.
 [eos_solver]
 solve_temperature = false
 
@@ -54,7 +34,7 @@ heat_capacity_j_kgk = 840.0
 
 [layers.inner_core.material.solid.eos]
 model = "constant"
-reference_density_kg_m3 = 7305.6948   # fitted to the published mass; mean core density
+reference_density_kg_m3 = 7305.6948   # mercury.toml's
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
 
@@ -76,7 +56,7 @@ model = "maxwell"
 layer_index = 1
 radius_outer_m = 1965000.0
 use_tides = false
-is_static = false                     # fluid outer core, solved with the dynamic equations
+is_static = false
 temperature_k = 1800.0
 
 [layers.outer_core.material.liquid]
@@ -85,7 +65,7 @@ heat_capacity_j_kgk = 840.0
 
 [layers.outer_core.material.liquid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 6653.4691   # fitted to the published mass
+reference_density_kg_m3 = 6653.4691   # fitted to the mass
 reference_bulk_modulus_pa = 1.1547e11 # Fe-Si liquid, Margot et al. (2018)
 bulk_modulus_derivative = 4.93
 thermal_expansion_1_k = 1.2e-5
@@ -104,14 +84,14 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3300.0      # fixed silicate mantle; the core is the fitted layer here
+reference_density_kg_m3 = 3300.0      # fixed; the core is fitted
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 4.364771e10        # fitted to the measured k2 with the liquid outer core
+shear_modulus_pa = 4.364771e10        # fitted to k2
 
 [layers.mantle.material.solid.shear_viscosity]
 model = "reference"
@@ -126,7 +106,7 @@ latent_heat_j_kg = 4.0e5
 [layers.mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.mantle.material.melting]
 preset = "peridotite"
 

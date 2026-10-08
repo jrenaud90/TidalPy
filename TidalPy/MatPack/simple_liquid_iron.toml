@@ -1,10 +1,6 @@
-# simple_liquid_iron: uniform liquid iron-alloy core.
-#
-# A liquid-only material: constant density and bulk modulus, no shear modulus, and a constant viscosity.
-#
-# References: density and adiabatic bulk modulus round liquid iron at 1 bar (7019 kg m-3, K_S 110 GPa; Anderson and
-# Ahrens 1994); viscosity near core conditions (de Wijs et al. 1998); expansivity and heat capacity derived from
-# Anderson and Ahrens (1994).
+# simple_liquid_iron: uniform liquid iron-alloy core; liquid only.
+# Density and adiabatic bulk modulus round liquid iron at 1 bar (Anderson and Ahrens 1994); expansivity and heat
+# capacity derived from the same. Viscosity near core conditions (de Wijs et al. 1998).
 schema_version = "0.2.0"
 description = "Uniform liquid iron-alloy core: constant density and bulk modulus; always liquid."
 category = "simplified"

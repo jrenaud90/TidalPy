@@ -1,16 +1,11 @@
-# chondrite: undifferentiated ordinary-chondrite rock at zero porosity (olivine Fo80 0.45, orthopyroxene 0.27,
-# plagioclase 0.10, clinopyroxene 0.05, Fe metal 0.08 by volume; troilite omitted).
-#
-# Porous chondrites (bulk density 2100 to 3400 kg m-3) need a separate porosity treatment; this is the compacted rock.
-#
-# Solid: a third-order Birch-Murnaghan law (fit 0 to 10 GPa), expansivity, and shear modulus derived from the
-# Stixrude and Lithgow-Bertelloni (2011) end-members and hcp iron (Kurnosov et al. 2017) with BurnMan; grain density
-# 3720 to 3840 kg m-3 for H chondrites (Consolmagno et al. 2008). The Gruneisen parameter is forsterite's. Conductivity
-# and heat capacity from Hevey and Sanders (2006).
-#
-# Viscosity: the dry-olivine diffusion law of peridotite (an unsourced choice). Melting: the silicate solidus and
-# liquidus of Ghosh and McSween (1998) and Hevey and Sanders (2006); the Fe-FeS eutectic (1261 K), where the first melt
-# appears, is not represented. Liquid: the peridotite melt.
+# chondrite: ordinary-chondrite rock at zero porosity (olivine Fo80 0.45, orthopyroxene 0.27, plagioclase 0.10,
+# clinopyroxene 0.05, Fe metal 0.08 by volume; troilite omitted). Porous chondrites need a separate treatment.
+# Solid: Birch-Murnaghan (fit 0 to 10 GPa), expansivity, and shear modulus derived from the Stixrude and
+# Lithgow-Bertelloni (2011) end-members and hcp iron (Kurnosov et al. 2017) with BurnMan; density as H chondrite grains
+# (Consolmagno et al. 2008). Gruneisen parameter: forsterite's.
+# Conductivity and heat capacity: Hevey and Sanders (2006). Viscosity: peridotite's diffusion law (unsourced choice).
+# Melting: silicate solidus and liquidus of Ghosh and McSween (1998) and Hevey and Sanders (2006); the Fe-FeS eutectic
+# (1261 K), where the first melt appears, is not represented. Liquid: the peridotite melt.
 schema_version = "0.2.0"
 description = "Undifferentiated chondritic rock (zero porosity) with constant silicate melting temperatures."
 category = "rocky"
@@ -36,7 +31,7 @@ pressure_derivative = 1.52
 temperature_derivative_pa_k = -1.31e7
 reference_temperature_k = 300.0
 
-# Dry olivine diffusion creep at a 1 mm grain size (Hirth and Kohlstedt 2003).
+# Dry olivine diffusion creep (Hirth and Kohlstedt 2003).
 [solid.shear_viscosity]
 model = "arrhenius"
 arrhenius_coeff = 3.33e14

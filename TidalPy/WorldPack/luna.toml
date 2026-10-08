@@ -1,50 +1,17 @@
-# Luna: the Moon as a five-layer body that matches observables, including its k2 and its Q at two periods.
-#
-# Structure
-# The core densities are the Apollo seismic reanalysis of Weber et al. (2011): 8000 kg/m3 for
-# the solid inner core and 5100 kg/m3 for the fluid outer core, both incompressible because the lunar
-# core's composition is the least constrained part of the model. Above them sit a low-viscosity zone at
-# the base of the mantle, the silicate mantle proper, and the low-density crust GRAIL measured, 34 to
-# 43 km thick with a density near 2550 kg/m3 (Wieczorek et al. 2013). The zone and the mantle share one
-# material, so the structure is that of the four-layer model this file grew from.
-#
-# Three numbers are fitted to the bulk observables, one per observable. The mantle's Birch-Murnaghan
-# reference density, 3324.97 kg/m3, reproduces the published mass. The crust thickness, 34 km,
-# reproduces the moment-of-inertia factor: a Moon with no crust overshoots at C/MR2 = 0.3965 against the
-# measured 0.3931 +/- 0.0002 (Williams et al. 2014). The core radius provides little change, moving
-# C/MR2 only from 0.3968 to 0.3948 across a 330 to 450 km core. The result is C/MR2 = 0.39312, a surface
-# gravity of 1.6242 m/s2 against the observed 1.622, and a central pressure of 5.44 GPa.
-#
-# Temperatures and viscosities
-# Every layer carries a temperature and every solid layer a reference-law viscosity whose reference
-# temperature is the layer's own (see io.toml; E = 300 kJ/mol). The inner core is solid iron at 1700 K
-# and 1e20 Pa s. The mantle is cold and dry, 1300 K and 1e23 Pa s, with an Andrade rheology (alpha = 0.3,
-# zeta = 1). The crust is 250 K and 1e25 Pa s, elastic in effect. The low-viscosity zone is the partially
-# molten layer at the base of the mantle that Weber et al. (2011) resolve; it is 1600 K, its melt is in its
-# fitted viscosity, and it carries a Maxwell rheology so that its relaxation is a single peak. The zone and
-# the mantle above it carry peridotite melting curves, which follow the pressure, with Henning weakening,
-# and the silicate layers radiogenic heat (use_heating); at their temperatures both sit below the solidus,
-# so the melting and the heating act only in a thermal solve.
-#
-# Tides
-# Lunar laser ranging gives k2 = 0.02422 +/- 0.00022 (Williams et al. 2014) and a nearly flat
-# dissipation, Q = 38 +/- 4 at the monthly period and 41 +/- 9 at the yearly one, which places a
-# relaxation peak near 100 to 120 days (Williams and Boggs 2015, JGR Planets 120, 689). A single Andrade
-# mantle cannot give both Q values, since it makes Q fall as omega^-0.3 between the month and the year
-# (13.4^-0.3 = 0.46 against the measured ratio of 1.08). Three numbers are therefore fitted to the three
-# tidal observables: the zone's viscosity, 4.241e16 Pa s, and its top, 475 km (a 125 km thick zone above
-# the 350 km core), set the two Q values, and the shear modulus the zone shares with the mantle, 6.385e10
-# Pa, sets k2. The result is k2 = 0.02422 with Q = 37.9 at 27.3217 days and Q = 40.9 at 365.25 days, the
-# whole-body Q reaching its minimum of 25 near 100 days, and Q = 82 at 10 days and 56 at 1000 days. A
-# mantle at 1e22 Pa s gives an equally exact fit with a thinner and softer zone (2.98e16 Pa s to 439 km,
-# mantle rigidity 6.45e10 Pa), but its relaxation peak then sits at a few days instead of near 100.
-#
-# The zone dissipates 85.2 percent of the total tidal heat and the mantle 14.8 percent, with the crust and
-# inner core taking 2.4e-4 and 4e-10 (each layer's share of the radial solution's heating, as calc_tides
-# reports it); the total with the Earth's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) is 6.3e8 W.
-#
-# Orbital state is not a world property in this schema; add Luna to a System to give it an orbit. The spin
-# frequency is the synchronous rate from the 0.7 file's 27.322 day spin period.
+# Luna: solid inner core, fluid outer core, a low-viscosity zone at the base of the mantle, mantle, and crust.
+# Core densities 8000 and 5100 kg/m3 and the zone are from Apollo seismics (Weber et al. 2011); crust density
+# 2550 kg/m3 from GRAIL (Wieczorek et al. 2013).
+# Fitted: mantle reference density 3324.97 kg/m3 to the mass (g = 1.6242 m/s2 vs 1.622 observed; central pressure
+# 5.44 GPa); crust thickness 34 km to C/MR2 = 0.39312 (measured 0.3931 +/- 0.0002, Williams et al. 2014).
+# Generic temperatures and viscosities (law as in io.toml, E = 300 kJ/mol): inner core 1700 K, 1e20 Pa s;
+# mantle 1300 K, 1e23 Pa s, Andrade; crust 250 K, 1e25 Pa s, elastic in effect; zone 1600 K, Maxwell.
+# Tidal targets from lunar laser ranging: k2 = 0.02422 +/- 0.00022 (Williams et al. 2014), Q = 38 +/- 4 at the
+# month and 41 +/- 9 at the year, with a relaxation peak near 100 to 120 days (Williams and Boggs 2015).
+# Fitted: mantle and zone rigidity 6.385e10 Pa gives k2 = 0.02422 at 27.3217 days; zone viscosity 4.241e16 Pa s
+# and top 475 km give Q = 37.9 at 27.3217 days and 40.9 at 365.25 days, with a minimum Q of 25 near 100 days.
+# A single Andrade mantle cannot match both Q values. With the outer core made solid, k2 drops to 0.02306.
+# Heating with Earth's mass at a = 3.844e8 m, e = 0.0549: 6.3e8 W; zone 0.852, mantle 0.148, crust 2.4e-4.
+# Spin is the synchronous rate for a 27.322 day period.
 schema_version = "0.2.0"
 name = "Luna"
 type = "terrestrial"
@@ -53,8 +20,7 @@ mass_kg = 7.34579e22
 spin_frequency_rad_s = 2.661667e-06
 albedo = 0.12
 
-# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# Temperatures are prescribed (the fits hold at these values), so the EOS solve keeps them.
 [eos_solver]
 solve_temperature = false
 
@@ -71,7 +37,7 @@ heat_capacity_j_kgk = 840.0
 
 [layers.inner_core.material.solid.eos]
 model = "constant"
-reference_density_kg_m3 = 8000.0     # solid inner core, Weber et al. (2011)
+reference_density_kg_m3 = 8000.0     # Weber et al. (2011)
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
 
@@ -95,20 +61,20 @@ radius_outer_m = 350000.0
 use_tides = false
 temperature_k = 1700.0
 
-# A liquid-only material, so the layer is a liquid: fluid outer core, solved as a static liquid.
+# Liquid-only material: a static fluid outer core.
 [layers.outer_core.material.liquid]
 thermal_conductivity_w_mk = 7.95
 heat_capacity_j_kgk = 840.0
 
 [layers.outer_core.material.liquid.eos]
 model = "constant"
-reference_density_kg_m3 = 5100.0     # fluid outer core, Weber et al. (2011)
+reference_density_kg_m3 = 5100.0     # Weber et al. (2011)
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
 
 [layers.lower_mantle]
 layer_index = 2
-radius_outer_m = 475000.0             # fitted, with the zone viscosity, to Q at the month and the year
+radius_outer_m = 475000.0             # fitted to Q
 use_tides = true
 temperature_k = 1600.0
 use_pressure_melting = true
@@ -127,11 +93,11 @@ thermal_expansion_1_k = 5.2e-5
 
 [layers.lower_mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 6.385e10           # the mantle's, fitted to the measured k2
+shear_modulus_pa = 6.385e10           # the mantle's
 
 [layers.lower_mantle.material.solid.shear_viscosity]
 model = "reference"
-reference_viscosity_pas = 4.241e16    # fitted, with the zone top, to Q at the month and the year
+reference_viscosity_pas = 4.241e16    # fitted to Q
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
@@ -142,7 +108,7 @@ latent_heat_j_kg = 4.0e5
 [layers.lower_mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.lower_mantle.material.melting]
 preset = "peridotite"
 
@@ -173,14 +139,14 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3324.9726   # fitted to the published mass
+reference_density_kg_m3 = 3324.9726   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 6.385e10           # fitted to the measured k2 with the liquid outer core and the zone
+shear_modulus_pa = 6.385e10           # fitted to k2
 
 [layers.mantle.material.solid.shear_viscosity]
 model = "reference"
@@ -195,7 +161,7 @@ latent_heat_j_kg = 4.0e5
 [layers.mantle.material.liquid]
 preset = "peridotite"                   # silicate melt
 
-# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
 [layers.mantle.material.melting]
 preset = "peridotite"
 
@@ -232,7 +198,7 @@ thermal_expansion_1_k = 5.2e-5
 
 [layers.crust.material.solid.shear_modulus]
 model = "constant"
-shear_modulus_pa = 4.0e10             # anorthositic crust, softer than the mantle
+shear_modulus_pa = 4.0e10             # anorthositic crust
 
 [layers.crust.material.solid.shear_viscosity]
 model = "reference"

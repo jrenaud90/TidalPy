@@ -1,16 +1,11 @@
-# iron: solid iron, melting into liquid iron.
-#
-# Solid: a Vinet law for hcp iron (Dewaele et al. 2006, fit 17 to 197 GPa; Fei et al. 2016 give K0 = 172.7 GPa and
-# K0' = 4.79), with the expansivity and the shear modulus of hcp iron as encoded in BurnMan
-# (Kurnosov et al. 2017). bcc iron is stable below about 13 GPa at room temperature and is not separately represented.
-# The temperature derivative of the shear modulus and the Gruneisen parameter are unsourced and left out (so the solid's
-# adiabatic bulk modulus is its isothermal one, below the liquid's). The viscosity of solid iron is poorly
-# constrained (inner-core estimates span 1e16 to 1e22 Pa s). Conductivity: pure iron is 80 W m-1 K-1 at 300 K and 1 bar
-# (CRC handbook), falling with temperature; 30 to 150 are argued at core conditions. Heat capacity: the high-temperature
-# range of 600 to 800 J kg-1 K-1 (unsourced). Both are low-confidence values for a hot core.
-#
-# Melting: Anzellini et al. (2013), converted to two Simon-Glatzel branches joined at 98.5 GPa (1822 K at 1 bar against
-# a measured 1811 K; 6230 K at the inner-core boundary); pure iron melts at one temperature. Latent heat at 1 bar (CRC
+# iron: solid (hcp) iron, melting into liquid iron.
+# Solid: Vinet law for hcp iron (Dewaele et al. 2006, fit 17 to 197 GPa); expansivity and shear modulus of hcp iron as
+# encoded in BurnMan (Kurnosov et al. 2017). bcc iron (below about 13 GPa) is not represented. The shear modulus
+# temperature derivative and the Gruneisen parameter are unsourced and left out, so the adiabatic bulk modulus is the
+# isothermal one (below the liquid's).
+# Viscosity: poorly constrained (inner-core estimates span 1e16 to 1e22 Pa s). Conductivity (80 W m-1 K-1 at 300 K, CRC
+# handbook; 30 to 150 argued at core conditions) and heat capacity (unsourced) are low confidence.
+# Melting: Anzellini et al. (2013) as two Simon-Glatzel branches joined at 98.5 GPa. Latent heat: the 1 bar value (CRC
 # handbook; larger at core pressure). Liquid: liquid_iron.
 schema_version = "0.2.0"
 description = "Solid (hcp) iron with the Anzellini et al. (2013) melting curve, melting into liquid iron."

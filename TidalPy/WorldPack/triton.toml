@@ -1,35 +1,14 @@
-# Triton: a rock core under a water-ice shell, on a retrograde synchronous orbit about Neptune.
-#
-# Rebuilt from TidalPy 0.7's BurnMan-based triton.toml, which supplied the core radius of 1064 km.
-# Radius is 1352.6 km and the mass follows from GM = 1428.49546 km3/s2 (JPL satellite ephemeris NEP097),
-# giving 2.1402926e22 kg and a mean density of 2065 kg/m3, the highest of any of the
-# large icy moons after Europa and the reason Triton is usually read as a captured Kuiper belt object
-# rather than a body formed in place.
-#
-# Structure
-# The recipe is Pluto's and Charon's. Ice I is fixed at 917 kg/m3 and the rock core's Birch-Murnaghan
-# reference density is fitted to the published mass, giving 3242.4854 kg/m3. That is denser than the
-# roughly 3000 kg/m3 the Pluto system asks for, as it must be for a body this rock-rich at a similar core
-# fraction: the core carries 77.0 percent of the mass. The result is a 288.6 km ice shell, a surface
-# gravity of 0.7808 m/s2, and a central pressure of 1.93 GPa. C/MR2 comes out at 0.31554; Triton has no
-# measured moment of inertia, so that is a model output and not a check.
-#
-# There is no ocean, although a subsurface one is likely given the heat a captured orbit would have
-# delivered. To model it, split the shell and give the lower part a liquid-only material.
-#
-# Temperatures and viscosities
-# Every layer carries a temperature and a reference-law viscosity at it (see io.toml): the core at 273.15 K
-# and 1e22 Pa s, the shell at 35 K and 1e15 Pa s with the 59.4 kJ/mol activation energy of ice. Both
-# temperatures are the 0.7 file's and neither viscosity is calibrated to an observation.
-#
-# Tides
-# Triton's orbit is retrograde and very nearly circular (e = 1.6e-5), so the present tide is small, and the
-# retrograde motion is why Triton is decaying toward Neptune rather than receding. At the 5.8769 day orbital
-# period calc_tides puts 93.9 percent of the heating in the ice shell (each layer's share of the radial
-# solution's heating), unchanged to four digits between eccentricities of 0.001 and 0.01.
-#
-# Orbital state is not a world property in this schema; add Triton to a System to give it an orbit. The
-# spin frequency is the synchronous rate of the 0.7 file's 5.876854 day period.
+# Triton: a rock core under a water-ice shell, on a retrograde synchronous orbit about Neptune; no ocean.
+# Radius 1352.6 km; mass 2.1402926e22 kg from GM = 1428.49546 km3/s2 (JPL satellite ephemeris NEP097), mean
+# density 2065 kg/m3. The 1064 km core radius is TidalPy 0.7's.
+# Pluto's recipe: ice I fixed at 917 kg/m3 and the core reference density, 3242.4854 kg/m3, fitted to the mass.
+# Shell 288.6 km; the core holds 77.0 percent of the mass; g = 0.7808 m/s2; central pressure 1.93 GPa.
+# C/MR2 = 0.31554 is a model output: none is measured.
+# Generic, uncalibrated temperatures and viscosities: core 273.15 K, 1e22 Pa s; shell 35 K, 1e15 Pa s
+# (E = 59.4 kJ/mol).
+# The orbit is nearly circular (e = 1.6e-5); at the 5.8769 day period the ice shell takes 93.9 percent of the heating.
+# A subsurface ocean is likely; to add one, split the shell and give the lower part a liquid-only material.
+# Spin is the synchronous rate of the 5.876854 day period.
 schema_version = "0.2.0"
 name = "Triton"
 type = "terrestrial"
@@ -38,8 +17,7 @@ mass_kg = 2.1402926e22
 spin_frequency_rad_s = 1.2374317e-05
 albedo = 0.82
 
-# The layer temperatures below are prescribed, not solved: the fit holds at exactly these values, so the
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# Temperatures are prescribed (the fit holds at these values), so the EOS solve keeps them.
 [eos_solver]
 solve_temperature = false
 
@@ -55,7 +33,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.core.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3242.4854   # fitted to the published mass
+reference_density_kg_m3 = 3242.4854   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
