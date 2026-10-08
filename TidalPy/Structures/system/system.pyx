@@ -62,6 +62,31 @@ cdef str cy_world_name(c_System* system_ptr, size_t index):
     return system_ptr.get_world(index).get().get_name().decode("utf-8")
 
 
+cdef dict cy_dissipation_to_dict(c_TidalDissipation dissipation, c_System* system_ptr):
+    """Convert a c_TidalDissipation result into a plain Python dict (all values MKS)."""
+    return {
+        'world_index':       <int>dissipation.world_index,
+        'world_name':        cy_world_name(system_ptr, dissipation.world_index),
+        'companion_name':    (cy_world_name(system_ptr, dissipation.companion_index)
+                              if dissipation.solved else None),
+        'solved':            True if dissipation.solved else False,
+        'has_tide_model':    True if dissipation.has_tide_model else False,
+        'orbital_frequency': dissipation.orbital_frequency,
+        'semi_major_axis':   dissipation.semi_major_axis,
+        'eccentricity':      dissipation.eccentricity,
+        'spin_frequency':    dissipation.spin_frequency,
+        'obliquity':         dissipation.obliquity,
+        'companion_mass':    dissipation.companion_mass,
+        'target_mass':       dissipation.target_mass,
+        'tidal_heating':     dissipation.tidal_heating,
+        'dU_dM':             dissipation.dU_dM,
+        'dU_dw':             dissipation.dU_dw,
+        'dU_dO':             dissipation.dU_dO,
+        'dU_dM_minus_dw':    dissipation.dU_dM_minus_dw,
+        'moment_of_inertia': dissipation.moment_of_inertia,
+    }
+
+
 cdef dict cy_evolution_to_dict(c_WorldEvolution evolution, c_System* system_ptr):
     """Convert a c_WorldEvolution result into a plain Python dict (all values MKS)."""
     return {
@@ -94,14 +119,13 @@ cdef dict cy_evolution_to_dict(c_WorldEvolution evolution, c_System* system_ptr)
 
 cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
     """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS)."""
-    # A world with no tidal host has no host to name (its pair keeps the default host index).
-    cdef int host_index = system_ptr.get_tidal_host_index(pair.world_index)
-    cdef object host_name = None if host_index < 0 else cy_world_name(system_ptr, <size_t>host_index)
+    # A world asked for with no tidal host has no partner (the pair names it twice).
+    cdef cpp_bool has_partner = pair.first_index != pair.second_index
     return {
-        'world_index':         <int>pair.world_index,
-        'world_name':          cy_world_name(system_ptr, pair.world_index),
-        'host_index':          <int>pair.host_index,
-        'host_name':           host_name,
+        'world_index':         <int>pair.first_index,
+        'world_name':          cy_world_name(system_ptr, pair.first_index),
+        'host_index':          <int>pair.second_index if has_partner else -1,
+        'host_name':           cy_world_name(system_ptr, pair.second_index) if has_partner else None,
         'evolved':             True if pair.evolved else False,
         'has_tide_model':      True if pair.has_tide_model else False,
         'orbital_frequency':   pair.orbital_frequency,
@@ -114,8 +138,8 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
         'dE_orbit_dt':         pair.dE_orbit_dt,
         'dE_spin_dt_total':    pair.dE_spin_dt_total,
         'energy_residual':     pair.energy_residual,
-        'world':               cy_evolution_to_dict(pair.world, system_ptr),
-        'host':                cy_evolution_to_dict(pair.host, system_ptr),
+        'world':               cy_evolution_to_dict(pair.first, system_ptr),
+        'host':                cy_evolution_to_dict(pair.second, system_ptr),
     }
 
 
@@ -537,13 +561,43 @@ cdef class System:
         """
         return self._system.get().calc_equilibrium_temperature(<size_t>self._resolve_index(world))
 
+    def calc_dissipation(self, world) -> dict:
+        """One world's tidal dissipation on its orbit about its tidal host, without orbital or spin rates.
+
+        Solves the world's global tides in the current system state, its tidal host raising them: the mean motion
+        from Kepler's third law, the spin and obliquity from the world, the semi-major axis and eccentricity from
+        its orbit about the host (the orbit both share, for a mutual pair), and the host's mass.
+        :meth:`calc_world_evolution` turns this into the world's rates; :meth:`calc_pair_evolution` adds the
+        host's dissipation as well.
+
+        Parameters
+        ----------
+        world : int or str or BaseWorld
+            The dissipating world, identified by index, name, or the world object.
+
+        Returns
+        -------
+        dict
+            The world (``world_index``, ``world_name``) and the body raising its tide (``companion_name``), the state
+            used (``orbital_frequency``, ``semi_major_axis``, ``eccentricity``, ``spin_frequency``, ``obliquity``,
+            ``companion_mass``, ``target_mass``), the tidal outputs (``tidal_heating``, ``dU_dM``, ``dU_dw``,
+            ``dU_dO``, ``dU_dM_minus_dw``), and ``moment_of_inertia``, all MKS. ``solved`` is ``False`` for a world
+            with no tidal host or no usable orbit about it. ``has_tide_model`` is ``False`` for a rigid world (no
+            tide model attached): it raises no tide, so its outputs are zero while ``solved`` stays ``True``. The
+            world's per-layer heating is on the world (``get_layer_tidal_heating``).
+        """
+        cdef size_t index = <size_t>self._resolve_index(world)
+        cdef c_TidalDissipation dissipation
+        with nogil:
+            dissipation = self._system.get().calc_dissipation(index)
+        return cy_dissipation_to_dict(dissipation, self._system.get())
+
     def calc_world_evolution(self, world) -> dict:
         """Evolve one orbiting world for a single tidal solve, returning its rates as a dict.
 
-        Solves the world's global tides in the current system state (mean motion from Kepler's third law,
-        spin + obliquity from the world, eccentricity + semi-major axis from its orbit about its tidal host,
-        host mass from that host), then turns the tidal-potential derivatives into the orbital rates
-        and the world's spin rate. Only this world raises tides; its host is treated as a point mass.
+        Solves the world's global tides in the current system state (:meth:`calc_dissipation`), then turns the
+        tidal-potential derivatives into the orbital rates and the world's spin rate. Only this world raises tides;
+        its host is treated as a point mass whose state stays as it is, apart from the orbit they share.
 
         A spin at a spin-orbit equilibrium is not held here: :meth:`evolve` integrates a world through its
         equilibria.
@@ -593,18 +647,22 @@ cdef class System:
             out.append(cy_evolution_to_dict(results[i], self._system.get()))
         return out
 
-    def calc_pair_evolution(self, world) -> dict:
-        """Evolve a world together with its tidal host under dual-body tidal dissipation.
+    def calc_pair_evolution(self, world, partner=None) -> dict:
+        """Evolve two worlds together under dual-body tidal dissipation.
 
-        Both the world and its tidal host raise a tide on their shared orbit. Each body's tides
-        are solved with the other body as the tide raiser; their orbital-rate contributions add and each
-        body evolves its own spin. A body with no tide model is rigid and contributes nothing (with a
-        rigid host this reduces to :meth:`calc_world_evolution`).
+        Both worlds raise a tide on their shared orbit, one being the other's tidal host (most often each other's).
+        Each body's tides are solved with the other body as the tide raiser (:meth:`calc_dissipation`); their
+        orbital-rate contributions add and each body evolves its own spin. The two are treated alike. A body with
+        no tide model is rigid and contributes nothing (with a rigid partner this reduces to
+        :meth:`calc_world_evolution`).
 
         Parameters
         ----------
         world : int or str or BaseWorld
-            The orbiting world, identified by index, name, or the world object.
+            One world of the pair, identified by index, name, or the world object.
+        partner : int or str or BaseWorld, optional
+            The other world. None (default) takes ``world``'s tidal host; a world with no tidal host then comes back
+            with ``evolved`` set to ``False``.
 
         Returns
         -------
@@ -613,16 +671,28 @@ cdef class System:
             ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, plus ``orbital_frequency`` /
             ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``world_name`` / ``host_index`` /
             ``host_name`` / ``evolved``), and
-            each body's full single-body contribution under keys ``world`` and ``host`` (each a
-            :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for a world with no tidal
-            host or no usable orbit about it. ``has_tide_model`` is ``True`` when at least one body carries a
-            tide model; ``False`` means both are rigid, every rate is zero, and a warning is logged once per
-            world. Each body's own flag is in its ``world`` or ``host`` entry.
+            each body's full single-body contribution under keys ``world`` (``world``) and ``host`` (``partner``),
+            each a :meth:`calc_world_evolution`-style dict. ``evolved`` is ``False`` for a world with no tidal
+            host (``partner`` left out) or no usable orbit. ``has_tide_model`` is ``True`` when at least one body
+            carries a tide model; ``False`` means both are rigid, every rate is zero, and a warning is logged once
+            per world. Each body's own flag is in its own entry.
+
+        Raises
+        ------
+        ValueError
+            ``partner`` is ``world``, or neither is the other's tidal host (they share no orbit).
         """
         cdef size_t index = <size_t>self._resolve_index(world)
+        cdef size_t partner_index = 0
+        cdef cpp_bool has_partner = partner is not None
+        if has_partner:
+            partner_index = <size_t>self._resolve_index(partner)
         cdef c_PairEvolution pair
         with nogil:
-            pair = self._system.get().calc_pair_evolution(index)
+            if has_partner:
+                pair = self._system.get().calc_pair_evolution(index, partner_index)
+            else:
+                pair = self._system.get().calc_pair_evolution(index)
         return cy_pair_to_dict(pair, self._system.get())
 
     def evolve(

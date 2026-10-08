@@ -359,7 +359,7 @@ For dual-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each 
 `radial_solver` takes the same positional arguments and nearly the same keywords as in 0.7.X. The differences:
 
 - `use_prop_matrix=True` is now `love_method="propagation_matrix"`.
-- `use_kamata=True` is now `starting_method="kamata"` (and `use_kamata=False`, the default, is `starting_method="takeuchi"`). The same key replaces `use_kamata` in the `[radial_solver]` configuration and world tables, and two new methods join it: `"power_series"` and `"unity"` (see [Starting Conditions](RadialSolver/starting_conditions.md)).
+- `use_kamata=True` is now `starting_method="kamata"` (and `use_kamata=False`, the default, is `starting_method="takeuchi"`). The same key replaces `use_kamata` in the `[radial_solver]` configuration and world tables, and two new methods join it: `"power_series"` and `"unity"` (see [Starting Conditions](RadialSolver/starting_conditions.md)). Takeuchi is still the recommended starting condition for most problems.
 - The solver settings (`integration_method`, `integration_rtol`, `integration_atol`, `expected_size`, the `eos_*` arguments, and the rest) default to `None`, which reads the `[radial_solver]` and `[eos_solver]` sections of the configuration. The packaged `integration_rtol` and `integration_atol` are both 3e-8, against 1e-5 and 1e-8 in 0.7.X.
 - `solve_for` is a tuple of case-insensitive strings (_e.g._, `("tidal", "loading")`).
 - Invalid inputs raise `ValueError` instead of `ArgumentException` or `UnknownModelError`.
@@ -403,7 +403,7 @@ See [Calculating Love Numbers](RadialSolver/calculating_love_numbers.md) and [He
 
 ## Rheology and Other Physics Models
 
-The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity functions of 0.7.X are model classes in 0.8.0, built by name with a factory. Config keys carry their units (`reference_viscosity_pas`, `solidus_k`), and each model refuses a key it does not read with `ValueError`, naming the closest key it does.
+The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity functions of 0.7.X are now classes in 0.8.0, built by name with a helper builder function (called factories). Config keys carry their units (`reference_viscosity_pas`, `solidus_k`), and each model refuses a key it does not read with `ValueError`, naming the closest key it does.
 
 | 0.7.X | 0.8.0 |
 |---|---|

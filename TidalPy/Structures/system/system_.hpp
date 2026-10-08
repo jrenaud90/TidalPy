@@ -98,6 +98,36 @@ inline c_OrbitElements c_merge_orbit_elements(
     return conflict ? first : merged;
 }
 
+// One world's tidal response on its orbit about a companion that raises its tides: the state the solve used and the
+// tidal outputs, with no orbital or spin rates (c_System::calc_world_evolution and calc_pair_evolution add those).
+// solved is false when the world has no tidal host or no usable orbit about it, and the numeric fields are then
+// unset. has_tide_model is false for a rigid world (no tide model attached): it raises no tide, so its outputs are
+// zero while solved stays true.
+struct c_TidalDissipation {
+    std::size_t world_index     = 0;
+    std::size_t companion_index = 0;      // the body raising the tide
+    bool        solved          = false;
+    bool        has_tide_model  = false;
+
+    // The state the solve used.
+    double orbital_frequency = TidalPyConstants::d_NAN;  // mean motion n            [rad s-1]
+    double semi_major_axis   = TidalPyConstants::d_NAN;  // a of the shared orbit    [m]
+    double eccentricity      = 0.0;                      // e of the shared orbit    [dimensionless]
+    double spin_frequency    = 0.0;                      // world spin rate          [rad s-1]
+    double obliquity         = 0.0;                      // world obliquity          [rad]
+    double companion_mass    = 0.0;                      // tide-raising body mass   [kg]
+    double target_mass       = 0.0;                      // dissipating world mass   [kg]
+
+    double tidal_heating = 0.0;  // total tidal heating                     [W]
+    double dU_dM         = 0.0;  // potential derivative wrt mean anomaly   [J kg-1 rad-1]
+    double dU_dw         = 0.0;  // potential derivative wrt arg pericenter [J kg-1 rad-1]
+    double dU_dO         = 0.0;  // potential derivative wrt node longitude [J kg-1 rad-1]
+    // dU_dM - dU_dw summed mode by mode [J kg-1 rad-1] (c_GlobalTideResult::dU_dM_minus_dw).
+    double dU_dM_minus_dw = 0.0;
+
+    double moment_of_inertia = TidalPyConstants::d_NAN;  // world MoI [kg m2] (NaN for a rigid world)
+};
+
 // The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
 // and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
 // tidal host or no usable orbit about it, and the numeric fields are then unset. has_tide_model is false for a
@@ -139,13 +169,14 @@ struct c_WorldEvolution {
     double energy_residual = 0.0;
 };
 
-// The dual-body tidal evolution of an orbiting world and its tidal host. Both raise a tide on the shared
-// orbit, so the top-level rates and energy balance are the sum of each body's single-body contribution,
-// held in `world` and `host`. has_tide_model is true when at least one of the two bodies carries a tide model;
-// false means both are rigid and every rate is zero.
+// The dual-body tidal evolution of two worlds, one the tidal host of the other (usually each other's). Both raise a
+// tide on the shared orbit, so the top-level rates and energy balance are the sum of each body's single-body
+// contribution, held in `first` and `second` in the order the pair was asked for; the two are treated alike.
+// has_tide_model is true when at least one of the two bodies carries a tide model; false means both are rigid and
+// every rate is zero.
 struct c_PairEvolution {
-    std::size_t world_index    = 0;      // the orbiting world
-    std::size_t host_index     = 0;      // its tidal host
+    std::size_t first_index    = 0;
+    std::size_t second_index   = 0;
     bool        evolved        = false;
     bool        has_tide_model = false;  // either body can dissipate
 
@@ -158,12 +189,12 @@ struct c_PairEvolution {
     double de_dt = 0.0;  // [s-1]
     double dn_dt = 0.0;  // [rad s-2]
 
-    // Each body's single-body dissipation contribution to the shared orbit.
-    c_WorldEvolution world;   // the orbiting world (tide raised by the host)
-    c_WorldEvolution host;    // the host (tide raised by the orbiting world)
+    // Each body's single-body dissipation contribution to the shared orbit, its tide raised by the other.
+    c_WorldEvolution first;
+    c_WorldEvolution second;
 
     // Total heating against the shared-orbit energy loss and both spins.
-    double tidal_heating_total = 0.0;  // world + host heating
+    double tidal_heating_total = 0.0;  // both bodies' heating
     double dE_orbit_dt         = 0.0;  // from the combined da/dt
     double dE_spin_dt_total    = 0.0;  // both spins
     double energy_residual     = 0.0;  // heating_total + dE_orbit_dt + dE_spin_dt_total (~0 conserved)
@@ -557,32 +588,28 @@ public:
         return this->calc_equilibrium_temperature(world_index);
     }
 
-    // Single-body tidal dissipation: run one world's global tidal solve in the current system state, then
-    // turn the tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
-    // tides, its host being a point mass; calc_pair_evolution adds the host's own tide. A rigid world (no tide
-    // model) comes back evolved with zero rates and has_tide_model false, and is warned about once.
-    c_WorldEvolution calc_world_evolution(std::size_t index) {
+    // One world's tidal dissipation on its orbit about its tidal host, the host raising the tide: the world's global
+    // tidal solve in the current system state (the shared orbit, the world's spin and obliquity, the host's mass),
+    // without orbital or spin rates. A world with no tidal host, or no usable orbit about it, comes back unsolved; a
+    // rigid world (no tide model) comes back solved with zero outputs and has_tide_model false.
+    c_TidalDissipation calc_dissipation(std::size_t index) {
         this->check_index(index);
-        c_WorldEvolution out;
-        out.world_index    = index;
-        out.has_tide_model = this->p_worlds[index]->get_tide_model_set();
-
-        // A world with no tidal host, or no usable orbit about it, has no tide to evolve under.
         if (!this->has_tidal_host(index)) {
+            c_TidalDissipation out;
+            out.world_index    = index;
+            out.has_tide_model = this->p_worlds[index]->get_tide_model_set();
             return out;
         }
-        const double orbital_frequency = this->calc_orbital_frequency(index);
-        if (!std::isfinite(orbital_frequency)) {
-            return out;
-        }
-        const c_OrbitElements orbit = this->get_host_orbit(index);
-        out = this->calc_dissipation(
-            index,
-            this->get_tidal_host_mass(index),
-            orbital_frequency,
-            orbit.semi_major_axis,
-            orbit.eccentricity);
-        if (!out.has_tide_model) {
+        return this->p_dissipation(index, static_cast<std::size_t>(this->p_host_index_byworld[index]), index);
+    }
+
+    // Single-body tidal evolution: the world's dissipation (calc_dissipation) turned into the orbital rates and its
+    // spin rate. Only this world raises tides; its host is a point mass whose state stays as it is, apart from the
+    // orbit they share. A rigid world (no tide model) comes back evolved with zero rates and has_tide_model false,
+    // and is warned about once.
+    c_WorldEvolution calc_world_evolution(std::size_t index) {
+        const c_WorldEvolution out = this->p_evolution(this->calc_dissipation(index));
+        if (out.evolved && !out.has_tide_model) {
             this->p_warn_no_tide_model(index);
         }
         return out;
@@ -599,54 +626,77 @@ public:
         return results;
     }
 
-    // Dual-body tidal evolution. Each body dissipates as a self-consistent single-body problem with the
-    // other as the tide raiser, masses swapped, so the shared-orbit rates are the sum of the two and each
-    // body evolves its own spin. The energy balance is the sum of the two single-body balances:
-    //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
-    // A body with no tide model is rigid and contributes nothing. A rigid host beside a dissipating world is a
-    // normal setup (a star treated as a point mass), so only a pair in which neither body can dissipate is warned
-    // about, once per world, and reports has_tide_model false.
-    c_PairEvolution calc_pair_evolution(std::size_t index) {
-        this->check_index(index);
+    // Dual-body tidal evolution of two worlds, one the tidal host of the other (most often each other's). Each body
+    // dissipates as a self-consistent single-body problem with the other as the tide raiser, so the shared-orbit
+    // rates are the sum of the two and each body evolves its own spin; the two are treated alike. The energy balance
+    // is the sum of the two single-body balances:
+    //   heating_first + heating_second = -(dE_orbit/dt + dE_spin_first/dt + dE_spin_second/dt).
+    // The shared orbit is the hosted world's orbit about the other (either one, for a mutual pair). A body with no
+    // tide model is rigid and contributes nothing. A rigid body beside a dissipating one is a normal setup (a star
+    // treated as a point mass), so only a pair in which neither body can dissipate is warned about, once per world,
+    // and reports has_tide_model false. Throws std::invalid_argument for one world given twice or two worlds neither
+    // of which hosts the other.
+    c_PairEvolution calc_pair_evolution(std::size_t first_index, std::size_t second_index) {
+        this->check_index(first_index);
+        this->check_index(second_index);
+        if (first_index == second_index) {
+            throw std::invalid_argument(
+                "TidalPy: c_System::calc_pair_evolution - a pair needs two different worlds; '"
+                + this->p_worlds[first_index]->get_name() + "' was given twice.");
+        }
+        std::size_t orbit_index = first_index;
+        if (this->p_host_index_byworld[first_index] != static_cast<int>(second_index)) {
+            if (this->p_host_index_byworld[second_index] != static_cast<int>(first_index)) {
+                throw std::invalid_argument(
+                    "TidalPy: c_System::calc_pair_evolution - neither '" + this->p_worlds[first_index]->get_name()
+                    + "' nor '" + this->p_worlds[second_index]->get_name()
+                    + "' is the other's tidal host, so they share no orbit. Make one the other's host "
+                      "(set_tidal_host), usually each the other's.");
+            }
+            orbit_index = second_index;
+        }
+
         c_PairEvolution out;
-        out.world_index = index;
-        if (!this->has_tidal_host(index)) {
-            return out;
-        }
-        out.host_index = static_cast<std::size_t>(this->p_host_index_byworld[index]);
-        const double orbital_frequency = this->calc_orbital_frequency(index);
-        if (!std::isfinite(orbital_frequency)) {
-            return out;
-        }
-        const c_OrbitElements orbit = this->get_host_orbit(index);
-        const double a = orbit.semi_major_axis;
-        const double e = orbit.eccentricity;
-        const double world_mass = this->p_worlds[index]->get_mass();
-        const double host_mass  = this->get_tidal_host_mass(index);
-
-        out.orbital_frequency = orbital_frequency;
-        out.semi_major_axis   = a;
-        out.eccentricity      = e;
-
+        out.first_index  = first_index;
+        out.second_index = second_index;
         // Each body dissipates on the shared orbit with the other body as the tide raiser.
-        out.world = this->calc_dissipation(index, host_mass, orbital_frequency, a, e);
-        out.host  = this->calc_dissipation(out.host_index, world_mass, orbital_frequency, a, e);
+        out.first  = this->p_evolution(this->p_dissipation(first_index, second_index, orbit_index));
+        out.second = this->p_evolution(this->p_dissipation(second_index, first_index, orbit_index));
+        if (!out.first.evolved) {
+            return out;   // No usable orbit: neither body was solved.
+        }
+        out.orbital_frequency = out.first.orbital_frequency;
+        out.semi_major_axis   = out.first.semi_major_axis;
+        out.eccentricity      = out.first.eccentricity;
 
         // Both are linear in each body's da/dt, so they add.
-        out.da_dt = out.world.da_dt + out.host.da_dt;
-        out.de_dt = out.world.de_dt + out.host.de_dt;
-        out.dn_dt = out.world.dn_dt + out.host.dn_dt;
-        out.tidal_heating_total = out.world.tidal_heating + out.host.tidal_heating;
-        out.dE_orbit_dt         = out.world.dE_orbit_dt + out.host.dE_orbit_dt;
-        out.dE_spin_dt_total    = out.world.dE_spin_dt + out.host.dE_spin_dt;
+        out.da_dt = out.first.da_dt + out.second.da_dt;
+        out.de_dt = out.first.de_dt + out.second.de_dt;
+        out.dn_dt = out.first.dn_dt + out.second.dn_dt;
+        out.tidal_heating_total = out.first.tidal_heating + out.second.tidal_heating;
+        out.dE_orbit_dt         = out.first.dE_orbit_dt + out.second.dE_orbit_dt;
+        out.dE_spin_dt_total    = out.first.dE_spin_dt + out.second.dE_spin_dt;
         out.energy_residual     = out.tidal_heating_total + out.dE_orbit_dt + out.dE_spin_dt_total;
-        out.has_tide_model      = out.world.has_tide_model || out.host.has_tide_model;
+        out.has_tide_model      = out.first.has_tide_model || out.second.has_tide_model;
         out.evolved             = true;
         if (!out.has_tide_model) {
-            this->p_warn_no_tide_model(index);
-            this->p_warn_no_tide_model(out.host_index);
+            this->p_warn_no_tide_model(first_index);
+            this->p_warn_no_tide_model(second_index);
         }
         return out;
+    }
+
+    // Dual-body tidal evolution of a world and its tidal host (calc_pair_evolution(index, host)); unevolved for a
+    // world with no tidal host.
+    c_PairEvolution calc_pair_evolution(std::size_t index) {
+        this->check_index(index);
+        if (!this->has_tidal_host(index)) {
+            c_PairEvolution out;
+            out.first_index  = index;
+            out.second_index = index;
+            return out;
+        }
+        return this->calc_pair_evolution(index, static_cast<std::size_t>(this->p_host_index_byworld[index]));
     }
 
     // E_orbit = -G M_host M_world / (2 a), so dE_orbit/dt = G M_host M_world / (2 a^2) da/dt.
@@ -676,54 +726,6 @@ public:
         return evolution.tidal_heating
              + this->calc_orbital_energy_derivative(evolution)
              + this->calc_spin_energy_derivative(evolution);
-    }
-
-    // One body's tidal-dissipation contribution to a two-body orbit: the shared primitive behind
-    // calc_world_evolution, where the companion is the host, and calc_pair_evolution, which runs each body
-    // in turn. A body with no tide model is rigid and contributes nothing: its result is evolved with zero rates
-    // and has_tide_model false. This primitive does not warn; its callers decide when a rigid body is a problem.
-    c_WorldEvolution calc_dissipation(
-            std::size_t dissipator_index,
-            double companion_mass,
-            double orbital_frequency,
-            double semi_major_axis,
-            double eccentricity) {
-        this->check_index(dissipator_index);
-        c_WorldEvolution out;
-        out.world_index = dissipator_index;
-
-        c_BaseWorld* world_ptr      = this->p_worlds[dissipator_index].get();
-        // The world's call lock is held from its tide solve through the reads of the result, the spin model, and the
-        // moment of inertia, so a concurrent evolution call or setter on the same world takes its turn instead of
-        // replacing the result between the solve and the read. The locked world calls below take it again, which
-        // the recursive lock allows; one world is locked at a time, so a pair never waits on itself.
-        const c_WorldCallLock call_lock(world_ptr->get_call_mutex());
-        const double target_mass    = world_ptr->get_mass();
-        const double spin_frequency = world_ptr->get_spin_frequency();
-
-        out.orbital_frequency = orbital_frequency;
-        out.semi_major_axis   = semi_major_axis;
-        out.eccentricity      = eccentricity;
-        out.spin_frequency    = spin_frequency;
-        out.host_mass         = companion_mass;
-        out.target_mass       = target_mass;
-
-        // Rigid: no tide raised, nothing contributed.
-        out.has_tide_model = world_ptr->get_tide_model_set();
-        if (!out.has_tide_model) {
-            out.evolved = true;
-            return out;
-        }
-
-        // With the companion as the tide raiser.
-        world_ptr->calc_tides(this->p_tide_state(out, world_ptr->get_obliquity(), spin_frequency));
-
-        // calc_tides throws on failure, so the tide result is populated here, and the call lock keeps it this solve's.
-        // Every world carries a spin model: it uses the EOS moment of inertia after solve_eos and its
-        // moment_of_inertia_factor before (the [worlds] default of its world type unless set).
-        out.moment_of_inertia = world_ptr->get_moment_of_inertia();
-        this->p_fill_rates(out, world_ptr->get_tide_result(), world_ptr->get_spin_model());
-        return out;
     }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::System); }
@@ -868,30 +870,94 @@ protected:
         }
     }
 
-    // The tidal state of one dissipating body: the orbit and companion of `evolution`, the body's obliquity [rad], and
-    // a spin frequency [rad s-1].
-    static c_TideSolveConfig p_tide_state(
-            const c_WorldEvolution& evolution,
-            double obliquity,
-            double spin_frequency) noexcept {
+    // One body's tidal dissipation on a two-body orbit, `companion_index` raising its tide: the shared primitive
+    // behind calc_dissipation, calc_world_evolution, and calc_pair_evolution. The orbit is `orbit_index`'s about its
+    // tidal host (the dissipator's own, or the companion's when the companion is the hosted one). Unsolved when that
+    // orbit has no usable semi-major axis. A body with no tide model is rigid and contributes nothing: its result is
+    // solved with zero outputs and has_tide_model false. This primitive does not warn; its callers decide when a rigid
+    // body is a problem.
+    c_TidalDissipation p_dissipation(
+            std::size_t dissipator_index,
+            std::size_t companion_index,
+            std::size_t orbit_index) {
+        c_TidalDissipation out;
+        out.world_index     = dissipator_index;
+        out.companion_index = companion_index;
+        c_BaseWorld* world_ptr = this->p_worlds[dissipator_index].get();
+        out.has_tide_model = world_ptr->get_tide_model_set();
+        const double orbital_frequency = this->calc_orbital_frequency(orbit_index);
+        if (!std::isfinite(orbital_frequency)) {
+            return out;
+        }
+        const c_OrbitElements orbit = this->get_host_orbit(orbit_index);
+
+        // The world's call lock is held from its tide solve through the reads of the result and the moment of
+        // inertia, so a concurrent evolution call or setter on the same world takes its turn instead of replacing the
+        // result between the solve and the read. The locked world calls below take it again, which the recursive lock
+        // allows; one world is locked at a time, so a pair never waits on itself.
+        const c_WorldCallLock call_lock(world_ptr->get_call_mutex());
+        out.orbital_frequency = orbital_frequency;
+        out.semi_major_axis   = orbit.semi_major_axis;
+        out.eccentricity      = orbit.eccentricity;
+        out.spin_frequency    = world_ptr->get_spin_frequency();
+        out.obliquity         = world_ptr->get_obliquity();
+        out.companion_mass    = this->p_worlds[companion_index]->get_mass();
+        out.target_mass       = world_ptr->get_mass();
+        out.solved            = true;
+
+        // Rigid: no tide raised, nothing contributed.
+        if (!out.has_tide_model) {
+            return out;
+        }
+
+        // With the companion as the tide raiser.
         c_TideSolveConfig state;
-        state.orbital_frequency = evolution.orbital_frequency;
-        state.spin_frequency    = spin_frequency;
-        state.eccentricity      = evolution.eccentricity;
-        state.obliquity         = obliquity;
-        state.semi_major_axis   = evolution.semi_major_axis;
-        state.host_mass         = evolution.host_mass;
-        return state;
+        state.orbital_frequency = out.orbital_frequency;
+        state.spin_frequency    = out.spin_frequency;
+        state.eccentricity      = out.eccentricity;
+        state.obliquity         = out.obliquity;
+        state.semi_major_axis   = out.semi_major_axis;
+        state.host_mass         = out.companion_mass;
+        world_ptr->calc_tides(state);
+
+        // calc_tides throws on failure, so the tide result is populated here, and the call lock keeps it this solve's.
+        // Every world carries a spin model: it uses the EOS moment of inertia after solve_eos and its
+        // moment_of_inertia_factor before (the [worlds] default of its world type unless set).
+        const c_GlobalTideResult& tide = world_ptr->get_tide_result();
+        out.tidal_heating     = tide.tidal_heating;
+        out.dU_dM             = tide.dU_dM;
+        out.dU_dw             = tide.dU_dw;
+        out.dU_dO             = tide.dU_dO;
+        out.dU_dM_minus_dw    = tide.dU_dM_minus_dw;
+        out.moment_of_inertia = world_ptr->get_moment_of_inertia();
+        return out;
     }
 
-    // The rates and energy terms of one dissipating body from one tidal solve's result. `out` carries the state the
-    // solve used and the body's moment of inertia; `spin_model` is the body's.
-    void p_fill_rates(c_WorldEvolution& out, const c_GlobalTideResult& tide, const c_Spin& spin_model) const {
-        out.tidal_heating  = tide.tidal_heating;
-        out.dU_dM          = tide.dU_dM;
-        out.dU_dw          = tide.dU_dw;
-        out.dU_dO          = tide.dU_dO;
-        out.dU_dM_minus_dw = tide.dU_dM_minus_dw;
+    // The orbital and spin rates and the energy terms of one dissipating body from its dissipation. Unevolved when the
+    // dissipation is unsolved; a rigid body is evolved with zero rates and no spin evolution.
+    c_WorldEvolution p_evolution(const c_TidalDissipation& dissipation) const {
+        c_WorldEvolution out;
+        out.world_index       = dissipation.world_index;
+        out.has_tide_model    = dissipation.has_tide_model;
+        if (!dissipation.solved) {
+            return out;
+        }
+        out.orbital_frequency = dissipation.orbital_frequency;
+        out.semi_major_axis   = dissipation.semi_major_axis;
+        out.eccentricity      = dissipation.eccentricity;
+        out.spin_frequency    = dissipation.spin_frequency;
+        out.host_mass         = dissipation.companion_mass;
+        out.target_mass       = dissipation.target_mass;
+        out.evolved           = true;
+        if (!dissipation.has_tide_model) {
+            return out;
+        }
+        out.tidal_heating     = dissipation.tidal_heating;
+        out.dU_dM             = dissipation.dU_dM;
+        out.dU_dw             = dissipation.dU_dw;
+        out.dU_dO             = dissipation.dU_dO;
+        out.dU_dM_minus_dw    = dissipation.dU_dM_minus_dw;
+        out.moment_of_inertia = dissipation.moment_of_inertia;
 
         // From the tidal-potential derivatives, this body being the dissipator.
         c_OrbitState orbit_state;
@@ -901,19 +967,20 @@ protected:
         orbit_state.target_mass       = out.target_mass;
         orbit_state.host_mass         = out.host_mass;
         const c_OrbitDerivatives rates =
-            this->p_orbit_solver.calc_derivatives(orbit_state, out.dU_dM, out.dU_dw, tide.dU_dM_minus_dw);
+            this->p_orbit_solver.calc_derivatives(orbit_state, out.dU_dM, out.dU_dw, out.dU_dM_minus_dw);
         out.da_dt = rates.da_dt;
         out.de_dt = rates.de_dt;
         out.dn_dt = rates.dn_dt;
 
         // From this body's own spin model, under the torque from the companion.
-        out.dspin_dt = spin_model.calc_dspin_dt(out.host_mass, out.dU_dO, out.moment_of_inertia);
+        out.dspin_dt = this->p_worlds[dissipation.world_index]->get_spin_model().calc_dspin_dt(
+            out.host_mass, out.dU_dO, out.moment_of_inertia);
         out.has_spin = true;
 
         out.dE_orbit_dt     = this->calc_orbital_energy_derivative(out);
         out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
         out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
-        out.evolved         = true;
+        return out;
     }
 
     // Warns, once per world of this system, that a world with no tide model is rigid, so the evolution it enters

@@ -24,6 +24,25 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
     # std::invalid_argument for a semi-major axis that is not positive or an eccentricity outside [0, 1); NaN skips.
     void c_check_orbit(double semi_major_axis, double eccentricity, const string& world_name) except +
 
+    cdef cppclass c_TidalDissipation:
+        size_t   world_index
+        size_t   companion_index
+        cpp_bool solved
+        cpp_bool has_tide_model
+        double   orbital_frequency
+        double   semi_major_axis
+        double   eccentricity
+        double   spin_frequency
+        double   obliquity
+        double   companion_mass
+        double   target_mass
+        double   tidal_heating
+        double   dU_dM
+        double   dU_dw
+        double   dU_dO
+        double   dU_dM_minus_dw
+        double   moment_of_inertia
+
     cdef cppclass c_WorldEvolution:
         size_t   world_index
         cpp_bool evolved
@@ -50,8 +69,8 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   energy_residual
 
     cdef cppclass c_PairEvolution:
-        size_t           world_index
-        size_t           host_index
+        size_t           first_index
+        size_t           second_index
         cpp_bool         evolved
         cpp_bool         has_tide_model
         double           orbital_frequency
@@ -60,8 +79,8 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double           da_dt
         double           de_dt
         double           dn_dt
-        c_WorldEvolution world
-        c_WorldEvolution host
+        c_WorldEvolution first
+        c_WorldEvolution second
         double           tidal_heating_total
         double           dE_orbit_dt
         double           dE_spin_dt_total
@@ -107,9 +126,11 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_stellar_orbital_frequency(size_t index) except +
         double   calc_insolation_flux(size_t index) except +
         double   calc_equilibrium_temperature(size_t index) except +
+        c_TidalDissipation       calc_dissipation(size_t index) except +
         c_WorldEvolution         calc_world_evolution(size_t index) except +
         vector[c_WorldEvolution] calc_system_evolution() except +
         c_PairEvolution          calc_pair_evolution(size_t index) except +
+        c_PairEvolution          calc_pair_evolution(size_t first_index, size_t second_index) except +
         double   calc_orbital_energy_derivative(const c_WorldEvolution& evolution) except +
         double   calc_spin_energy_derivative(const c_WorldEvolution& evolution)
         double   calc_energy_residual(const c_WorldEvolution& evolution) except +

@@ -153,7 +153,13 @@ with the world's albedo $A$, emissivity $\varepsilon$, and the Stefan-Boltzmann 
 
 Run `world.solve_eos()` on each world on the `rheology` tide model (the builder's default for terrestrial worlds) before any evolution method, which otherwise raises `RuntimeError`. A later `solve_eos` discards the tidal result, and the next evolution call solves again. A world constructed in Python has no tide model until one is set.
 
-`calc_world_evolution(world)` solves the world's tides in the current system state (Kepler mean motion, the world's spin and obliquity, its orbit about the host, the host's mass) and returns the orbital-element and spin rates. The host is a point mass. A world with no host or usable orbit returns `evolved = False`. Threads sharing a world take turns on it.
+Three methods share one calculation of a world's tides on its orbit about its tidal host (in a mutual pair, the orbit both share):
+
+* `calc_dissipation(world)` solves the world's tides in the current system state (Kepler mean motion, the world's spin and obliquity, its orbit about the host, the host's mass) and returns the tidal outputs without rates: `tidal_heating`, `dU_dM`, `dU_dw`, `dU_dO`, `dU_dM_minus_dw`, `moment_of_inertia`, the state used, and `companion_name`. `solved` is `False` for a world with no host or usable orbit. The per-layer heating stays on the world (`get_layer_tidal_heating`).
+* `calc_world_evolution(world)` turns that into the orbital-element and spin rates with only this world dissipating: the host is a point mass whose state stays as it is, apart from the orbit they share. A world with no host or usable orbit returns `evolved = False`.
+* `calc_pair_evolution(world, partner=None)` lets both dissipate ([Dual-Body Dissipation](#dual-body-dissipation)).
+
+Threads sharing a world take turns on it.
 
 ```python
 earth.solve_eos()                         # Needed for the Love numbers
@@ -180,17 +186,17 @@ $$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\ri
 
 ### Dual-Body Dissipation
 
-`calc_pair_evolution(world)` lets a world and its host raise tides on each other: each is solved with the other as raiser, their orbital rates add, and each evolves its own spin:
+`calc_pair_evolution(world, partner)` lets two worlds raise tides on each other: each is solved with the other as raiser (`calc_dissipation`), their orbital rates add, and each evolves its own spin. The two are treated alike. One must be the other's tidal host, usually each the other's; their orbit is the hosted world's (either one, in a mutual pair). `partner` defaults to `world`'s tidal host. Two worlds neither of which hosts the other, or one world twice, raise `ValueError`:
 
 ```python
-pair = earth_moon_sun.calc_pair_evolution(moon)
+pair = earth_moon_sun.calc_pair_evolution(moon, earth)
 pair["da_dt"], pair["de_dt"], pair["dn_dt"]     # combined shared-orbit rates
 pair["tidal_heating_total"]                     # heating in both bodies
 pair["energy_residual"]                         # ~0: heating_total + dE_orbit/dt + dE_spin_total/dt
-pair["world"], pair["host"]                     # each body's own contribution (dicts)
+pair["world"], pair["host"]                     # each body's own contribution (dicts): moon, earth
 ```
 
-The result also has `world_name` and `host_name`. The balance is $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A rigid body contributes nothing, so a rigid host (a star as a point mass) reduces the result to `calc_world_evolution`'s, without a warning. The top-level `has_tide_model` is `True` when either body has a tide model; when neither does, every rate is zero and a warning is logged once per world.
+The result also has `world_name` and `host_name` (`world` and `partner`). The balance is $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A rigid body contributes nothing, so a rigid host (a star as a point mass) reduces the result to `calc_world_evolution`'s, without a warning. The top-level `has_tide_model` is `True` when either body has a tide model; when neither does, every rate is zero and a warning is logged once per world.
 
 ### Evolving a World About Its Host
 
@@ -281,8 +287,9 @@ print(system)                                    # System('Sol System', worlds=[
 * `set/get_semi_major_axis(i)`, `set/get_eccentricity(i)` (orbit about the tidal host); `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).
 * `calc_gravitational_parameter(i)`, `calc_orbital_frequency(i)`, `calc_semi_major_axis_from_frequency(i, n)`, and `calc_stellar_gravitational_parameter(i)`, `calc_stellar_orbital_frequency(i)`.
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
+* `calc_dissipation(i)`: one world's tide on its orbit about its tidal host, as a `c_TidalDissipation` (the state used and the tidal outputs, no rates; `solved` is false with no host or usable orbit). Built on the protected `p_dissipation(dissipator_i, companion_i, orbit_i)`, which `p_evolution` turns into a `c_WorldEvolution`.
 * `calc_world_evolution(i)` and `calc_system_evolution()`: return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` (which also carries `dU_dM_minus_dw`; `has_tide_model` is false for a rigid world). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` give the energy-balance terms.
-* `calc_pair_evolution(i)`: a `c_PairEvolution` (both bodies' `c_WorldEvolution` plus the combined rates and balance), built on `calc_dissipation(dissipator_i, companion_mass, n, a, e)`, one body's solve and contribution at its own spin (zero, unwarned, for a rigid body).
+* `calc_pair_evolution(i, j)`: a `c_PairEvolution` (`first` and `second`, each body's `c_WorldEvolution`, plus the combined rates and balance), each body solved by `p_dissipation` with the other raising its tide (zero, unwarned, for a rigid body); `std::invalid_argument` when neither hosts the other or `i == j`. `calc_pair_evolution(i)` pairs a world with its tidal host and is unevolved without one.
 * Loading a corrupt binary record throws `std::runtime_error`. `System.evolve` is Python only.
 
 ## References
