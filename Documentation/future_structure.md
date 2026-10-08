@@ -184,7 +184,7 @@ from TidalPy.Structures.layers import Layer
 
 print(available_materials("rocky"))   # The MatPack names in one category
 
-# A world from a dict, in place of a 0.7.X world config
+# A world from a dict, matches the format of the toml files
 io_like = build_world({
     "schema_version": "0.2.0",
     "name": "Io-like",
@@ -266,7 +266,7 @@ print(sol_system.calc_insolation_flux("earth"))   # [W m-2], about 1361
 
 ## Quick Tidal Dissipation
 
-`TidalPy.toolbox` (`quick_tidal_dissipation` and `quick_dual_body_tidal_dissipation`) has no replacement yet. `calc_world_evolution` returns the same quantities for any world in a `System`: the tidal heating, the potential derivatives, and the orbit and spin rates. The world's `love_method` sets how its Love numbers are found:
+`TidalPy.toolbox` (`quick_tidal_dissipation` and `quick_dual_body_tidal_dissipation`) has no direct replacement. But, `calc_world_evolution` returns the same outputs for any world in a `System` (the tidal heating, the potential derivatives, and the orbit and spin rates). The world's `love_method` sets how its Love numbers are found:
 
 - `"radial_solver"` (the shooting method, and the default) integrates the radial equations through every layer.
 - `"homogeneous"` treats each tidal layer as a homogeneous sphere of its averaged material, with no radial solve, as `quick_tidal_dissipation` did.
@@ -282,7 +282,7 @@ for love_method in ("radial_solver", "homogeneous"):
     print(rates["da_dt"], rates["de_dt"], rates["dspin_dt"])   # [m s-1], [s-1], [rad s-2]
 ```
 
-The radial solver reproduces the 9.33e13 W the bundled Io is calibrated to (Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates a thin weak layer inside a stiffer planet. Use it for fast sweeps and first estimates. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
+The radial solver reproduces, _e.g._, Io very well (calibrated using Lainey et al. 2009), in about 1.2 ms per call. The homogeneous method weights the layers by volume, which only approximates a thin weak layer inside a stiffer planet. It produces less accurate results (sometimes significantly so) but is about 10x faster. Use it for quick sweeps and first estimates. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
 
 A one-layer world built from bare numbers reproduces `quick_tidal_dissipation`. The world below is its default homogeneous Maxwell body at degree 2 and eccentricity truncation 2, and the result matches the homogeneous-sphere closed form.
 

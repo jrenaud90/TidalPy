@@ -1,0 +1,29 @@
+# Pluto and Charon as a mutual pair (each raises the other's tides) about the Sun.
+# Charon's Plutocentric orbit: a = 19595.764 km, e = 1.61e-4 (Brozovic and Jacobson 2024, Table 10).
+# Both spin at the mean motion of that orbit (`synchronous`), replacing the files' observed-period spins, which sit
+# 1.3e-5 off the Kepler rate of the files' masses; that small offset would add a slow tide that dominates the heating.
+# The heliocentric orbit is Pluto's J2000 mean orbit (a = 39.48211675 au, e = 0.24882730; Standish, JPL). Its
+# insolation gives equilibrium temperatures of 32.5 K (Pluto) and 41.0 K (Charon), which System.evolve takes as the
+# surface temperature.
+schema_version = "0.2.0"
+name = "Pluto-Charon System"
+
+[worlds.sun]
+world = "sol"
+is_star = true
+
+[worlds.pluto]
+world = "pluto"
+tidal_host = "charon"
+semi_major_axis_m = 19595764.0
+eccentricity = 1.61e-4
+synchronous = true
+stellar_semi_major_axis_m = 5.9064406e12
+stellar_eccentricity = 0.2488273
+
+[worlds.charon]
+world = "charon"
+tidal_host = "pluto"
+synchronous = true                  # the orbit is the one Pluto states (one shared orbit)
+stellar_semi_major_axis_m = 5.9064406e12
+stellar_eccentricity = 0.2488273

@@ -40,6 +40,36 @@ def test_bundled_sol_system_insolation():
     assert 250.0 < system.calc_equilibrium_temperature("earth") < 260.0
 
 
+def test_bundled_pluto_charon_system():
+    """A mutual pair spinning exactly at its mean motion, lit by a distant Sun."""
+    system = build_system("pluto_charon_system")
+    assert [w.name for w in system] == ["sun", "pluto", "charon"]
+    assert system.star.name == "sun"
+    assert system.is_mutual_pair("pluto") and system.is_mutual_pair("charon")
+    for name in ("pluto", "charon"):
+        assert math.isclose(system.get_semi_major_axis(name), 1.9595764e7, rel_tol=1e-12)
+        assert math.isclose(system.get_eccentricity(name), 1.61e-4, rel_tol=1e-12)
+        # Exactly synchronous: a spin a hair off adds a slow tide that dominates the heating.
+        assert system[name].spin_frequency == system.calc_orbital_frequency(name)
+        assert math.isclose(system.get_stellar_semi_major_axis(name), 39.48211675 * AU, rel_tol=1e-7)
+    # The 6.387 day mutual period (Brozovic and Jacobson 2024: 6.387221 d) from the files' masses.
+    assert math.isclose(2.0 * math.pi / system.calc_orbital_frequency("pluto") / 86400.0, 6.387221, rel_tol=2e-5)
+    assert 32.0 < system.calc_equilibrium_temperature("pluto") < 33.0
+    assert 40.5 < system.calc_equilibrium_temperature("charon") < 41.5
+
+
+def test_bundled_pluto_charon_system_damps_its_eccentricity():
+    system = build_system("pluto_charon_system")
+    for world in system:
+        if len(world) > 0:
+            world.solve_eos()
+    rates = {entry["world_name"]: entry for entry in system.calc_system_evolution() if entry["evolved"]}
+    assert sorted(rates) == ["charon", "pluto"]
+    for entry in rates.values():
+        assert entry["tidal_heating"] > 0.0
+        assert entry["de_dt"] < 0.0
+
+
 # =====================================================================================================================
 # Building from a dict or a path
 # =====================================================================================================================
@@ -220,6 +250,7 @@ def test_save_expanded_roundtrip(tmp_path):
 def test_available_systems_lists_bundled_systems_only():
     systems = available_systems()
     assert "sol_system" in systems
+    assert "pluto_charon_system" in systems
     assert "earth_simple" not in systems
     assert "sol" not in systems
 

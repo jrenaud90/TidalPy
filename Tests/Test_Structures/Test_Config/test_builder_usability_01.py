@@ -143,7 +143,8 @@ def test_an_unknown_bundled_world_names_the_closest():
 def test_an_unknown_bundled_system_names_the_closest():
     with pytest.raises(FileNotFoundError, match="did you mean 'sol_system'") as error:
         build_system("sol_sistem")
-    assert "Bundled systems: sol_system" in str(error.value)
+    listed = str(error.value).split("Bundled systems: ")[1].rstrip(".").split(", ")
+    assert "sol_system" in listed and "pluto_charon_system" in listed
 
 
 @pytest.mark.parametrize("edit, match", [

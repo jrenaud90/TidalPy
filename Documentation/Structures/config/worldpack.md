@@ -1,8 +1,8 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-08_
 
-WorldPack is TidalPy's set of example world files (stars, gas giants, terrestrial bodies, and a system), installed into a user-editable data directory and found by name. The [TOML schema](toml_schema.md) describes their keys.
+WorldPack is TidalPy's set of example world files (stars, gas giants, terrestrial bodies, and systems), installed into a user-editable data directory and found by name. The [TOML schema](toml_schema.md) describes their keys.
 
 ```python
 from TidalPy.Structures import (
@@ -10,7 +10,7 @@ from TidalPy.Structures import (
 
 install_worldpack()                   # optional; runs on import
 print(available_worlds())             # 26 names (the table below)
-print(available_systems())            # ['sol_system']
+print(available_systems())            # ['pluto_charon_system', 'sol_system']
 
 earth = build_world("earth_simple")   # the user's copy, else the packaged file
 earth.solve_eos()
@@ -45,6 +45,7 @@ A file with a `[worlds.<name>]` table is a system, any other a world (`config_ki
 | `europa_dynamic` | terrestrial | `europa` with a 115 km dynamic, compressible ocean under a 25 km ice shell. |
 | `trappist1b` to `trappist1h` | terrestrial | Two-layer rocky planets built from the Agol et al. (2021) masses and radii. |
 | `sol_system` | system | The Sun with Earth and Jupiter. |
+| `pluto_charon_system` | system | Pluto and Charon as a mutually synchronous pair (Brozovic and Jacobson 2024 orbit), lit by the Sun at Pluto's mean heliocentric orbit. |
 
 Each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year), and the test suite checks those claims. The layered bodies share these choices:
 
