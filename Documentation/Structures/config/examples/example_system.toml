@@ -22,6 +22,7 @@ eccentricity = 0.02
 tidal_host = "planet"
 semi_major_axis_m = 4.0e8
 eccentricity = 0.005
+synchronous = true                  # spin set to the mean motion about the tidal host, replacing the world's spin
 stellar_semi_major_axis_m = 1.5e11  # orbit about the star, when the star is not the tidal host
 stellar_eccentricity = 0.02
 

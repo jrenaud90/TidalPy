@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-08_
 
 Schema version `0.2.0`.
 
@@ -365,6 +365,7 @@ A system file has a top-level `schema_version` and `name`, then one `[worlds.<ke
 | `is_star` | optional | Marks the insolation source (at most one; need not be a tidal host). |
 | `semi_major_axis_m` | optional | Semi-major axis about the tidal host \[m\]. Requires `tidal_host`. |
 | `eccentricity` | optional | Eccentricity about the tidal host. Requires `tidal_host`. |
+| `synchronous` | optional | `true` sets the world's spin to its mean motion about the tidal host once the system is built (`System.set_synchronous_rotation`), replacing the world file's spin. Requires `tidal_host` and a semi-major axis (its own or its mutual partner's). |
 | `stellar_semi_major_axis_m` | optional | Distance from the star \[m\], for a world whose host is not the star. |
 | `stellar_eccentricity` | optional | Eccentricity about the star. |
 

@@ -1,6 +1,6 @@
 # System (`Structures.system`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-08_
 
 A `System` groups worlds (a star, planets, moons) and computes their orbital evolution and insolation. Each world names its own tidal host (the body raising its tides), or none, and one world may be the star (the source of insolation). In Earth-Moon-Sun the Moon's host is the Earth, the Earth's can be the Moon, and the star is the Sun; for an exoplanet the star is also the host. Each world has two two-body orbits, about its host and about the star, and interacts with nothing else. TidalPy has no N-body dynamics: three or more mutually interacting bodies need external scripting.
 
@@ -59,7 +59,7 @@ Two worlds that host each other share one orbit: each element can come from eith
 
 ### Synchronous Rotation
 
-`set_synchronous_rotation(world)` (or `add_world(..., synchronous=True)`) sets the world's spin to `calc_orbital_frequency(world)`, as for most large moons, and returns it \[rad s-1\]. It is set once, so call it again after changing the orbit or the masses. A world with no tidal host or semi-major axis raises `ValueError`.
+`set_synchronous_rotation(world)` (or `add_world(..., synchronous=True)`, or `synchronous = true` in a system file) sets the world's spin to `calc_orbital_frequency(world)`, as for most large moons, and returns it \[rad s-1\]. It is set once, so call it again after changing the orbit or the masses. A world with no tidal host or semi-major axis raises `ValueError`.
 
 ```python
 earth_moon_sun.set_synchronous_rotation(moon)    # [rad s-1]
@@ -67,7 +67,7 @@ earth_moon_sun.set_synchronous_rotation(moon)    # [rad s-1]
 
 ## Building a `System` from TOML (`build_system`)
 
-A system file names each member in a `[worlds.<name>]` table: its `world` (a bundled name, a world file, or an inline table), `tidal_host`, star role, and orbital elements ([System Schema](../config/toml_schema.md#system-schema)). The table key becomes the world's name, so one world template can be reused under several names.
+A system file names each member in a `[worlds.<name>]` table: its `world` (a bundled name, a world file, or an inline table), `tidal_host`, star role, orbital elements, and whether it rotates synchronously ([System Schema](../config/toml_schema.md#system-schema)). The table key becomes the world's name, so one world template can be reused under several names.
 
 ```python
 from TidalPy.Structures import build_system
@@ -176,7 +176,7 @@ with $de/dt = 0$ at $e = 0$. At small $e$ the bracket is of order $e^{2}$ while 
 $$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\right), \qquad E_\mathrm{orbit} = -\frac{G M_{h} M_{w}}{2a}, \qquad E_\mathrm{spin} = \frac{1}{2}\,C\,\dot{\theta}^{2}.$$
 
 > [!NOTE]
-> A system never changes a world's `spin_frequency`. A bundled world's spin is the synchronous rate of a rounded period, about 2e-4 off the Kepler mean motion for Io and Europa. In a strongly dissipative world that adds a slow tide at 2(n - spin) that can dominate the heating, so call `system.set_synchronous_rotation(world)` first. A spin within 1e-3 of the mean motion, but not equal, warns once per world.
+> A system changes a world's `spin_frequency` only when asked (`synchronous`). A bundled world's spin is the synchronous rate of a rounded period, about 2e-4 off the Kepler mean motion for Io and Europa. In a strongly dissipative world that adds a slow tide at 2(n - spin) that can dominate the heating, so call `system.set_synchronous_rotation(world)` first. A spin within 1e-3 of the mean motion, but not equal, warns once per world.
 
 ### Dual-Body Dissipation
 
@@ -263,7 +263,7 @@ print(system)                                    # System('Sol System', worlds=[
 ## Limits and Failure Modes
 
 * `add_world` refuses, adding nothing: an element out of range, `synchronous=True` without a `tidal_host` and `semi_major_axis`, and stellar elements for a world whose host is the star.
-* `ValueError`: a semi-major axis that is not positive or an eccentricity outside $[0, 1)$ (from `add_world`, a setter, or a file); a duplicate world name or object; a mutual pair whose members disagree on an element (from any method reading the orbit); a system file stating `semi_major_axis_m` or `eccentricity` with no `tidal_host`, or a world as its own host.
+* `ValueError`: a semi-major axis that is not positive or an eccentricity outside $[0, 1)$ (from `add_world`, a setter, or a file); a duplicate world name or object; a mutual pair whose members disagree on an element (from any method reading the orbit); a system file stating `semi_major_axis_m`, `eccentricity`, or `synchronous` with no `tidal_host`, or a world as its own host.
 * `RuntimeError`: an evolution method on a `rheology` world whose EOS is not solved; insolation with no star set.
 * `evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a world with no layers or a layer temperature that is not finite and positive, or capture settings out of order (`root_tolerance` < `resolution` < `capture_margin` <= `capture_band` < 0.25).
 * `evolve` stops with `success` False on a tide or EOS solve failing at a reached state, on `max_wall_time`, or after five segments in a row end where they began or ten end on failed evaluations.

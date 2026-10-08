@@ -463,7 +463,7 @@ def outer_radius_from_spec(layer_name: str, layer_cfg: dict, radius_inner: float
 # mistake that bool() would hide, since bool("false") is True.
 BOOLEAN_KEYS = frozenset({
     "is_incompressible", "is_static", "is_volume_fixed", "is_star", "layer_tidal_heating", "solve_temperature",
-    "use_heating", "use_melt_density", "use_melting", "use_pressure_melting", "use_thermal_expansion",
+    "synchronous", "use_heating", "use_melt_density", "use_melting", "use_pressure_melting", "use_thermal_expansion",
     "use_tides"})
 
 
@@ -644,6 +644,7 @@ SYSTEM_WORLD_KEYS = (
     "is_star",                    # role: the insolation source
     "semi_major_axis_m",          # orbit about the tidal host [m]
     "eccentricity",               # orbit about the tidal host
+    "synchronous",                # spin set to the mean motion about the tidal host
     "stellar_semi_major_axis_m",  # orbit about the star [m]
     "stellar_eccentricity",       # orbit about the star
 )
@@ -670,8 +671,8 @@ def validate_system_config(config: dict) -> None:
     ------
     ValueError
         If the ``worlds`` table is missing/empty, a member is missing its ``world`` source, an
-        unexpected key appears, a ``tidal_host`` is not another world of the system, orbital elements are
-        given with no ``tidal_host`` to refer them to, or more than one star is declared.
+        unexpected key appears, a ``tidal_host`` is not another world of the system, orbital elements or
+        ``synchronous`` are given with no ``tidal_host`` to refer them to, or more than one star is declared.
     """
     worlds = config.get("worlds", None)
     if not worlds:
@@ -724,6 +725,10 @@ def validate_system_config(config: dict) -> None:
                 f"System world '{world_key}' states an orbit ('semi_major_axis_m' / 'eccentricity') but no "
                 "'tidal_host' for it to be about. Name the world it orbits, or use the 'stellar_' keys for "
                 "its orbit about the star.")
+        elif world_cfg.get("synchronous", False):
+            raise ValueError(
+                f"System world '{world_key}' sets 'synchronous' but has no 'tidal_host': synchronous rotation is "
+                "the mean motion about the tidal host.")
         if world_cfg.get("is_star", False):
             star_count += 1
 

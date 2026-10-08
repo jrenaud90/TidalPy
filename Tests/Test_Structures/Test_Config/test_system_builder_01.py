@@ -114,6 +114,38 @@ def test_template_reuse_under_different_names():
     assert math.isclose(system.get_semi_major_axis("planet_b"), 2.0e11, rel_tol=1e-9)
 
 
+def test_synchronous_spins_each_world_at_its_mean_motion():
+    """``synchronous`` sets the spin exactly, the Earth from the orbit only its mutual partner states."""
+    config = _earth_moon_sun_config()
+    unsynchronized = build_system(config)
+    config["worlds"]["earth"]["synchronous"] = True
+    config["worlds"]["moon"]["synchronous"] = True
+    system = build_system(config)
+    for name in ("earth", "moon"):
+        assert system[name].spin_frequency == system.calc_orbital_frequency(name)
+        assert unsynchronized[name].spin_frequency != unsynchronized.calc_orbital_frequency(name)
+    assert system["sun"].spin_frequency == unsynchronized["sun"].spin_frequency
+
+
+def test_synchronous_survives_the_save_round_trip(tmp_path):
+    config = _earth_moon_sun_config()
+    config["worlds"]["moon"]["synchronous"] = True
+    system = build_system(config)
+    path = tmp_path / "synchronous.toml"
+    system.save_to_toml(str(path))
+    rebuilt = build_system(str(path))
+    assert rebuilt["moon"].spin_frequency == system["moon"].spin_frequency
+    assert rebuilt["moon"].spin_frequency == rebuilt.calc_orbital_frequency("moon")
+
+
+def test_synchronous_without_a_semi_major_axis_raises():
+    config = {"worlds": {
+        "sun": {"world": "sol", "is_star": True},
+        "planet": {"world": "earth_simple", "tidal_host": "sun", "synchronous": True}}}
+    with pytest.raises(ValueError, match="synchronous|semi-major axis|semi_major_axis"):
+        build_system(config)
+
+
 # =====================================================================================================================
 # System.build and the config round trip
 # =====================================================================================================================
@@ -220,6 +252,14 @@ def _pair(world_a, world_b):
         _pair({"world": "sol"}, {"world": "earth_simple", "semi_major_axis_m": 1.0e11}),
         "no 'tidal_host'",
         id="orbit-without-host"),
+    pytest.param(
+        _pair({"world": "sol"}, {"world": "earth_simple", "synchronous": True}),
+        "no 'tidal_host'",
+        id="synchronous-without-host"),
+    pytest.param(
+        _pair({"world": "sol"}, {"world": "earth_simple", "tidal_host": "a", "synchronous": "yes"}),
+        "true or false",
+        id="synchronous-not-boolean"),
     pytest.param(
         _pair({"world": "sol", "is_star": True}, {"world": "earth_simple", "is_star": True}),
         "star worlds",

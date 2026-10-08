@@ -8,9 +8,10 @@ A system configuration (schema ``0.2.0``) is an optional top-level ``name`` plus
 ``[worlds.<key>]`` table per member world. Each table carries ``world`` (a bundled world name, a
 path to a world TOML, or an inline world table), ``tidal_host`` (the key of the world that raises
 this one's tides; left out for a world with none), the optional role ``is_star``, the orbit about
-the tidal host (``semi_major_axis_m``, ``eccentricity``), and the orbit about the star used for
-insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star need not be a
-world's tidal host; for an exoplanet the two orbits coincide.
+the tidal host (``semi_major_axis_m``, ``eccentricity``), ``synchronous`` (spin the world at its mean
+motion about the tidal host), and the orbit about the star used for insolation
+(``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star need not be a world's tidal host;
+for an exoplanet the two orbits coincide.
 """
 
 import os
@@ -60,12 +61,14 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
     Returns
     -------
     System
-        The constructed system, its worlds built and their tidal hosts, star role, and orbital elements set.
+        The constructed system, its worlds built and their tidal hosts, star role, orbital elements, and
+        synchronous spins set.
 
     Raises
     ------
     ValueError
-        If the configuration fails structural validation.
+        If the configuration fails structural validation, or a ``synchronous`` world has no semi-major axis about
+        its tidal host (stated by itself or, in a mutual pair, by its partner).
     """
     validate_system_config(config)
 
@@ -91,6 +94,11 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
     for world_key, world_cfg in config["worlds"].items():
         if "tidal_host" in world_cfg:
             system.set_tidal_host(world_key, world_cfg["tidal_host"])
+
+    # The mean motion needs every host and orbit in place: a mutual pair's orbit may be stated by either member.
+    for world_key, world_cfg in config["worlds"].items():
+        if world_cfg.get("synchronous", False):
+            system.set_synchronous_rotation(world_key)
 
     # Retained for save_to_toml, which keeps each unchanged member's reference as the file gave it.
     system.source_config = config
