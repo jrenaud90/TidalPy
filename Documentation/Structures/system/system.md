@@ -193,10 +193,11 @@ pair = earth_moon_sun.calc_pair_evolution(moon, earth)
 pair["da_dt"], pair["de_dt"], pair["dn_dt"]     # combined shared-orbit rates
 pair["tidal_heating_total"]                     # heating in both bodies
 pair["energy_residual"]                         # ~0: heating_total + dE_orbit/dt + dE_spin_total/dt
-pair["world"], pair["host"]                     # each body's own contribution (dicts): moon, earth
+pair["world_names"]                             # ("moon", "earth"): world, then partner
+pair["worlds"]["earth"]                         # each body's own contribution, keyed by world name
 ```
 
-The result also has `world_name` and `host_name` (`world` and `partner`). The balance is $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A rigid body contributes nothing, so a rigid host (a star as a point mass) reduces the result to `calc_world_evolution`'s, without a warning. The top-level `has_tide_model` is `True` when either body has a tide model; when neither does, every rate is zero and a warning is logged once per world.
+Each entry of `worlds` is a `calc_world_evolution`-style dict. A world with no tidal host and no `partner` returns `evolved = False`, `world_names` ending in `None`, and an empty `worlds`. The balance is $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A rigid body contributes nothing, so a rigid host (a star as a point mass) reduces the result to `calc_world_evolution`'s, without a warning. The top-level `has_tide_model` is `True` when either body has a tide model; when neither does, every rate is zero and a warning is logged once per world.
 
 ### Evolving a World About Its Host
 

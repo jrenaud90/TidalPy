@@ -69,8 +69,9 @@ def test_near_static_mode_in_a_relaxed_mantle_solves(hot_pair, offset):
     pair = system.calc_pair_evolution(world)
     for key in ("da_dt", "de_dt", "dn_dt"):
         assert np.isfinite(pair[key])
-    assert np.isfinite(pair["world"]["dspin_dt"])
-    assert pair["world"]["tidal_heating"] > 0.0
+    world_part = pair["worlds"][world.name]
+    assert np.isfinite(world_part["dspin_dt"])
+    assert world_part["tidal_heating"] > 0.0
 
 
 def test_floor_leaves_an_ordinary_solve_unchanged(complex_rigidity_floor):

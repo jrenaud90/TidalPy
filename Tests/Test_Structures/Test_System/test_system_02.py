@@ -73,6 +73,11 @@ def _system(spin_factor=1.5, eccentricity=_ECC):
     return system
 
 
+def _parts(pair):
+    """The two bodies' parts of a pair result, in the order the pair was asked for."""
+    return tuple(pair["worlds"][name] for name in pair["world_names"])
+
+
 def _dual_system(
         sma=60.0 * _R,
         host_radius=2.0 * _R,
@@ -232,15 +237,16 @@ def test_pair_evolution_energy_balance(world_spin, host_spin):
     """Both bodies dissipate; the combined and per-body energy balances hold and the rates add."""
     pair = _dual_system(world_spin=world_spin, host_spin=host_spin).calc_pair_evolution("orbiter")
     assert pair["evolved"] is True
-    assert pair["world"]["tidal_heating"] > 0.0
-    assert pair["host"]["tidal_heating"] > 0.0
+    assert pair["world_names"] == ("orbiter", "host")
+    world, host = _parts(pair)
+    assert world["tidal_heating"] > 0.0
+    assert host["tidal_heating"] > 0.0
     assert abs(pair["energy_residual"]) <= 1e-6 * abs(pair["tidal_heating_total"])
-    assert abs(pair["world"]["energy_residual"]) <= 1e-6 * abs(pair["world"]["tidal_heating"])
-    assert abs(pair["host"]["energy_residual"]) <= 1e-6 * abs(pair["host"]["tidal_heating"])
-    assert math.isclose(pair["da_dt"], pair["world"]["da_dt"] + pair["host"]["da_dt"], rel_tol=1e-12)
-    assert math.isclose(pair["de_dt"], pair["world"]["de_dt"] + pair["host"]["de_dt"], rel_tol=1e-12)
-    assert math.isclose(
-        pair["tidal_heating_total"], pair["world"]["tidal_heating"] + pair["host"]["tidal_heating"], rel_tol=1e-12)
+    assert abs(world["energy_residual"]) <= 1e-6 * abs(world["tidal_heating"])
+    assert abs(host["energy_residual"]) <= 1e-6 * abs(host["tidal_heating"])
+    assert math.isclose(pair["da_dt"], world["da_dt"] + host["da_dt"], rel_tol=1e-12)
+    assert math.isclose(pair["de_dt"], world["de_dt"] + host["de_dt"], rel_tol=1e-12)
+    assert math.isclose(pair["tidal_heating_total"], world["tidal_heating"] + host["tidal_heating"], rel_tol=1e-12)
 
 
 def test_pair_world_matches_single_body():
@@ -249,17 +255,18 @@ def test_pair_world_matches_single_body():
     pair = system.calc_pair_evolution("orbiter")
     single = system.calc_world_evolution("orbiter")
     for key in ("da_dt", "de_dt", "dn_dt", "dspin_dt", "tidal_heating", "energy_residual"):
-        assert math.isclose(pair["world"][key], single[key], rel_tol=1e-12, abs_tol=1e-30)
+        assert math.isclose(pair["worlds"]["orbiter"][key], single[key], rel_tol=1e-12, abs_tol=1e-30)
 
 
 def test_pair_symmetry_identical_bodies():
     """Two identical bodies contribute equally, so the combined rate is twice each."""
     pair = _dual_system(host_radius=_R, world_radius=_R, host_spin=1.5, world_spin=1.5).calc_pair_evolution(
         "orbiter")
-    assert math.isclose(pair["world"]["da_dt"], pair["host"]["da_dt"], rel_tol=1e-9)
-    assert math.isclose(pair["world"]["tidal_heating"], pair["host"]["tidal_heating"], rel_tol=1e-9)
-    assert math.isclose(pair["world"]["dspin_dt"], pair["host"]["dspin_dt"], rel_tol=1e-9)
-    assert math.isclose(pair["da_dt"], 2.0 * pair["world"]["da_dt"], rel_tol=1e-12)
+    world, host = _parts(pair)
+    assert math.isclose(world["da_dt"], host["da_dt"], rel_tol=1e-9)
+    assert math.isclose(world["tidal_heating"], host["tidal_heating"], rel_tol=1e-9)
+    assert math.isclose(world["dspin_dt"], host["dspin_dt"], rel_tol=1e-9)
+    assert math.isclose(pair["da_dt"], 2.0 * world["da_dt"], rel_tol=1e-12)
 
 
 def test_pair_rigid_host_reduces_to_single_body():
@@ -267,9 +274,10 @@ def test_pair_rigid_host_reduces_to_single_body():
     system = _system()
     pair = system.calc_pair_evolution("moon")
     single = system.calc_world_evolution("moon")
-    assert pair["host"]["tidal_heating"] == 0.0
-    assert pair["host"]["da_dt"] == 0.0
-    assert pair["host"]["has_spin"] is False
+    host = pair["worlds"]["host"]
+    assert host["tidal_heating"] == 0.0
+    assert host["da_dt"] == 0.0
+    assert host["has_spin"] is False
     assert math.isclose(pair["da_dt"], single["da_dt"], rel_tol=1e-12)
     assert math.isclose(pair["tidal_heating_total"], single["tidal_heating"], rel_tol=1e-12)
     assert abs(pair["energy_residual"]) <= 1e-6 * abs(pair["tidal_heating_total"])
@@ -297,9 +305,10 @@ def test_mutual_pair_rows_sum_to_the_pair_evolution():
     # Seen from either member it is the same pair with the roles swapped.
     mirrored = system.calc_pair_evolution("host")
     assert mirrored["evolved"] is True
-    assert mirrored["host_index"] == 1
+    assert mirrored["world_names"] == ("host", "orbiter")
     assert math.isclose(mirrored["da_dt"], pair["da_dt"], rel_tol=1e-12)
-    assert math.isclose(mirrored["world"]["tidal_heating"], pair["host"]["tidal_heating"], rel_tol=1e-12)
+    assert math.isclose(
+        mirrored["worlds"]["host"]["tidal_heating"], pair["worlds"]["host"]["tidal_heating"], rel_tol=1e-12)
 
 
 def test_world_gets_its_tide_state_from_its_system():

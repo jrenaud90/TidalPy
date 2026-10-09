@@ -118,14 +118,18 @@ cdef dict cy_evolution_to_dict(c_WorldEvolution evolution, c_System* system_ptr)
 
 
 cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
-    """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS)."""
-    # A world asked for with no tidal host has no partner (the pair names it twice).
+    """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS), each body's part keyed
+    by its world name."""
+    # A world asked for with no tidal host has no partner (the pair names it twice) and no parts.
     cdef cpp_bool has_partner = pair.first_index != pair.second_index
+    cdef str first_name = cy_world_name(system_ptr, pair.first_index)
+    cdef object second_name = cy_world_name(system_ptr, pair.second_index) if has_partner else None
+    cdef dict worlds = {}
+    if has_partner:
+        worlds[first_name] = cy_evolution_to_dict(pair.first, system_ptr)
+        worlds[second_name] = cy_evolution_to_dict(pair.second, system_ptr)
     return {
-        'world_index':         <int>pair.first_index,
-        'world_name':          cy_world_name(system_ptr, pair.first_index),
-        'host_index':          <int>pair.second_index if has_partner else -1,
-        'host_name':           cy_world_name(system_ptr, pair.second_index) if has_partner else None,
+        'world_names':         (first_name, second_name),
         'evolved':             True if pair.evolved else False,
         'has_tide_model':      True if pair.has_tide_model else False,
         'orbital_frequency':   pair.orbital_frequency,
@@ -138,8 +142,7 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
         'dE_orbit_dt':         pair.dE_orbit_dt,
         'dE_spin_dt_total':    pair.dE_spin_dt_total,
         'energy_residual':     pair.energy_residual,
-        'world':               cy_evolution_to_dict(pair.first, system_ptr),
-        'host':                cy_evolution_to_dict(pair.second, system_ptr),
+        'worlds':              worlds,
     }
 
 
@@ -667,15 +670,15 @@ cdef class System:
         Returns
         -------
         dict
-            Combined shared-orbit fields (``da_dt``, ``de_dt``, ``dn_dt``, ``tidal_heating_total``,
-            ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, plus ``orbital_frequency`` /
-            ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``world_name`` / ``host_index`` /
-            ``host_name`` / ``evolved``), and
-            each body's full single-body contribution under keys ``world`` (``world``) and ``host`` (``partner``),
-            each a :meth:`calc_world_evolution`-style dict. ``evolved`` is ``False`` for a world with no tidal
-            host (``partner`` left out) or no usable orbit. ``has_tide_model`` is ``True`` when at least one body
-            carries a tide model; ``False`` means both are rigid, every rate is zero, and a warning is logged once
-            per world. Each body's own flag is in its own entry.
+            The combined shared-orbit fields (``da_dt``, ``de_dt``, ``dn_dt``, ``tidal_heating_total``,
+            ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, ``orbital_frequency``, ``semi_major_axis``,
+            ``eccentricity``, ``evolved``, ``has_tide_model``), ``world_names`` (``world``'s name, then
+            ``partner``'s), and ``worlds``: each body's full single-body contribution keyed by its world name, each a
+            :meth:`calc_world_evolution`-style dict. ``evolved`` is ``False`` for a world with no tidal host
+            (``partner`` left out; ``world_names`` then ends in ``None`` and ``worlds`` is empty) or no usable orbit.
+            ``has_tide_model`` is ``True`` when at least one body carries a tide model; ``False`` means both are
+            rigid, every rate is zero, and a warning is logged once per world. Each body's own flag is in its own
+            entry.
 
         Raises
         ------

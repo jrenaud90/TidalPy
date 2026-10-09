@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`Dynamics`)
 
-_Updated: 2026-10-05_
+_Updated: 2026-10-08_
 
 `Spin` gives the rate of change of a body's rotation and `OrbitSolver` that of its orbit. Both take the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$ \[J kg$^{-1}$ rad$^{-1}$\], from a completed tidal solve: `world.calc_tides(...)` returns them as `dU_dM`, `dU_dw`, and `dU_dO`, and `world.get_tidal_potential_derivatives()` reads them back.
 
@@ -84,12 +84,13 @@ Every evolution dict from `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the 
 For more than one world, `System` holds the orbital state and does the bookkeeping.
 
 ```python
+tide = system.calc_dissipation(world)        # one world's tide on its orbit about its tidal host, no rates
 rates = system.calc_world_evolution(world)   # one dissipating world, rigid host
-rates = system.calc_pair_evolution(world)    # both bodies (the `world` and the system's tidal host) dissipate on a shared orbit
+rates = system.calc_pair_evolution(world)    # both bodies (the `world` and its tidal host, or a given partner) dissipate on a shared orbit
 all_rates = system.calc_system_evolution()   # every world, in index order
 ```
 
-`calc_world_evolution` returns one dict with the orbital state used, the tidal heating, the potential derivatives, the four rates, the moment of inertia, and the energy-balance diagnostics. `calc_pair_evolution` adds each body's own contribution under `world` and `host`. An entry that cannot be evolved (the host's own row, a world with no usable orbit) has `evolved` set to `False` rather than raising. See [System](../Structures/system/system.md). To integrate the rates in time, including a world's spin through its spin-orbit equilibria, use `System.evolve` (see [Evolving a World About Its Host](../Structures/system/system.md#evolving-a-world-about-its-host)).
+`calc_world_evolution` returns one dict with the orbital state used, the tidal heating, the potential derivatives, the four rates, the moment of inertia, and the energy-balance diagnostics. `calc_pair_evolution` adds each body's own contribution under `worlds`, keyed by world name. An entry that cannot be evolved (the host's own row, a world with no usable orbit) has `evolved` set to `False` rather than raising. See [System](../Structures/system/system.md). To integrate the rates in time, including a world's spin through its spin-orbit equilibria, use `System.evolve` (see [Evolving a World About Its Host](../Structures/system/system.md#evolving-a-world-about-its-host)).
 
 ## C++ API
 

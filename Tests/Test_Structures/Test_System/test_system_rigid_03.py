@@ -91,8 +91,8 @@ def test_pair_flag_says_whether_either_body_dissipates(star_tides, companion_tid
     pair = system.calc_pair_evolution("companion")
     assert pair["evolved"] is True
     assert pair["has_tide_model"] is pair_flag
-    assert pair["world"]["has_tide_model"] is companion_tides
-    assert pair["host"]["has_tide_model"] is star_tides
+    assert pair["worlds"]["companion"]["has_tide_model"] is companion_tides
+    assert pair["worlds"]["star"]["has_tide_model"] is star_tides
     if not pair_flag:
         assert pair["da_dt"] == 0.0 and pair["de_dt"] == 0.0 and pair["tidal_heating_total"] == 0.0
     else:
@@ -151,7 +151,7 @@ def test_loaded_system_keeps_its_tide_models(tmp_path, spdlog_text):
         assert math.isclose(result[key], reference_world[key], rel_tol=1e-12), key
     pair = loaded.calc_pair_evolution("companion")
     assert pair["has_tide_model"] is True
-    assert pair["world"]["has_tide_model"] is True and pair["host"]["has_tide_model"] is True
+    assert all(part["has_tide_model"] is True for part in pair["worlds"].values())
     assert math.isclose(pair["da_dt"], reference_pair["da_dt"], rel_tol=1e-12)
     assert _WARNING_TEXT not in spdlog_text()
 

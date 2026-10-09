@@ -493,10 +493,11 @@ const NODES = [
     inputs: 'worlds, tidal_host per world, is_star, semi-major axes, eccentricities',
     outputs: 'a system that co-owns its worlds' },
   { id: 'calc_world_evolution', lane: 'system', kind: 'cydef', shape: 'func', star: true,
-    label: 'System.calc_world_evolution(i)', sub: 'calc_pair_evolution, calc_system_evolution',
+    label: 'System.calc_world_evolution(i)', sub: 'calc_dissipation, calc_pair_evolution, calc_system_evolution',
     file: 'Structures/system/system.pyx',
-    purpose: 'Entry point for evolution: the tidal rates of one world (or a host and satellite pair, or every ' +
-      'world) for the current orbit and spin; System.evolve integrates them.',
+    purpose: 'Entry point for evolution: the tide of one world (calc_dissipation), its tidal rates, those of a pair ' +
+      '(both bodies dissipating, treated alike), or those of every world, for the current orbit and spins; ' +
+      'System.evolve integrates them.',
     inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
   { id: 'evolve', lane: 'system', kind: 'py', shape: 'func', star: true,
     label: 'System.evolve(world, span)', sub: 'evolution.py: evolve_pair', file: 'Structures/system/evolution.py',
@@ -512,10 +513,12 @@ const NODES = [
       'the tide-state provider of its worlds: a world can ask it for the orbital state its tides are raised in.',
     inputs: 'worlds, their hosts, and orbits', outputs: 'orbital frequencies, insolation, evolution results, tide states' },
   { id: 'c_calc_world_evolution', lane: 'system', kind: 'cpp', shape: 'func',
-    label: 'c_System::calc_world_evolution', file: 'Structures/system/system_.hpp',
-    purpose: 'Builds the tidal state from the orbit and the world spin, runs the world tidal solve, converts the ' +
-      'potential derivatives into rates, and checks heating = -(dE_orbit/dt + dE_spin/dt).',
-    inputs: 'world index', outputs: 'c_WorldEvolution' },
+    label: 'c_System::calc_world_evolution', sub: 'calc_dissipation, calc_pair_evolution',
+    file: 'Structures/system/system_.hpp',
+    purpose: 'p_dissipation builds the tidal state of a body from the shared orbit, its spin, and its companion ' +
+      'and runs its tidal solve (calc_dissipation); p_evolution converts the potential derivatives into rates and checks ' +
+      'heating = -(dE_orbit/dt + dE_spin/dt). calc_pair_evolution(i, j) does both bodies and sums them.',
+    inputs: 'world index (two for a pair)', outputs: 'c_TidalDissipation, c_WorldEvolution, c_PairEvolution' },
   { id: 'dynamics', lane: 'system', kind: 'cpp', shape: 'class',
     label: 'c_OrbitSolver and c_Spin', sub: 'Dynamics', file: 'Dynamics/orbit_solver_.hpp, spin_.hpp',
     purpose: 'c_OrbitSolver: da/dt = (2/(n a)) dR/dM, de/dt, dn/dt = -(3/2)(n/a) da/dt from the potential ' +
@@ -773,9 +776,9 @@ const EDGES = [
       'equilibrium, and a tracked window edges.',
     inputs: 'right-hand side, events, tolerances', outputs: 'steps, event termination' },
   { from: 'calc_world_evolution', to: 'c_calc_world_evolution', flow: 'system', type: 'call',
-    purpose: 'Rates for world i (calc_pair_evolution sums a host and satellite; calc_system_evolution runs every ' +
-      'world).',
-    inputs: 'world index', outputs: 'c_WorldEvolution as a dict' },
+    purpose: 'Rates for world i (calc_pair_evolution sums two worlds, one hosting the other; calc_system_evolution ' +
+      'runs every world).',
+    inputs: 'world index', outputs: 'c_WorldEvolution as a dict (the parts of a pair keyed by world name)' },
   { from: 'c_calc_world_evolution', to: 'c_calc_tides', flow: 'system', type: 'call',
     purpose: 'Fill c_TideSolveConfig from the system orbital elements and the world spin, then run the tidal solve.',
     inputs: 'orbital frequency, spin, eccentricity, obliquity, semi-major axis, host mass',

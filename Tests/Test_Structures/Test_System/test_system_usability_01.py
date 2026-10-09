@@ -108,10 +108,10 @@ def test_evolution_rows_carry_world_names():
     assert [row["world_name"] for row in rows] == [world.name for world in system]
     assert system.calc_world_evolution("earth")["world_name"] == "earth"
     pair = system.calc_pair_evolution("earth")
-    assert (pair["world_name"], pair["host_name"]) == ("earth", "sun")
-    assert (pair["world"]["world_name"], pair["host"]["world_name"]) == ("earth", "sun")
-    # The star has no tidal host to name.
-    assert system.calc_pair_evolution("sun")["host_name"] is None
+    assert pair["world_names"] == ("earth", "sun")
+    assert [part["world_name"] for part in pair["worlds"].values()] == ["earth", "sun"]
+    # The star has no tidal host to pair with.
+    assert system.calc_pair_evolution("sun")["world_names"] == ("sun", None)
 
 
 # =====================================================================================================================

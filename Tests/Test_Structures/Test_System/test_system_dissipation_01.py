@@ -93,8 +93,9 @@ def test_a_mutual_pair_is_each_world_s_own_dissipation(first, second):
     """Each member's part of the pair is its own dissipation, in either order, and the totals do not depend on it."""
     system = _star_planet_moon(mutual=True)
     pair = system.calc_pair_evolution(first, second)
-    assert (pair["world_name"], pair["host_name"]) == (first, second)
-    for name, part in ((first, pair["world"]), (second, pair["host"])):
+    assert pair["world_names"] == (first, second)
+    assert list(pair["worlds"]) == [first, second]
+    for name, part in pair["worlds"].items():
         assert part["world_name"] == name
         assert part == system.calc_world_evolution(name)
     swapped = system.calc_pair_evolution(second, first)
@@ -112,12 +113,12 @@ def test_a_one_sided_pair_takes_the_hosted_world_s_orbit():
     calc_dissipation reports it (about the Sun)."""
     system = _star_planet_moon(mutual=False)
     pair = system.calc_pair_evolution("planet", "moon")
-    planet_part = pair["world"]
+    planet_part = pair["worlds"]["planet"]
     assert planet_part["semi_major_axis"] == pytest.approx(3.844e8, rel=1e-15)
     assert planet_part["host_mass"] == system["moon"].mass
     assert planet_part["tidal_heating"] != system.calc_dissipation("planet")["tidal_heating"]
     reverse = system.calc_pair_evolution("moon")
-    assert reverse["host"]["tidal_heating"] == planet_part["tidal_heating"]
+    assert reverse["worlds"]["planet"]["tidal_heating"] == planet_part["tidal_heating"]
     assert reverse["da_dt"] == pytest.approx(pair["da_dt"], rel=1e-14, abs=0.0)
 
 
@@ -134,4 +135,5 @@ def test_a_pair_needs_two_worlds_one_hosting_the_other(first, second, match):
 def test_a_world_without_a_host_has_no_pair():
     pair = _star_planet_moon(mutual=True).calc_pair_evolution("sun")
     assert pair["evolved"] is False
-    assert pair["host_name"] is None
+    assert pair["world_names"] == ("sun", None)
+    assert pair["worlds"] == {}

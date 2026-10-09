@@ -228,15 +228,16 @@ class PairRates:
             reason = lines[-1].strip() if lines else type(error).__name__
             raise ProbeFailed(f"TidalPy: the tide solve failed at spin ratio {spin_ratio:.15f}: {reason}") from error
         self.num_probes += 1
-        balance = (pair["world"]["dspin_dt"] - spin_ratio * pair["dn_dt"]) / n * TIME_UNIT
-        rates = [pair["da_dt"] / self.semi_major_axis0, pair["de_dt"], pair["host"]["dspin_dt"] / self.host_spin0]
+        world_part, host_part = (pair["worlds"][name] for name in pair["world_names"])
+        balance = (world_part["dspin_dt"] - spin_ratio * pair["dn_dt"]) / n * TIME_UNIT
+        rates = [pair["da_dt"] / self.semi_major_axis0, pair["de_dt"], host_part["dspin_dt"] / self.host_spin0]
         if self.evolve_thermal:
             rates.extend(self.world.calc_layer_temperature_rate(layer_i) / self.temperature0[layer_i]
                          for layer_i in range(self.num_layers))
         rates = np.array(rates) * TIME_UNIT
         if not (math.isfinite(balance) and np.all(np.isfinite(rates))):
             raise ProbeFailed(f"TidalPy: the rates at spin ratio {spin_ratio:.15f} are not finite.")
-        return SpinProbe(spin_ratio, balance, rates, pair["world"]["tidal_heating"])
+        return SpinProbe(spin_ratio, balance, rates, world_part["tidal_heating"])
 
 
 # ======================================================================================================================

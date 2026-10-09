@@ -163,7 +163,7 @@ def test_concurrent_evolution_calls_each_read_their_own_solve():
     system = _three_body_system()
     world_reference = system.calc_world_evolution("planet")
     pair_reference = system.calc_pair_evolution("moon")
-    assert world_reference["tidal_heating"] != pair_reference["host"]["tidal_heating"]
+    assert world_reference["tidal_heating"] != pair_reference["worlds"]["planet"]["tidal_heating"]
     mismatches = []
     errors = []
 
@@ -177,7 +177,8 @@ def test_concurrent_evolution_calls_each_read_their_own_solve():
             errors.append(error)
 
     def host_heating(result):
-        return (result["host"]["tidal_heating"], result["host"]["da_dt"], result["host"]["dspin_dt"])
+        planet = result["worlds"]["planet"]
+        return (planet["tidal_heating"], planet["da_dt"], planet["dspin_dt"])
 
     def world_heating(result):
         return (result["tidal_heating"], result["da_dt"], result["dspin_dt"])
