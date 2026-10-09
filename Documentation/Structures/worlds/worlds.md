@@ -1,6 +1,6 @@
 # Worlds (`Structures.worlds`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-09_
 
 A world is TidalPy's top-level structure: a planet, moon, or star. It holds its identity, orbital and thermal scalars, bulk geometry, spin model, tide model, and an ordered stack of [layers](../layers/layer.md) (possibly empty). It runs the whole-planet equation-of-state (EOS), thermal, Love-number, and tidal solves, and holds the heat sources that act inside its layers. Build one by name or from a file with `build_world` (see the [TOML Schema](../config/toml_schema.md)), or in Python.
 
@@ -146,7 +146,7 @@ for zone in world.zones:
 print(world.molten_regions)                         # The mantle's top 52 km is a magma ocean
 ```
 
-The Love solver takes each zone as a layer with its layer's `is_static` and `is_incompressible`, a liquid zone with the liquid equations, so a melting mantle (`is_static` by default) is a static liquid where molten. A zone thinner than `[numerical] minimum_zone_fraction` (10$^{-7}$ of the world radius by default, about 0.6 m for Earth) takes its thicker neighbor's state, since the radial solver cannot integrate across it. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. Elsewhere the layer is one layer, and its 3D heating takes nothing from its liquid zones.
+The Love solver takes each zone as a layer with its layer's `is_static` and `is_incompressible`, a liquid zone with the liquid equations, so a melting mantle (`is_static` by default) is a static liquid where molten. A zone thinner than `[numerical] minimum_zone_fraction` (10$^{-7}$ of the world radius by default, about 0.6 m for Earth) takes its thicker neighbor's state, since the radial solver cannot integrate across it. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. Elsewhere the layer is one layer, and its 3D heating takes nothing from its liquid zones. Each zone reads the material on its own side of a zone boundary, so a static liquid zone's interface conditions take the liquid's density there, as they would for a liquid layer. The profile getters give a radius on the boundary the lower zone's values.
 
 A layer forced to `"solid"` or `"liquid"` after the solve is one zone in that state to the next Love solve, while `zones` keeps the solved states until the next `solve_eos`. A change between `"auto"` and a forced state that decides whether the layer can change state makes the world forget its solve.
 

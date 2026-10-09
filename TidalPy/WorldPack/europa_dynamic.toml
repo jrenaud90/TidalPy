@@ -3,10 +3,12 @@
 # The 140 km water layer matches the 138.7 +/- 7.7 km of Gomez Casajus et al. (2021, Icarus 358, 114187).
 # The ocean's density must follow its bulk modulus or the dynamic solve is unstably stratified and fails
 # (see Demos/Physics/P12_dynamic_liquids.ipynb); it runs from 1015 to 1082 kg/m3.
-# Fitted: mantle reference density 3498.1963 kg/m3 reproduces the mass (g = 1.3147 m/s2; central pressure 4.79 GPa).
-# C/MR2 = 0.3457: within 0.346 +/- 0.005 (Anderson et al. 1998), below 0.3547 +/- 0.0024 (Gomez Casajus et al. 2021).
-# k2 = 0.2594, Q = 116 at the 3.551181 day orbital period (europa.toml: 0.0153); a static ocean is within 1.3e-3.
-# Temperatures, viscosities, and spin are as in europa.toml.
+# The mantle reference density, 3497.9758 kg/m3, is fitted to the mass (g = 1.3147 m/s2; central pressure 4.79 GPa).
+# C/MR2 = 0.3457, within 0.346 +/- 0.005 (Anderson et al. 1998) and below 0.3547 +/- 0.0024 (Gomez Casajus et al. 2021).
+# k2 = 0.2628, Q = 109 at the 3.551181 day orbital period (europa.toml: 0.0153); a static ocean is within 1.3e-3.
+# The shell is MatPack's ice_ih, kept solid over the 273 K ocean, so with the temperature solved under a 93 K surface
+# its viscosity stays above 1.7e14 Pa s and Q = 112.
+# Temperatures, viscosities, and spin are otherwise as in europa.toml.
 schema_version = "0.2.0"
 name = "Europa-Dynamic"
 type = "terrestrial"
@@ -64,7 +66,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3498.1963   # fitted to the published mass
+reference_density_kg_m3 = 3497.9758   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
@@ -126,34 +128,11 @@ thermal_expansion_1_k = 5.0e-5
 [layers.ice_shell]
 layer_index = 3
 radius_fraction = 1.0
+material = "ice_ih"
+state = "solid"
 use_tides = true
 temperature_k = 250.0
 use_heating = true
-
-[layers.ice_shell.material.solid]
-thermal_conductivity_w_mk = 2.3
-heat_capacity_j_kgk = 2000.0
-
-[layers.ice_shell.material.solid.eos]
-model = "birch_murnaghan"
-reference_density_kg_m3 = 917.0
-reference_bulk_modulus_pa = 9.6e9     # ice I
-bulk_modulus_derivative = 5.5
-thermal_expansion_1_k = 5.0e-5
-
-[layers.ice_shell.material.solid.shear_modulus]
-model = "constant"
-shear_modulus_pa = 3.3e9
-
-[layers.ice_shell.material.solid.shear_viscosity]
-model = "reference"
-reference_viscosity_pas = 1.0e15      # warm ice
-reference_temperature_k = 250.0
-molar_activation_energy_j_mol = 59.4e3
-molar_activation_volume_m3_mol = 0.0
-
-[layers.ice_shell.shear_rheology]
-model = "maxwell"
 
 [layers.ice_shell.cooling]
 model = "convection"

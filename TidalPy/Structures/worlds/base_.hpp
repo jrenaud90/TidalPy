@@ -2086,7 +2086,7 @@ public:
             for (std::size_t i = 0; i < num_samples; ++i) {
                 radius[i] = radius_lower
                     + (radius_outer - radius_lower) * static_cast<double>(i) / static_cast<double>(num_samples - 1);
-                this->p_eos_solution->call_si(layer_i, radius[i], state);
+                this->p_eos_solution->call_si(layer_i, radius[i], state, c_ZoneState::Liquid);
                 density[i] = state[C_EOS_DENSITY_INDEX];
                 gravity[i] = state[C_EOS_GRAVITY_INDEX];
                 bulk[i]    = state[C_EOS_BULK_MODULUS_INDEX];
@@ -2259,17 +2259,22 @@ public:
         std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
         const std::vector<std::size_t> world_layer_of = this->p_love.radial_world_layer;
+        const std::vector<char> solid_of = this->p_love.radial_solid_layer;
         solver->set_material_eval(
-            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer, world_layer_of](
+            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer, world_layer_of,
+             solid_of](
                     std::size_t solver_layer_index,
                     double radius_si,
                     double* state_out,
                     std::complex<double>& shear_out,
                     std::complex<double>& bulk_out) {
-                // The solver counts the zones of a split layer as layers of their own.
+                // The solver counts the zones of a split layer as layers of their own, and each reads its own side of
+                // the boundary it shares with the other.
                 const std::size_t layer_index = world_layer_of[solver_layer_index];
+                const bool zone_is_solid = (solver_layer_index < solid_of.size()) && solid_of[solver_layer_index];
                 // One dense read gives the structure and the density; the supplied profile gives the moduli.
-                eos_solution->call_si(layer_index, radius_si, state_out);
+                eos_solution->call_si(
+                    layer_index, radius_si, state_out, zone_is_solid ? c_ZoneState::Solid : c_ZoneState::Liquid);
                 const std::size_t in_first = in_first_by_layer[layer_index];
                 const std::size_t in_count = in_count_by_layer[layer_index];
                 // The supplied grid is usually uniform within a layer, so seed the search by fraction.
@@ -2335,9 +2340,12 @@ public:
                 double* state_out,
                 std::complex<double>& shear_out,
                 std::complex<double>& bulk_out) {
-            // The solver counts the zones of a split layer as layers of their own.
+            // The solver counts the zones of a split layer as layers of their own, and each reads its own side of the
+            // boundary it shares with the other.
             const std::size_t layer_index = world_layer_of[solver_layer_index];
-            eos_solution->call_si(layer_index, radius_si, state_out);
+            const bool zone_is_solid = (solver_layer_index < solid_of.size()) && solid_of[solver_layer_index];
+            eos_solution->call_si(
+                layer_index, radius_si, state_out, zone_is_solid ? c_ZoneState::Solid : c_ZoneState::Liquid);
             if (layer_index >= shear_bylayer.size()) { return; }
             const double static_shear = state_out[C_EOS_SHEAR_MODULUS_INDEX];
             const double static_bulk  = state_out[C_EOS_BULK_MODULUS_INDEX];
@@ -2346,7 +2354,7 @@ public:
                 ? shear_bylayer[layer_index]->calc_complex_modulus(
                     static_shear, state_out[C_EOS_SHEAR_VISCOSITY_INDEX], frequency)
                 : std::complex<double>(static_shear, 0.0);
-            if ((solver_layer_index < solid_of.size()) && solid_of[solver_layer_index]) {
+            if (zone_is_solid) {
                 shear_out = c_floor_complex_shear(shear_out, shear_floor);
             }
             bulk_out = bulk_bylayer[layer_index]

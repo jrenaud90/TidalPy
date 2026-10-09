@@ -817,8 +817,15 @@ inline void c_solve_eos(
             }
         }
 
-        // Keep the layer EOS functions for on-demand evaluation, then sample onto the radius array.
+        // Keep the layer EOS functions for on-demand evaluation, read each zone's material on its own side of the
+        // state roots between zones, then sample onto the radius array.
         eos_solution_ptr->save_eos_functions(eos_function_bylayer_ptr_vec, eos_input_bylayer_vec);
+        std::vector<EventFunc> state_event_bylayer(num_layers, nullptr);
+        for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
+        {
+            state_event_bylayer[layer_i] = layer_bounds[layer_i].state_event;
+        }
+        eos_solution_ptr->resolve_zone_edges(state_event_bylayer);
         eos_solution_ptr->interpolate_full_planet();
     }
 }

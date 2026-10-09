@@ -3,14 +3,16 @@
 # 2550 kg/m3 from GRAIL (Wieczorek et al. 2013).
 # Fitted: mantle reference density 3324.97 kg/m3 to the mass (g = 1.6242 m/s2 vs 1.622 observed; central pressure
 # 5.44 GPa); crust thickness 34 km to C/MR2 = 0.39312 (measured 0.3931 +/- 0.0002, Williams et al. 2014).
-# Generic temperatures and viscosities (law as in io.toml, E = 300 kJ/mol): inner core 1700 K, 1e20 Pa s;
-# mantle 1300 K, 1e23 Pa s, Andrade; crust 250 K, 1e25 Pa s, elastic in effect; zone 1600 K, Maxwell.
+# Generic temperatures and viscosities (law as in io.toml, E = 300 kJ/mol) are inner core 1700 K, 1e20 Pa s; mantle
+# 1300 K, 1e23 Pa s, Andrade; and zone 1600 K, Maxwell. The crust at 400 K is elastic on a silicate law of 1e21 Pa s at
+# 1600 K.
 # Tidal targets from lunar laser ranging: k2 = 0.02422 +/- 0.00022 (Williams et al. 2014), Q = 38 +/- 4 at the
 # month and 41 +/- 9 at the year, with a relaxation peak near 100 to 120 days (Williams and Boggs 2015).
 # Fitted: mantle and zone rigidity 6.385e10 Pa gives k2 = 0.02422 at 27.3217 days; zone viscosity 4.241e16 Pa s
 # and top 475 km give Q = 37.9 at 27.3217 days and 40.9 at 365.25 days, with a minimum Q of 25 near 100 days.
 # A single Andrade mantle cannot match both Q values. With the outer core made solid, k2 drops to 0.02306.
-# Heating with Earth's mass at a = 3.844e8 m, e = 0.0549: 6.3e8 W; zone 0.852, mantle 0.148, crust 2.4e-4.
+# Heating with Earth's mass at a = 3.844e8 m and e = 0.0549 is 6.3e8 W, 0.852 of it in the zone and 0.148 in the mantle.
+# With the temperature solved under a 270 K surface, Q = 34.9 at the month and 35.9 at the year.
 # Spin is the synchronous rate for a 27.322 day period.
 schema_version = "0.2.0"
 name = "Luna"
@@ -184,7 +186,7 @@ isotopes = "modern_day_chondritic"
 layer_index = 4
 radius_fraction = 1.0
 use_tides = true
-temperature_k = 250.0
+temperature_k = 400.0
 use_heating = true
 
 [layers.crust.material.solid]
@@ -200,10 +202,11 @@ thermal_expansion_1_k = 5.2e-5
 model = "constant"
 shear_modulus_pa = 4.0e10             # anorthositic crust
 
+# Silicate creep referenced to the upper mantle (1e21 Pa s at 1600 K), elastic at crustal temperatures.
 [layers.crust.material.solid.shear_viscosity]
 model = "reference"
-reference_viscosity_pas = 1.0e25      # elastic in effect
-reference_temperature_k = 250.0
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 

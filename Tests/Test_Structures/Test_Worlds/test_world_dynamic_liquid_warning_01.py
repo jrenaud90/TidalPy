@@ -51,8 +51,8 @@ def test_neutral_liquid_is_not_flagged(spdlog_text, is_static, is_incompressible
 
 
 def test_flag_follows_the_forcing_period(spdlog_text):
-    """Pluto's thin ocean stays accurate at 3.55 days and is flagged at 100 days."""
-    world = _world("pluto", is_static=False)
+    """Luna's small outer core stays accurate at 3.55 days and is flagged at 100 days."""
+    world = _world("luna", is_static=False)
     _solve(world, 3.55)
     assert _WARNING_TEXT not in spdlog_text()
     _solve(world, 100.0)

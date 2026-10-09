@@ -1,6 +1,6 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-10-08_
+_Updated: 2026-10-09_
 
 WorldPack is TidalPy's set of example world files (stars, gas giants, terrestrial bodies, and systems), installed into a user-editable data directory and found by name. The [TOML schema](toml_schema.md) describes their keys.
 
@@ -33,26 +33,31 @@ A file with a `[worlds.<name>]` table is a system, any other a world (`config_ki
 | `earth_prem` | terrestrial | The PREM seismic profile, read from the companion `PREM.csv`. |
 | `earth_prem_q` | terrestrial | `earth_prem` with PREM's own quality factors setting the loss (`q_provided`, `seismic_q`). |
 | `io` | terrestrial | The Segatz et al. (1988) asthenosphere end-member, with its viscosity fitted to Io's measured heat output. |
-| `europa` | terrestrial | Iron core, silicate mantle, and a solid ice shell (no ocean). |
+| `europa` | terrestrial | Iron core, silicate mantle, and a solid ice Ih shell (no ocean). |
 | `luna` | terrestrial | Five-layer Moon reproducing C/MR2, k2, and Q at the month and the year. |
 | `mercury` | terrestrial | Fluid outer core, with the mantle rigidity fitted to the measured k2. |
-| `pluto` | terrestrial | Rock core, a subsurface ocean sized by the observed ice-shell thickness, and an ice I shell. |
-| `charon` | terrestrial | Rock core under an ice I shell; Pluto's partner in a mutually synchronous binary. |
-| `triton` | terrestrial | The same recipe, on a retrograde synchronous orbit about Neptune. |
+| `pluto` | terrestrial | Rock core under one water layer that is an ocean below the observed 100 km ice-shell thickness. |
+| `charon` | terrestrial | Rock core under one water layer, frozen through; Pluto's partner in a mutually synchronous binary. |
+| `triton` | terrestrial | The same recipe with a 58 km ocean, on a retrograde synchronous orbit about Neptune. |
 | `luna_dynamic` | terrestrial | `luna` with a dynamic, compressible Fe-S liquid outer core (Birch-Murnaghan), refitted to the same observables. |
 | `mercury_dynamic` | terrestrial | `mercury` with a dynamic, compressible Fe-Si liquid outer core (Birch-Murnaghan). |
-| `pluto_dynamic` | terrestrial | `pluto` with a dynamic, compressible ocean (water Birch-Murnaghan). |
+| `pluto_dynamic` | terrestrial | `pluto` with its ocean solved as a dynamic, compressible liquid. |
 | `europa_dynamic` | terrestrial | `europa` with a 115 km dynamic, compressible ocean under a 25 km ice shell. |
-| `trappist1b` to `trappist1h` | terrestrial | Two-layer rocky planets built from the Agol et al. (2021) masses and radii. |
+| `trappist1b` to `trappist1h` | terrestrial | Liquid iron cores under silicate mantles, built from the Agol et al. (2021) masses and radii. |
 | `sol_system` | system | The Sun with Earth and Jupiter. |
 | `pluto_charon_system` | system | Pluto and Charon as a mutually synchronous pair (Brozovic and Jacobson 2024 orbit), lit by the Sun at Pluto's mean heliocentric orbit. |
 
 Each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year), and the test suite checks those claims. The layered bodies share these choices:
 
 - Each layer's material is a table of fitted values ([The Material Table](toml_schema.md#the-material-table)). Each layer states a temperature and each solid layer a viscosity at it, so every solid layer dissipates. `tidal_scale` values come from the 3D heating integral.
-- The liquid cores of Luna, Mercury, and Earth-Simple and Pluto's ocean are static and of constant density. The `_dynamic` worlds solve their liquid dynamically on a pressure-dependent law, since a constant-density liquid is unstably stratified and its dynamic solve fails at long periods ([Dense Radial Solutions](../../RadialSolver/dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)). `luna_dynamic`'s yearly k2 is within 3e-4 at the default tolerances; tighten `rtol` and `atol` together for longer periods.
-- Layers carry thermal constants, cooling models, and radiogenics (with `use_heating` on). The warm silicate mantles can melt: a `peridotite` liquid phase, the Monteux et al. (2016) melting curves, Henning weakening, and `use_melting` and `use_pressure_melting` on.
-- Temperatures are prescribed: every layered file but `earth_thermal` (which pins `true`) and the PREM worlds pins `solve_temperature = false` in `[eos_solver]`, so the fits hold and nothing melts. A call may still pass `solve_temperature=True`.
+- The liquid cores of Luna, Mercury, Earth-Simple, and the TRAPPIST-1 planets are static and of constant density. The `_dynamic` worlds solve their liquid dynamically on a pressure-dependent law, since a constant-density liquid is unstably stratified and its dynamic solve fails at long periods ([Dense Radial Solutions](../../RadialSolver/dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)). `luna_dynamic`'s yearly k2 is within 3e-4 at the default tolerances; tighten `rtol` and `atol` together for longer periods. With its temperature solved, `luna_dynamic` needs a tighter radial tolerance than the defaults, at which its monthly Q is negative and its yearly k2 unphysical (-0.54+0.09j) while `love_success` is still `True`. Use it isothermal (its file's setting) unless the tolerance is tightened.
+- The hydrospheres of Pluto, Charon, and Triton are one layer of MatPack's `ice_ih` with `state = "auto"`, `use_melting`, `use_pressure_melting`, and `use_melt_density` on. The layer is ice where it is colder than the pressure-dependent melting point and water where it is warmer, so its ocean grows or freezes with the layer's temperature. Pluto's temperature, 268.197 K, is fitted to a 100 km shell.
+- Layers carry thermal constants, cooling models, and radiogenics (with `use_heating` on). The warm silicate mantles can melt through a `peridotite` liquid phase, the Monteux et al. (2016) melting curves, Henning weakening, and `use_melting` and `use_pressure_melting` on.
+- Temperatures are prescribed. Every layered file but `earth_thermal` (which pins `true`) and the PREM worlds pins `solve_temperature = false` in `[eos_solver]`, so the fits hold at the stated temperatures. A call may still pass `solve_temperature=True`, and `System.evolve` does for a thermal run.
+- The laws stay physical over the temperatures a thermal solve reaches. Rock cores and crusts use silicate creep referenced to 1e21 Pa s at 1600 K with $E$ = 300 kJ/mol, so cold rock is elastic, and ice uses the diffusion creep of `ice_ih` (about 1e14 Pa s at its melting point). Andrade creep keeps cold ice dissipating down to about 150 K. The mantles of `earth_simple` and the TRAPPIST-1 planets are the exception. Their viscosity has no pressure dependence, so when solved thermally it softens toward the hot base of the mantle, to 1e13 Pa s in `earth_simple` (which `earth_thermal` corrects) and to about 1e15 Pa s above a TRAPPIST-1 planet's 4000 K core, which lowers its Q 4 to 11 times.
+- Radiogenic heating is evaluated at the solve's `time`, the time since formation on the isotope model's clock. Left out, it is today's (4600 Myr for `modern_day_chondritic`); a run that starts at `time = 0` starts at formation, with about nine times today's chondritic heating.
+- The cooling models are simple, which shows in long thermal runs. A thermal Pluto has a conducting lid about 1 km thick and loses heat about 700 times faster than its radiogenic heating replaces it, so over 1 Gyr of `System.evolve` its hydrosphere cools from about 268 K to about 151 K and the ocean freezes. Its core, which has no melting law, warms from 600 K to about 1700 K. Charon behaves similarly.
+- The TRAPPIST-1 cores are liquid for a numerical reason. At 4000 K iron would likely be solid at the central pressures of most of them (up to 405 GPa in TRAPPIST-1b), but a solid iron core relaxes like a fluid at forcing frequencies below about 1e-14 rad/s and leaves the Love solve singular there.
 
 Each interior is fitted to the stated mass, which `solve_eos()` returns. A solar-system body fits its least-known layer density, except Pluto and Charon, which fix a shared core density and fit the core radius, as a TRAPPIST-1 planet does with both of its densities fixed. A measured moment of inertia is then an independent check (Pluto, Charon, Triton, and the TRAPPIST-1 planets have none, so their files record the model value). The gas giants fit two densities to the mass and C/MR2 together and are fluid throughout (a rigid rock core fails numerically, its shear modulus negligible against $\rho g R$). Their k2 is then a prediction: Jupiter 0.534 against the measured 0.590, Neptune 0.427 against a published 0.41, and `jupiter_simple` the fluid-sphere 1.5.
 

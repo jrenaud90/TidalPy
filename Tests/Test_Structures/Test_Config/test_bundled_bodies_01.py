@@ -5,8 +5,11 @@ Expected values come from the TOML comments, which record where each number came
 import dataclasses
 import math
 
+import numpy as np
 import pytest
 
+import TidalPy
+from TidalPy.constants import update_constants
 from TidalPy.Structures.configs import build_world
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
 from TidalPy.Structures.worlds.base import BaseWorld
@@ -31,8 +34,8 @@ class Body:
     # False where no C/MR2 is measured: the expected value is then the file's comment, which pins the model only.
     moi_measured: bool = True
     liquid_layers: list = dataclasses.field(default_factory=list)
-    # True for the *_dynamic worlds, whose liquid layers are dynamic and compressible; the rest are static.
-    dynamic_liquids: bool = False
+    # The layers whose liquid is solved as dynamic and compressible (the *_dynamic worlds); every other layer is static.
+    dynamic_layers: list = dataclasses.field(default_factory=list)
     semi_major_axis: float = None
     eccentricity: float = None
     love_k: float = None
@@ -67,56 +70,56 @@ _BODIES = [
          ["inner_core", "outer_core", "mantle"], ["inner_core", "mantle"],
          2.0 * math.pi / 7.292e-5 / 86400.0, moi_factor=0.3307, moi_tolerance=1.0e-3, liquid_layers=["outer_core"],
          love_k=0.30, love_period_days=12.4206 / 24.0, love_tolerance=1.0e-2),
-    # Pluto and Charon are mutually synchronous; Triton is synchronous and retrograde about Neptune.
+    # Pluto and Charon are mutually synchronous; Triton is synchronous and retrograde about Neptune. Each hydrosphere
+    # is one two-phase layer (ice Ih over an ocean), so none of their layers is liquid throughout.
     Body("pluto", 1188300.0, 1.3024587e22, 0.615627,
-         ["core", "ocean", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.317205, moi_tolerance=1.0e-3, moi_measured=False,
-         liquid_layers=["ocean"]),
-    # The *_dynamic worlds: their liquid layers are dynamic, compressible, and carry a pressure-dependent EOS.
+         ["core", "hydrosphere"], ["core", "hydrosphere"],
+         6.3872304, moi_factor=0.318067, moi_tolerance=1.0e-3, moi_measured=False),
+    # The *_dynamic worlds: their liquids are dynamic, compressible, and carry a pressure-dependent EOS.
     Body("luna_dynamic", 1737400.0, 7.34579e22, 1.6242,
          ["inner_core", "outer_core", "lower_mantle", "mantle", "crust"],
          ["inner_core", "lower_mantle", "mantle", "crust"],
-         27.322, moi_factor=0.3931, moi_tolerance=1.0e-3, liquid_layers=["outer_core"], dynamic_liquids=True,
+         27.322, moi_factor=0.3931, moi_tolerance=1.0e-3, liquid_layers=["outer_core"], dynamic_layers=["outer_core"],
          love_k=0.02422, love_period_days=27.3217, love_tolerance=1.0e-2),
     Body("mercury_dynamic", 2440000.0, 3.30103e23, 3.7006,
          ["inner_core", "outer_core", "mantle"], ["inner_core", "mantle"],
-         58.6462, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["outer_core"], dynamic_liquids=True,
+         58.6462, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["outer_core"], dynamic_layers=["outer_core"],
          love_k=0.569, love_period_days=87.9691, love_tolerance=1.0e-2),
     Body("pluto_dynamic", 1188300.0, 1.3024587e22, 0.615627,
-         ["core", "ocean", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.319403, moi_tolerance=1.0e-3, moi_measured=False,
-         liquid_layers=["ocean"], dynamic_liquids=True),
+         ["core", "hydrosphere"], ["core", "hydrosphere"],
+         6.3872304, moi_factor=0.318067, moi_tolerance=1.0e-3, moi_measured=False, dynamic_layers=["hydrosphere"]),
     Body("europa_dynamic", 1561000.0, 4.7998e22, 1.3147,
          ["core", "mantle", "ocean", "ice_shell"], ["core", "mantle", "ice_shell"],
-         3.551181, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["ocean"], dynamic_liquids=True),
+         3.551181, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["ocean"], dynamic_layers=["ocean"]),
     Body("charon", 606000.0, 1.5896798e21, 0.288915,
-         ["core", "ice_shell"], ["core", "ice_shell"],
-         6.3872304, moi_factor=0.311780, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "hydrosphere"], ["core", "hydrosphere"],
+         6.3872304, moi_factor=0.311972, moi_tolerance=1.0e-3, moi_measured=False),
     Body("triton", 1352600.0, 2.1402926e22, 0.780801,
-         ["core", "ice_shell"], ["core", "ice_shell"],
-         5.876854, moi_factor=0.315542, moi_tolerance=1.0e-3, moi_measured=False),
-    # The TRAPPIST-1 planets are assumed tidally locked, so the spin period is the orbital period.
+         ["core", "hydrosphere"], ["core", "hydrosphere"],
+         5.876854, moi_factor=0.316944, moi_tolerance=1.0e-3, moi_measured=False),
+    # The TRAPPIST-1 planets are assumed tidally locked, so the spin period is the orbital period. Their iron cores are
+    # liquid.
     Body("trappist1b", 7110044.9, 8.2058009e24, 10.833830,
-         ["core", "mantle"], ["core", "mantle"],
-         1.510826, moi_factor=0.338021, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         1.510826, moi_factor=0.338021, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1c", 6988995.8, 7.8116358e24, 10.673778,
-         ["core", "mantle"], ["core", "mantle"],
-         2.421937, moi_factor=0.336954, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         2.421937, moi_factor=0.336954, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1d", 5020354.3, 2.3172131e24, 6.136249,
-         ["core", "mantle"], ["core", "mantle"],
-         4.049219, moi_factor=0.361525, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         4.049219, moi_factor=0.361525, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1e", 5861327.4, 4.1327614e24, 8.028864,
-         ["core", "mantle"], ["core", "mantle"],
-         6.101013, moi_factor=0.344955, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         6.101013, moi_factor=0.344955, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1f", 6657703.4, 6.2051143e24, 9.343436,
-         ["core", "mantle"], ["core", "mantle"],
-         9.207540, moi_factor=0.346947, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         9.207540, moi_factor=0.346947, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1g", 7192868.0, 7.8892744e24, 10.177441,
-         ["core", "mantle"], ["core", "mantle"],
-         12.352446, moi_factor=0.350022, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         12.352446, moi_factor=0.350022, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
     Body("trappist1h", 4810111.0, 1.9469367e24, 5.616262,
-         ["core", "mantle"], ["core", "mantle"],
-         18.772866, moi_factor=0.371397, moi_tolerance=1.0e-3, moi_measured=False),
+         ["core", "mantle"], ["mantle"],
+         18.772866, moi_factor=0.371397, moi_tolerance=1.0e-3, moi_measured=False, liquid_layers=["core"]),
 ]
 
 # k2 with the fluid outer core made solid, as each file's comment quotes it.
@@ -216,12 +219,11 @@ def test_bundled_body_dissipates_in_the_intended_layers(body):
 
 @pytest.mark.parametrize("body", _BODY_CASES)
 def test_bundled_body_declares_its_liquid_layers(body):
-    """Every liquid layer is a static liquid, except in the *_dynamic worlds, where it is dynamic; none is
-    incompressible, and every solid layer is static."""
+    """Every liquid is static, except in the *_dynamic worlds, where it is dynamic; no layer is incompressible."""
     world = build_world(body.name)
     assert [layer.name for layer in world if layer.is_liquid] == body.liquid_layers
     for layer in world:
-        assert layer.is_static == (not layer.is_liquid or not body.dynamic_liquids), layer.name
+        assert layer.is_static == (layer.name not in body.dynamic_layers), layer.name
     assert not any(layer.is_incompressible for layer in world)
 
 
@@ -620,27 +622,46 @@ def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia_or_lov
 
 
 # =====================================================================================================================
-# Pluto's ocean
+# The hydrospheres of Pluto, Charon, and Triton
 # =====================================================================================================================
-# The 100 km shell is the Kihoulou et al. (2022) thin shell; the ocean is what is left above the core fitted to mass.
-_PLUTO_SHELL_THICKNESS = 100.0e3
-_PLUTO_OCEAN_THICKNESS = 189.4e3
-_PLUTO_OCEAN_K = 0.210689
-_PLUTO_FROZEN_K = 0.004676
+# Each hydrosphere is one ice Ih layer that is liquid where it is above its melting point. Its ocean and shell
+# thicknesses [m] as each file's comment quotes them. Pluto's layer temperature is fitted to the 100 km shell of
+# Kihoulou et al. (2022), and its ocean is what is left above the core fitted to the mass.
+_HYDROSPHERE_ZONES = {
+    "pluto": (196.1e3, 100.0e3),
+    "pluto_dynamic": (196.1e3, 100.0e3),
+    "charon": (0.0, 168.5e3),
+    "triton": (58.2e3, 230.4e3),
+}
+_PLUTO_OCEAN_K = 0.32019
+_PLUTO_FROZEN_K = 0.00530
+_PLUTO_FROZEN_TEMPERATURE = 250.0
 
 
-def test_pluto_ocean_thickness_follows_from_the_observed_shell():
-    """The ocean thickness is not fitted, and lands near the ~200 km ocean a 100 km shell implies."""
-    world = build_world("pluto")
-    shell = world.radius - world.ocean.radius_outer
-    ocean = world.ocean.radius_outer - world.core.radius_outer
-    assert shell == pytest.approx(_PLUTO_SHELL_THICKNESS, rel=1e-6)
-    assert ocean == pytest.approx(_PLUTO_OCEAN_THICKNESS, rel=1e-3)
-    assert 150.0e3 < ocean < 250.0e3
+def _hydrosphere_zones(world):
+    """The hydrosphere's thickness [m] in each state, with its liquid zone (if any) below its solid one."""
+    zones = [zone for zone in world.zones if zone["layer"] == "hydrosphere"]
+    thickness = {"liquid": 0.0, "solid": 0.0}
+    for zone in zones:
+        thickness[zone["state"]] += zone["radius_outer"] - zone["radius_inner"]
+    assert zones[-1]["state"] == "solid"
+    return thickness
 
 
-def test_pluto_ocean_is_worth_a_factor_of_forty_in_its_love_number():
-    """The static liquid ocean decouples the shell from the core."""
+@pytest.mark.parametrize("name", list(_HYDROSPHERE_ZONES))
+def test_hydrosphere_splits_into_its_stated_ocean_and_shell(name):
+    """The hydrosphere melts below the depth where its temperature passes the pressure-dependent melting point."""
+    ocean_thickness, shell_thickness = _HYDROSPHERE_ZONES[name]
+    world = build_world(name)
+    world.solve_eos()
+    assert world.hydrosphere.can_change_state
+    thickness = _hydrosphere_zones(world)
+    assert thickness["solid"] == pytest.approx(shell_thickness, rel=1e-3)
+    assert thickness["liquid"] == pytest.approx(ocean_thickness, rel=1e-3, abs=1.0)
+
+
+def test_pluto_ocean_is_worth_a_factor_of_fifty_in_its_love_number():
+    """The ocean decouples the shell from the core; cooled to 250 K the hydrosphere freezes through."""
     world = build_world("pluto")
     frequency = world.spin_frequency
     world.solve_eos()
@@ -649,34 +670,36 @@ def test_pluto_ocean_is_worth_a_factor_of_forty_in_its_love_number():
     ocean_k = world.love_number_k.real
     assert ocean_k == pytest.approx(_PLUTO_OCEAN_K, rel=1e-3)
 
-    # Frozen into the shell, as demo P09 freezes it: the shell's ice, rheology, and temperature, viscoelastic like the
-    # shell rather than held at its static moduli.
-    world.ocean.material = world.ice_shell.material
-    world.ocean.shear_rheology = world.ice_shell.shear_rheology
-    world.ocean.temperature = world.ice_shell.temperature
-    world.ocean.use_tides = True
+    world.hydrosphere.temperature = _PLUTO_FROZEN_TEMPERATURE
     world.solve_eos()
-    assert not world.ocean.is_liquid
+    assert _hydrosphere_zones(world)["liquid"] == 0.0
     world.solve_love_numbers(frequency)
     frozen_k = world.love_number_k.real
     assert frozen_k == pytest.approx(_PLUTO_FROZEN_K, rel=1e-3)
-    assert ocean_k > 40.0 * frozen_k
+    assert ocean_k > 50.0 * frozen_k
 
 
-def test_pluto_ocean_takes_none_of_the_tidal_heating():
-    world = build_world("pluto")
-    assert not world.ocean.use_tides
+def test_pluto_ice_takes_nearly_all_of_the_tidal_heating():
+    """A liquid has no shear dissipation, and the ocean decouples the shell from the elastic core."""
     # Charon's mass on the mutual orbit.
-    shares = _synchronous_tides(world, 6.3872, 1.586e21, 0.005)
-    assert shares["ocean"] == 0.0
-    # The decoupled shell takes nearly all of it; without the ocean the core would take 4 percent.
-    assert shares["ice_shell"] > 0.99
+    shares = _synchronous_tides(build_world("pluto"), 6.3872, 1.586e21, 0.005)
+    assert shares["hydrosphere"] > 0.99
+
+
+def test_charon_grows_an_ocean_once_warmed_past_the_melting_point_at_its_base():
+    """Charon's 150 K ice is below the 269 K melting point at the base of its shell; at 271 K the base melts."""
+    world = build_world("charon")
+    world.solve_eos()
+    assert _hydrosphere_zones(world)["liquid"] == 0.0
+    world.hydrosphere.temperature = 271.0
+    world.solve_eos()
+    assert _hydrosphere_zones(world)["liquid"] > 0.0
 
 
 # =====================================================================================================================
 # The *_dynamic worlds
 # =====================================================================================================================
-_DYNAMIC_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.dynamic_liquids]
+_DYNAMIC_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.dynamic_layers]
 
 
 @pytest.mark.parametrize("body", _DYNAMIC_CASES)
@@ -684,32 +707,35 @@ def test_dynamic_world_liquid_follows_its_equation_of_state(body):
     """The liquid is denser with depth, near d rho / dr = -rho^2 g / K, which keeps its dynamic solve neutral."""
     world = build_world(body.name)
     world.solve_eos()
-    for name in body.liquid_layers:
-        layer = getattr(world, name)
-        radius = 0.5 * (layer.radius_inner + layer.radius_outer)
-        step = 1.0e-3 * (layer.radius_outer - layer.radius_inner)
+    liquid_zones = [zone for zone in world.zones if zone["layer"] in body.dynamic_layers and zone["state"] == "liquid"]
+    assert liquid_zones
+    for zone in liquid_zones:
+        radius = 0.5 * (zone["radius_inner"] + zone["radius_outer"])
+        step = 1.0e-3 * (zone["radius_outer"] - zone["radius_inner"])
         density = world.get_density(radius)
         slope = (world.get_density(radius + step) - world.get_density(radius - step)) / (2.0 * step)
         neutral_slope = -density ** 2 * world.get_gravity(radius) / world.get_bulk_modulus(radius)
-        assert slope < 0.0, name
-        assert slope == pytest.approx(neutral_slope, rel=1.0e-2), name
+        assert slope < 0.0, zone["layer"]
+        assert slope == pytest.approx(neutral_slope, rel=1.0e-2), zone["layer"]
 
 
 # k2 at the orbital or mutual period as each file's comment quotes it, and the most the same liquid solved as a
 # static one moves it.
-_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.2260, 2.0e-4), "europa_dynamic": (3.551181, 0.2594, 2.0e-3)}
+_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.3203, 5.0e-4), "europa_dynamic": (3.551181, 0.2628, 2.0e-3)}
 
 
 @pytest.mark.parametrize("name", list(_DYNAMIC_LOVE_K))
 def test_dynamic_ocean_world_love_number_and_its_static_counterpart(name):
     period_days, love_k, static_difference = _DYNAMIC_LOVE_K[name]
+    body = next(body for body in _BODIES if body.name == name)
     frequency = 2.0 * math.pi / (period_days * 86400.0)
     world = build_world(name)
     world.solve_eos()
     world.solve_love_numbers(frequency)
     dynamic_k = world.love_number_k
     assert dynamic_k.real == pytest.approx(love_k, rel=1.0e-3)
-    world.ocean.is_static = True
+    for layer_name in body.dynamic_layers:
+        getattr(world, layer_name).is_static = True
     world.solve_love_numbers(frequency)
     assert abs(world.love_number_k - dynamic_k) < static_difference * abs(dynamic_k)
 
@@ -735,3 +761,53 @@ def test_luna_dynamic_keeps_the_quality_factor_fit_at_the_default_tolerances():
     world.solve_eos()
     assert _luna_quality(world, 27.3217) == pytest.approx(_LUNA_Q_MONTH, abs=0.5)
     assert _luna_quality(world, 365.25) == pytest.approx(_LUNA_Q_YEAR, abs=0.5)
+
+
+# =====================================================================================================================
+# Thermal-ready worlds
+# =====================================================================================================================
+# World: (main tidal period [days], surface temperature [K] from its insolation). With the temperature solved, every
+# solid stays in the physical range of its laws (no near-fluid solid) and the Love solve stays well conditioned.
+_THERMAL_READY = {
+    "pluto": (6.3872304, 32.5),
+    "charon": (6.3872304, 41.0),
+    "triton": (5.876854, 33.1),
+    "europa": (3.551181, 92.5),
+    "europa_dynamic": (3.551181, 92.5),
+    "luna": (27.3217, 269.6),
+    "trappist1e": (6.101013, 227.7),
+}
+
+
+@pytest.mark.parametrize("name", list(_THERMAL_READY))
+def test_thermal_solve_keeps_every_solid_in_its_physical_range(name):
+    period_days, surface_temperature = _THERMAL_READY[name]
+    world = build_world(name)
+    result = world.solve_eos(solve_temperature=True, surface_temperature=surface_temperature)
+    assert result["success"] and result["thermal_converged"], result["message"]
+    for zone in world.zones:
+        if zone["state"] == "solid":
+            inset = 1.0e-6 * (zone["radius_outer"] - zone["radius_inner"])
+            radii = np.linspace(zone["radius_inner"] + inset, zone["radius_outer"] - inset, 50)
+            assert np.min(world.get_shear_viscosity(radii)) > 1.0e13, zone["layer"]
+    world.solve_love_numbers(2.0 * math.pi / (period_days * 86400.0))
+    assert world.love_success, world.love_message
+    assert world.love_surface_rcond > 1.0e-3
+    assert world.love_number_k.imag < 0.0
+
+
+# Solids over a static liquid, and cold solids, still solve at the slowest forcing a lock passes through, at
+# System.evolve's radial rtol and a tighter atol than its 1e-10.
+@pytest.mark.parametrize("name", ["pluto", "charon", "triton"] + [f"trappist1{planet}" for planet in "bcdefgh"])
+def test_love_solve_succeeds_at_very_long_periods(name, restore_config):
+    TidalPy.config["numerical"]["minimum_frequency"] = 1.0e-17
+    update_constants()
+    world = build_world(name)
+    world.solve_eos()
+    world.solve_love_numbers(
+        1.0e-16,
+        rtol=1.0e-10,
+        atol=1.0e-14)
+    assert world.love_success, world.love_message
+    assert world.love_number_k.real > 0.0
+    assert world.love_number_k.imag < 0.0

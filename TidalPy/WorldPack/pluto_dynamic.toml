@@ -1,12 +1,9 @@
-# Pluto-Dynamic: pluto.toml with its ocean solved as a dynamic, compressible liquid; only the ocean and the core
-# density differ.
-# A constant-density dynamic liquid is unstably stratified and fails (pluto.toml's ocean by a 15 day period), so
-# the ocean's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
-# Ocean density runs from 1028 to 1081 kg/m3 (mean 1053); the isothermal law ignores the layer's 260 K.
-# Fitted: core reference density 2959.3785 kg/m3 to the mass, keeping pluto.toml's core radius (g = 0.6156 m/s2;
-# central pressure 1.20 GPa). C/MR2 = 0.31940 is a model output: none is measured.
-# k2 = 0.2260 at the 6.3872 day mutual period (pluto.toml: 0.2107); a static ocean is within 1.6e-4, so the
-# difference is the denser, compressible ocean, not its dynamics.
+# Pluto-Dynamic: pluto.toml with the liquid zone of its hydrosphere solved as a dynamic liquid (is_static = false).
+# The ocean's density follows its bulk modulus (MatPack water, 1027.5 to 1083.6 kg/m3), which keeps the dynamic solve
+# neutrally stratified (see Demos/Physics/P12_dynamic_liquids.ipynb). Structure, mass, and C/MR2 are pluto.toml's.
+# k2 = 0.3203, Q = 4.26 at the 6.3872 day mutual period; pluto.toml's static ocean is within 2.4e-4.
+# A dynamic liquid between solids is ill-conditioned at long periods, so the Love solve fails at forcing frequencies of
+# 1e-8 rad/s and below, where pluto.toml's static ocean solves down to 1e-16 rad/s.
 # Temperatures, viscosities, and spin are as in pluto.toml.
 schema_version = "0.2.0"
 name = "Pluto-Dynamic"
@@ -22,9 +19,9 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 898881.4268          # pluto.toml
+radius_outer_m = 892154.7870          # pluto.toml
 use_tides = true
-temperature_k = 300.0
+temperature_k = 600.0
 use_heating = true
 
 [layers.core.material.solid]
@@ -32,7 +29,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.core.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 2959.3785   # fitted to the mass
+reference_density_kg_m3 = 3000.0      # hydrated silicate, as charon.toml
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5
@@ -41,10 +38,11 @@ thermal_expansion_1_k = 5.2e-5
 model = "constant"
 shear_modulus_pa = 6.0e10
 
+# Silicate creep referenced to the upper mantle, 1e21 Pa s at 1600 K.
 [layers.core.material.solid.shear_viscosity]
 model = "reference"
-reference_viscosity_pas = 1.0e22
-reference_temperature_k = 300.0
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
@@ -63,57 +61,21 @@ critical_rayleigh = 1100.0
 model = "isotope"
 isotopes = "modern_day_chondritic"
 
-[layers.ocean]
+# Ice Ih over liquid water in one layer, solid below its melting point and liquid above it.
+[layers.hydrosphere]
 layer_index = 1
-radius_outer_m = 1088300.0            # 100 km below the surface
-use_tides = false
-is_static = false
-temperature_k = 260.0
-
-[layers.ocean.material.liquid]
-thermal_conductivity_w_mk = 2.3
-heat_capacity_j_kgk = 2000.0
-
-[layers.ocean.material.liquid.eos]
-model = "birch_murnaghan"
-reference_density_kg_m3 = 999.84      # IAPWS-95 fit at 273.15 K, 0 to 0.2 GPa
-reference_bulk_modulus_pa = 1.937e9
-bulk_modulus_derivative = 6.84
-thermal_expansion_1_k = 5.0e-5
-
-[layers.ice_shell]
-layer_index = 2
 radius_fraction = 1.0
+material = "ice_ih"
+state = "auto"
+use_melting = true
+use_pressure_melting = true
+use_melt_density = true
 use_tides = true
-temperature_k = 200.0
+is_static = false                     # a dynamic liquid zone
+temperature_k = 268.197               # pluto.toml
 use_heating = true
 
-[layers.ice_shell.material.solid]
-thermal_conductivity_w_mk = 2.3
-heat_capacity_j_kgk = 2000.0
-
-[layers.ice_shell.material.solid.eos]
-model = "birch_murnaghan"
-reference_density_kg_m3 = 917.0
-reference_bulk_modulus_pa = 9.6e9     # ice I
-bulk_modulus_derivative = 5.5
-thermal_expansion_1_k = 5.0e-5
-
-[layers.ice_shell.material.solid.shear_modulus]
-model = "constant"
-shear_modulus_pa = 3.3e9
-
-[layers.ice_shell.material.solid.shear_viscosity]
-model = "reference"
-reference_viscosity_pas = 1.0e15
-reference_temperature_k = 200.0
-molar_activation_energy_j_mol = 59.4e3
-molar_activation_volume_m3_mol = 0.0
-
-[layers.ice_shell.shear_rheology]
-model = "maxwell"
-
-[layers.ice_shell.cooling]
+[layers.hydrosphere.cooling]
 model = "convection"
 convection_alpha = 1.0
 convection_beta = 0.3333333333333333

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "cysolution.hpp"  // CyRK: CySolverResult
+#include "c_events.hpp"    // CyRK: EventFunc
 
 #include "../../Utilities/dimensions/nondimensional_.hpp"
 #include "constants_.hpp"
@@ -18,6 +19,11 @@
 #include "ode_.hpp"
 #include "../../Utilities/math/numerics_.hpp"
 #include "../../Utilities/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
+
+
+// The first step [machine epsilon, relative] of the search inside a piece for the material of its own state at a state
+// root (c_EOSSolution::resolve_zone_edges): the tolerance of CyRK's event root finder.
+inline constexpr double C_EOS_ZONE_EDGE_FIRST_STEP = 4.0;
 
 
 /// Dense-output read of a finished CyRK integration that never hands back unwritten memory.
@@ -74,15 +80,32 @@ inline bool c_call_dense_checked(
 /// one mechanical state. A segment is one piece unless the layer's material changes state inside it, where the
 /// integration stopped at the root of the rigidity margin and restarted in the other state; a layer holding its mass
 /// can add a piece where its integration was extended to reach that mass.
+///
+/// The material is read at the pressure and temperature, which put a state root on whichever side of the change the
+/// event's root finder stopped. So the material of a piece is read between material_lower and material_upper: its
+/// ends, except that an end on a state root moves inside to the nearest radius where the material is in the piece's
+/// state (c_EOSSolution::resolve_zone_edges). The structure is still read at the radius asked for.
 struct c_EOSPiece
 {
     size_t layer_index = 0;
     size_t segment_index = 0;
     double radius_lower = 0.0;   // [solve units], the units its integration ran in
     double radius_upper = 0.0;
+    double material_lower = TidalPyConstants::d_NAN;   // [solve units]; NaN reads the material at radius_lower
+    double material_upper = TidalPyConstants::d_NAN;   // [solve units]; NaN reads the material at radius_upper
     bool liquid = false;         // solved as a liquid by the radial solver
     // The temperature of an isothermal segment [K], which a solve that does not integrate temperature reports.
     double temperature = TidalPyConstants::d_NAN;
+};
+
+
+/// The state of the zone a dense read belongs to. A radius on the boundary between a layer's solid and liquid zones
+/// belongs to both, and each zone reads its own side of the change there; Any reads the lower zone's.
+enum class c_ZoneState : int
+{
+    Any    = -1,
+    Solid  = 0,
+    Liquid = 1,
 };
 
 
@@ -290,20 +313,79 @@ public:
     }
 
     /// The piece of a layer that holds a radius: the first whose top is at or above it, so a radius on the boundary
-    /// between two pieces belongs to the lower one. The structure is continuous across that boundary and the material
-    /// is read at its pressure and temperature, so either piece gives the same values there. The layer's last piece
-    /// takes anything above it (and p_call_piece refuses a radius past its top); SIZE_MAX for a layer with none.
-    size_t piece_index(const size_t layer_index, const double radius_val) const noexcept
+    /// between two pieces belongs to the lower one. The layer's last piece takes anything above it (and p_call_piece
+    /// refuses a radius past its top); SIZE_MAX for a layer with none. The structure is continuous across a boundary,
+    /// but the material changes across one between a solid and a liquid zone, so a read for one zone (zone_state)
+    /// takes the neighbor in that state when the radius lies on such a boundary, within the layer continuity
+    /// tolerance.
+    size_t piece_index(
+        const size_t layer_index,
+        const double radius_val,
+        const c_ZoneState zone_state = c_ZoneState::Any) const noexcept
     {
         if (layer_index >= this->num_pieces_bylayer_vec.size()) { return static_cast<size_t>(-1); }
         const size_t first = this->first_piece_bylayer_vec[layer_index];
         const size_t count = this->num_pieces_bylayer_vec[layer_index];
         if (count == 0) { return static_cast<size_t>(-1); }
+        size_t found = first + count - 1;
         for (size_t offset = 0; offset < count - 1; ++offset)
         {
-            if (radius_val <= this->piece_vec[first + offset].radius_upper) { return first + offset; }
+            if (radius_val <= this->piece_vec[first + offset].radius_upper)
+            {
+                found = first + offset;
+                break;
+            }
         }
-        return first + count - 1;
+        if (zone_state == c_ZoneState::Any) { return found; }
+        const bool want_liquid = (zone_state == c_ZoneState::Liquid);
+        if (this->piece_vec[found].liquid == want_liquid) { return found; }
+        const double end_rtol = tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0;
+        const double slack    = end_rtol * std::abs(radius_val);
+        if ((found + 1 < first + count) && (this->piece_vec[found + 1].liquid == want_liquid)
+            && (radius_val >= this->piece_vec[found + 1].radius_lower - slack))
+        {
+            return found + 1;
+        }
+        if ((found > first) && (this->piece_vec[found - 1].liquid == want_liquid)
+            && (radius_val <= this->piece_vec[found - 1].radius_upper + slack))
+        {
+            return found - 1;
+        }
+        return found;
+    }
+
+    /// Moves the material ends of every piece on a state root (c_EOSPiece::material_lower, material_upper) inside the
+    /// piece, to the nearest radius where the layer's state event reads the piece's own state. The event's root
+    /// finder (CyRK's BrentQ, to about 4 machine epsilon) stops on either side of the change, so the material read at a
+    /// root can be the neighbor's: a step melting curve reads solid there, and the liquid zone below an ice shell
+    /// would take the ice's density at its top. The search steps inward from that tolerance, doubling, up to half the
+    /// piece; an end whose material already reads in its piece's state, or for which the search finds none, stays.
+    /// Call once the pieces, their integrations, and the EOS inputs are saved.
+    ///
+    /// Parameters
+    /// ----------
+    /// state_event_bylayer : Each layer's state event (the rigidity margin, positive where solid); null for a layer
+    ///     that cannot change state.
+    void resolve_zone_edges(const std::vector<EventFunc>& state_event_bylayer) noexcept
+    {
+        for (c_EOSPiece& piece : this->piece_vec)
+        {
+            piece.material_lower = piece.radius_lower;
+            piece.material_upper = piece.radius_upper;
+        }
+        for (size_t piece_i = 0; piece_i + 1 < this->piece_vec.size(); ++piece_i)
+        {
+            const c_EOSPiece& below = this->piece_vec[piece_i];
+            const c_EOSPiece& above = this->piece_vec[piece_i + 1];
+            const size_t layer_i    = below.layer_index;
+            if ((above.layer_index != layer_i) || (below.liquid == above.liquid)) { continue; }
+            if ((layer_i >= state_event_bylayer.size()) || (state_event_bylayer[layer_i] == nullptr)) { continue; }
+            if (layer_i >= this->eos_input_bylayer_vec.size()) { continue; }
+            this->piece_vec[piece_i].material_upper =
+                this->p_find_material_end(piece_i, state_event_bylayer[layer_i], true);
+            this->piece_vec[piece_i + 1].material_lower =
+                this->p_find_material_end(piece_i + 1, state_event_bylayer[layer_i], false);
+        }
     }
 
     /// The base of a layer as solved [solve units; SI once re-dimensionalized]: the top of the layer below it.
@@ -418,18 +500,49 @@ protected:
             this->cysolver_results_uptr_vec[piece_i].get(), radius_val, state_out, C_EOS_THERMAL_Y_VALUES);
     }
 
+    /// The radius at which a piece's material is read at one end (at_top: its top, else its base), for
+    /// resolve_zone_edges: the end itself when the state event reads the piece's own state there, else the nearest
+    /// radius inside the piece that does, stepping inward from the root finder's tolerance and doubling, up to half the
+    /// piece. The end when no such radius is found.
+    double p_find_material_end(const size_t piece_i, EventFunc state_event, const bool at_top) const noexcept
+    {
+        const c_EOSPiece& piece = this->piece_vec[piece_i];
+        const double end_radius = at_top ? piece.radius_upper : piece.radius_lower;
+        // The event takes non-const pointers but leaves the input unchanged.
+        char* input_ptr = const_cast<char*>(
+            reinterpret_cast<const char*>(&this->eos_input_bylayer_vec[piece.layer_index]));
+        double state_arr[C_EOS_THERMAL_Y_VALUES];
+        const auto reads_own_state = [&](double radius) {
+            if (!this->p_call_piece(piece_i, radius, &state_arr[0])) { return false; }
+            const bool reads_liquid = !(state_event(radius, &state_arr[0], input_ptr) > 0.0);
+            return reads_liquid == piece.liquid;
+        };
+        if (reads_own_state(end_radius)) { return end_radius; }
+        const double half_span = 0.5 * (piece.radius_upper - piece.radius_lower);
+        const double direction = at_top ? -1.0 : 1.0;
+        for (double step = C_EOS_ZONE_EDGE_FIRST_STEP * TidalPyConstants::d_EPS * std::max(std::abs(end_radius), 1.0);
+             step <= half_span; step *= 2.0)
+        {
+            const double radius = end_radius + direction * step;
+            if (reads_own_state(radius)) { return radius; }
+        }
+        return end_radius;
+    }
+
     /// No rescaling: the four structure variables from the dense output, then the density, moduli, and
-    /// viscosities from the layer's EOS function at that state. The extra outputs are NaN when no EOS
-    /// function was saved.
+    /// viscosities from the layer's EOS function at that state, read for the zone zone_state names (piece_index).
+    /// The material is read inside the piece's material ends (c_EOSPiece), the structure at the radius asked for. The
+    /// extra outputs are NaN when no EOS function was saved.
     void p_evaluate_solver(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr,
-        c_EOSMaterialState* material_out = nullptr) const
+        c_EOSMaterialState* material_out = nullptr,
+        const c_ZoneState zone_state = c_ZoneState::Any) const
     {
         // The integrator writes num_y_solved values into a buffer of its own, and the structure variables
         // are copied out: the evaluation layout uses slots 4 and 5 for the density and the shear modulus.
-        const size_t piece_i = this->piece_index(layer_index, radius_val);
+        const size_t piece_i = this->piece_index(layer_index, radius_val, zone_state);
         double state_arr[C_EOS_THERMAL_Y_VALUES];
         const bool state_found = this->p_call_piece(piece_i, radius_val, &state_arr[0]);
         if (!state_found)
@@ -470,6 +583,31 @@ protected:
         if (layer_index < this->eos_function_bylayer_vec.size()
             && this->eos_function_bylayer_vec[layer_index] != nullptr)
         {
+            // Only within the root finder's tolerance of a state root does the material radius differ from the
+            // (clamped) radius asked for, and then the material is read at the structure state there.
+            const c_EOSPiece& piece = this->piece_vec[piece_i];
+            const double clamped_radius = std::min(std::max(radius_val, piece.radius_lower), piece.radius_upper);
+            double material_radius = clamped_radius;
+            if (std::isfinite(piece.material_lower))
+            {
+                material_radius = std::max(material_radius, piece.material_lower);
+            }
+            if (std::isfinite(piece.material_upper))
+            {
+                material_radius = std::min(material_radius, piece.material_upper);
+            }
+            double material_state_arr[C_EOS_THERMAL_Y_VALUES];
+            double* material_state_ptr = &state_arr[0];
+            if ((material_radius != clamped_radius)
+                && this->p_call_piece(piece_i, material_radius, &material_state_arr[0]))
+            {
+                material_state_ptr = &material_state_arr[0];
+            }
+            else
+            {
+                material_radius = radius_val;
+            }
+
             c_EOSOutput eos_output;
             // The EOS functions take non-const pointers but leave this solution unchanged.
             char* input_ptr = const_cast<char*>(
@@ -477,7 +615,7 @@ protected:
             // The EOS function reads the state layout, where a thermal solve keeps its temperature at index
             // 4; in the evaluation layout that slot is the density this call is about to fill.
             this->eos_function_bylayer_vec[layer_index](
-                reinterpret_cast<char*>(&eos_output), radius_val, &state_arr[0], input_ptr);
+                reinterpret_cast<char*>(&eos_output), material_radius, material_state_ptr, input_ptr);
             y_interp_ptr[C_EOS_DENSITY_INDEX]         = eos_output.density;
             y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = eos_output.shear_modulus.real();
             y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = eos_output.bulk_modulus.real();
@@ -568,11 +706,14 @@ public:
 
     /// Every EOS output at one radius in solve units, in the evaluation layout of eos_layout_.hpp. A
     /// re-dimensionalized solution returns SI for all but the viscosities, which are SI in every state.
-    /// Frequency independent throughout; a viscoelastic response comes from call_material.
+    /// Frequency independent throughout; a viscoelastic response comes from call_material. zone_state picks the
+    /// zone a radius on a solid-liquid zone boundary is read for (piece_index); a provider ignores it, since the
+    /// layer index it is given already names a zone.
     void call_nondim(
         const size_t layer_index,
         const double radius_val,
-        double* y_interp_ptr) const
+        double* y_interp_ptr,
+        const c_ZoneState zone_state = c_ZoneState::Any) const
     {
         // Provider mode: this solution stores no grid at all, and the provider answers in SI at the exact
         // radius asked for. Only frequency-independent values belong in this layout; the provider's
@@ -590,7 +731,7 @@ public:
         {
             throw std::out_of_range("Layer index out of range.");
         }
-        this->p_evaluate_solver(layer_index, radius_val, y_interp_ptr);
+        this->p_evaluate_solver(layer_index, radius_val, y_interp_ptr, nullptr, zone_state);
         this->p_rescale_outputs(y_interp_ptr, C_EOS_DY_VALUES);
     }
 
@@ -663,9 +804,13 @@ public:
 
 
     /// `call_nondim` for an SI radius [m].
-    void call_si(const size_t layer_index, const double radius_si, double* y_interp_ptr) const
+    void call_si(
+        const size_t layer_index,
+        const double radius_si,
+        double* y_interp_ptr,
+        const c_ZoneState zone_state = c_ZoneState::Any) const
     {
-        this->call_nondim(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
+        this->call_nondim(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr, zone_state);
     }
 
 

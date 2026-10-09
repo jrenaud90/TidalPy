@@ -1,14 +1,20 @@
 # TRAPPIST-1e: a two-layer rocky planet. Mass and radius from Agol et al. (2021): 0.692 Earth masses, 0.92 Earth radii
 # (mean density 4900 kg/m3). Orbital period 6.101013 days, a = 0.02925 AU.
-# All seven planets share one recipe: an incompressible iron core at Earth's mean core density (10900 kg/m3) under a
-# Birch-Murnaghan silicate mantle at earth_simple's reference density (3516.322 kg/m3).
+# All seven planets share one recipe, a constant-density liquid iron core at Earth's mean core density (10900 kg/m3)
+# under a Birch-Murnaghan silicate mantle at earth_simple's reference density (3516.322 kg/m3).
 # Fitted: core radius 2735.6 km (0.4667 of the radius) to the mass. Core mass fraction 0.2262, 0.64 times Earth's
 # 0.354 by the same recipe: iron-depleted, as Agol et al. (2021) conclude. The recipe overstates Earth's (accepted
 # 0.325), so treat absolute core fractions with caution.
 # g = 8.0289 m/s2, central pressure 231 GPa. C/MR2 = 0.34495 is a model output; none is measured for TRAPPIST-1.
-# Temperatures and viscosities are nominal Earth-like values (core 4000 K, 1e20 Pa s; Andrade mantle 1600 K,
-# 1e21 Pa s) with nothing to constrain them. Set the mantle viscosity before trusting any dissipation number.
-# Spin is synchronous with the orbit. With e = 0.00632 (Agol et al. 2021) the mantle takes 99.8 percent of the tidal
+# Temperatures and viscosities are nominal Earth-like values (core 4000 K; Andrade mantle 1600 K, 1e21 Pa s) with
+# nothing to constrain them. Set the mantle viscosity before trusting any dissipation number. The mantle shear
+# modulus, 6e10 Pa, is nominal too (earth_simple's mantle has 2.2e11 Pa), and k2 depends on it strongly.
+# The core is liquid for a numerical reason, not because iron melts at 4000 K and these pressures (in the larger
+# planets it would likely be solid). A solid iron core (1e20 Pa s) relaxes like a fluid at forcing frequencies below
+# about 1e-14 rad/s and leaves the Love solve singular there.
+# k2 = 0.442, Q = 193 at the orbital period. With the temperature solved under its 228 K equilibrium surface,
+# the mantle's lower boundary layer reaches the core's 4000 K and Q = 28.
+# Spin is synchronous with the orbit. With e = 0.00632 (Agol et al. 2021) the mantle takes all of the tidal
 # heating. Add the planet and its star to a System to give it an orbit.
 schema_version = "0.2.0"
 name = "TRAPPIST-1e"
@@ -24,33 +30,19 @@ solve_temperature = false
 [layers.core]
 layer_index = 0
 radius_outer_m = 2735628.7           # fitted to the published mass
-use_tides = true
+use_tides = false
 temperature_k = 4000.0
-use_heating = true
 
-[layers.core.material.solid]
+# Liquid-only material, so the core is a static fluid (liquid for a numerical reason; see the header).
+[layers.core.material.liquid]
 thermal_conductivity_w_mk = 7.95
 heat_capacity_j_kgk = 840.0
 
-[layers.core.material.solid.eos]
+[layers.core.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 10900.0     # Earth's mean core density
 bulk_modulus_pa = 1.6e11
 thermal_expansion_1_k = 1.2e-5
-
-[layers.core.material.solid.shear_modulus]
-model = "constant"
-shear_modulus_pa = 5.25e10
-
-[layers.core.material.solid.shear_viscosity]
-model = "reference"
-reference_viscosity_pas = 1.0e20
-reference_temperature_k = 4000.0
-molar_activation_energy_j_mol = 3.0e5
-molar_activation_volume_m3_mol = 0.0
-
-[layers.core.shear_rheology]
-model = "maxwell"
 
 [layers.mantle]
 layer_index = 1

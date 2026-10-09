@@ -8,6 +8,9 @@
 # crust 33.98 km to C/MR2 = 0.39312; mantle rigidity 6.385106e10 Pa to k2 = 0.02422 at 27.3217 days.
 # The zone is unchanged from luna.toml and still gives Q = 37.9 at the month and 41.0 at the year.
 # At the default solver tolerances the yearly k2 is within 3e-4; tighten rtol and atol together for longer periods.
+# With the temperature solved, the default tolerances give a negative monthly Q and an unphysical yearly k2
+# (-0.54+0.09j) while love_success stays True. The monthly k2 then needs rtol = 1e-10 (atol 1e-13), so use this world
+# isothermal (as pinned below) or tighten the radial tolerance.
 # Temperatures, viscosities, and spin are as in luna.toml.
 schema_version = "0.2.0"
 name = "Luna-Dynamic"
@@ -182,7 +185,7 @@ isotopes = "modern_day_chondritic"
 layer_index = 4
 radius_fraction = 1.0
 use_tides = true
-temperature_k = 250.0
+temperature_k = 400.0
 use_heating = true
 
 [layers.crust.material.solid]
@@ -198,10 +201,11 @@ thermal_expansion_1_k = 5.2e-5
 model = "constant"
 shear_modulus_pa = 4.0e10             # anorthositic crust
 
+# Silicate creep referenced to the upper mantle (1e21 Pa s at 1600 K), elastic at crustal temperatures.
 [layers.crust.material.solid.shear_viscosity]
 model = "reference"
-reference_viscosity_pas = 1.0e25      # elastic in effect
-reference_temperature_k = 250.0
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
