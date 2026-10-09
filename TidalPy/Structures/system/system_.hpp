@@ -200,7 +200,12 @@ struct c_PairEvolution {
     double energy_residual     = 0.0;  // heating_total + dE_orbit_dt + dE_spin_dt_total (~0 conserved)
 };
 
+// The pair evolution driver (evolution_.hpp) solves each body's tide through p_dissipation and p_evolution.
+class c_PairEvolver;
+
 class c_System : public c_TidalPyBaseClass, public c_TideStateProvider {
+    friend class c_PairEvolver;
+
 public:
     c_System() = default;
     explicit c_System(const std::string& name) : p_name(name) {}

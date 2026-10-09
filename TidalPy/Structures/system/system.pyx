@@ -12,9 +12,13 @@ indexing (``system[i]``), and attribute access (``system.<world_name>``).
 import copy
 import operator
 import os
+from collections.abc import Mapping
 from numbers import Integral
 
+import numpy as np
+
 from libc.math cimport NAN, isfinite
+from libc.string cimport memcpy
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 from libcpp.memory cimport make_unique
@@ -29,7 +33,6 @@ from TidalPy.Structures.worlds.base cimport BaseWorld, cy_set_world_configs, cy_
 from TidalPy.Structures.worlds.terrestrial cimport TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant cimport GasGiantWorld
 from TidalPy.Structures.worlds.stellar cimport StarWorld
-from TidalPy.Structures.system.evolution import evolve_pair
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -144,6 +147,566 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair, c_System* system_ptr):
         'energy_residual':     pair.energy_residual,
         'worlds':              worlds,
     }
+
+
+# ======================================================================================================================
+# System.evolve results and the spin-root tools
+# ======================================================================================================================
+# The mode names of c_SpinMode, by value.
+SPIN_MODE_NAMES = ("rigid", "free", "approach", "tracked")
+
+
+# A copy of a C++ vector of doubles as a numpy array.
+cdef object cy_double_array(const vector[double]& values):
+    cdef object out = np.empty(values.size(), dtype=np.float64)
+    cdef double[::1] out_view = out
+    if values.size() > 0:
+        memcpy(&out_view[0], values.data(), values.size() * sizeof(double))
+    return out
+
+
+cdef dict cy_segment_to_dict(const c_PairSegment& segment, tuple world_names):
+    cdef dict worlds = {}
+    cdef size_t b
+    cdef dict entry
+    cdef str mode
+    for b in range(segment.bodies.size()):
+        mode = SPIN_MODE_NAMES[segment.bodies[b].mode]
+        entry = {"mode": mode, "spin_ratio": segment.bodies[b].spin_ratio}
+        if mode == "tracked":
+            entry["root"] = segment.bodies[b].root
+            entry["window"] = (segment.bodies[b].window_lower, segment.bodies[b].window_upper)
+        elif mode == "approach":
+            entry["target"] = segment.bodies[b].target
+        elif mode == "free":
+            entry["reason"] = segment.bodies[b].reason.decode("utf-8")
+        worlds[world_names[b]] = entry
+    return {
+        "time": segment.time,
+        "ended": segment.ended.decode("utf-8") if segment.ended.size() > 0 else None,
+        "worlds": worlds,
+    }
+
+
+cdef class EvolutionResult:
+    """One world's evolution in a pair (:meth:`System.evolve`), at every step the integrator stored: a view of the C++
+    record, its arrays copied out on first access.
+
+    Attributes
+    ----------
+    world_name : str
+    time : np.ndarray
+        [s], shared with the pair.
+    semi_major_axis : np.ndarray
+        The shared orbit's semi-major axis [m].
+    eccentricity : np.ndarray
+        The shared orbit's eccentricity.
+    spin_ratio : np.ndarray
+        The world's spin frequency over the orbital motion.
+    spin_frequency : np.ndarray
+        [rad s-1]
+    tidal_heating : np.ndarray
+        The world's tidal heating [W].
+    da_dt, de_dt : np.ndarray
+        This world's contribution to the orbit's rates [m s-1], [s-1]; the pair's sums are on the
+        :class:`PairedEvolutionResult`.
+    dspin_dt : np.ndarray
+        The world's spin rate [rad s-2].
+    tracked : np.ndarray
+        True where the spin sat on an equilibrium.
+    temperature : np.ndarray or None
+        Each layer's temperature [K], shape (layers, steps); None when the world's thermal state was not evolved.
+    rigid : bool
+        The world has no tide model: it raises no tide and its spin frequency stays as it is.
+    num_tide_solves, num_eos_solves : int
+        This world's tide solves and EOS solves.
+    """
+    cdef shared_ptr[c_PairEvolutionRecord] _record
+    cdef size_t _body
+    cdef readonly str world_name
+    cdef tuple _world_names
+    cdef dict _arrays
+
+    def __init__(self):
+        raise TypeError("TidalPy: an EvolutionResult comes from System.evolve.")
+
+    @staticmethod
+    cdef EvolutionResult _wrap(shared_ptr[c_PairEvolutionRecord] record, size_t body, tuple world_names):
+        cdef EvolutionResult result = EvolutionResult.__new__(EvolutionResult)
+        result._record = record
+        result._body = body
+        result._world_names = world_names
+        result.world_name = world_names[body]
+        result._arrays = {}
+        return result
+
+    def __reduce__(self):
+        # Rebuilt from a copy of its pair's arrays (the segments stay with the pair).
+        return (evolution_result_from_state, (cy_record_state(self._record.get(), self._world_names, []),
+                                              self.world_name))
+
+    cdef object _array(self, str name):
+        cdef object array = self._arrays.get(name)
+        if array is not None:
+            return array
+        cdef c_PairEvolutionRecord* record = self._record.get()
+        cdef c_BodyEvolutionRecord* body = &record.bodies[self._body]
+        cdef size_t step_i
+        if name == "time":
+            array = cy_double_array(record.time)
+        elif name == "semi_major_axis":
+            array = cy_double_array(record.semi_major_axis)
+        elif name == "eccentricity":
+            array = cy_double_array(record.eccentricity)
+        elif name == "spin_ratio":
+            array = cy_double_array(body.spin_ratio)
+        elif name == "spin_frequency":
+            array = cy_double_array(body.spin_frequency)
+        elif name == "tidal_heating":
+            array = cy_double_array(body.tidal_heating)
+        elif name == "da_dt":
+            array = cy_double_array(body.da_dt)
+        elif name == "de_dt":
+            array = cy_double_array(body.de_dt)
+        elif name == "dspin_dt":
+            array = cy_double_array(body.dspin_dt)
+        elif name == "tracked":
+            array = np.zeros(body.tracked.size(), dtype=bool)
+            for step_i in range(body.tracked.size()):
+                array[step_i] = body.tracked[step_i] != 0
+        array.flags.writeable = False   # Shared by every read
+        self._arrays[name] = array
+        return array
+
+    @property
+    def time(self):
+        """Time of each stored step [s]."""
+        return self._array("time")
+
+    @property
+    def semi_major_axis(self):
+        """The shared orbit's semi-major axis [m]."""
+        return self._array("semi_major_axis")
+
+    @property
+    def eccentricity(self):
+        """The shared orbit's eccentricity."""
+        return self._array("eccentricity")
+
+    @property
+    def spin_ratio(self):
+        """The world's spin frequency over the orbital motion."""
+        return self._array("spin_ratio")
+
+    @property
+    def spin_frequency(self):
+        """The world's spin frequency [rad s-1]."""
+        return self._array("spin_frequency")
+
+    @property
+    def tidal_heating(self):
+        """The world's tidal heating [W]."""
+        return self._array("tidal_heating")
+
+    @property
+    def da_dt(self):
+        """The orbit's semi-major-axis rate [m s-1]."""
+        return self._array("da_dt")
+
+    @property
+    def de_dt(self):
+        """The orbit's eccentricity rate [s-1]."""
+        return self._array("de_dt")
+
+    @property
+    def dspin_dt(self):
+        """The world's spin rate [rad s-2]."""
+        return self._array("dspin_dt")
+
+    @property
+    def tracked(self):
+        """True where the spin sat on an equilibrium."""
+        return self._array("tracked")
+
+    @property
+    def temperature(self):
+        """Each layer's temperature [K], shape (layers, steps); None when the world's thermal state was not evolved."""
+        cdef c_BodyEvolutionRecord* body = &self._record.get().bodies[self._body]
+        if not body.thermal:
+            return None
+        cdef object array = self._arrays.get("temperature")
+        if array is None:
+            array = cy_double_array(body.temperature).reshape(
+                (self._record.get().time.size(), body.num_layers)).T.copy()
+            array.flags.writeable = False   # Shared by every read
+            self._arrays["temperature"] = array
+        return array
+
+    @property
+    def rigid(self) -> bool:
+        """The world has no tide model: it raises no tide and its spin frequency stays as it is."""
+        return True if self._record.get().bodies[self._body].rigid else False
+
+    @property
+    def num_tide_solves(self) -> int:
+        """This world's tide solves."""
+        return <long long>self._record.get().bodies[self._body].num_tide_solves
+
+    @property
+    def num_eos_solves(self) -> int:
+        """This world's EOS solves."""
+        return <long long>self._record.get().bodies[self._body].num_eos_solves
+
+    def __repr__(self):
+        return (f"EvolutionResult('{self.world_name}', steps={self._record.get().time.size()}, "
+                f"rigid={self.rigid}, thermal={self.temperature is not None})")
+
+
+cdef class PairedEvolutionResult:
+    """The evolution of a pair of worlds (:meth:`System.evolve`): a mapping of each world's name to its
+    :class:`EvolutionResult`, the world evolved first, then its partner, over one C++ record.
+
+    Attributes
+    ----------
+    world_names : tuple of str
+        The world evolved, then its partner.
+    time : np.ndarray
+        [s]
+    semi_major_axis : np.ndarray
+        [m]
+    eccentricity : np.ndarray
+    da_dt, de_dt, dn_dt : np.ndarray
+        The orbit's rates, both worlds' contributions summed [m s-1], [s-1], [rad s-2].
+    segments : list of dict
+        One entry per integration segment: its start ``time`` [s], ``ended`` (how it ended when it did not reach the
+        end: ``"event"`` or the failure; None otherwise), and ``worlds``, each world's ``mode`` (``"rigid"``,
+        ``"free"``, ``"approach"``, or ``"tracked"``) and ``spin_ratio`` at its start, with the ``root`` and
+        ``window`` of a tracked spin, the ``target`` of an approach, and the ``reason`` a spin is free.
+    success : bool
+        The run reached the end of its span and left the system at its final state.
+    message : str
+    elapsed : float
+        Wall-clock time [s].
+    num_tide_solves, num_eos_solves : int
+        Both worlds' tide and EOS solves.
+    """
+    cdef shared_ptr[c_PairEvolutionRecord] _record
+    cdef readonly tuple world_names
+    cdef dict _worlds
+    cdef dict _arrays
+    cdef list _segments
+
+    def __init__(self):
+        raise TypeError("TidalPy: a PairedEvolutionResult comes from System.evolve.")
+
+    @staticmethod
+    cdef PairedEvolutionResult _wrap(shared_ptr[c_PairEvolutionRecord] record, tuple world_names):
+        cdef PairedEvolutionResult result = PairedEvolutionResult.__new__(PairedEvolutionResult)
+        result._record = record
+        result.world_names = world_names
+        result._worlds = {
+            world_names[b]: EvolutionResult._wrap(record, b, world_names) for b in range(len(world_names))}
+        result._arrays = {}
+        result._segments = None
+        return result
+
+    cdef object _array(self, str name):
+        cdef object array = self._arrays.get(name)
+        if array is not None:
+            return array
+        cdef c_PairEvolutionRecord* record = self._record.get()
+        if name == "time":
+            array = cy_double_array(record.time)
+        elif name == "semi_major_axis":
+            array = cy_double_array(record.semi_major_axis)
+        elif name == "eccentricity":
+            array = cy_double_array(record.eccentricity)
+        elif name == "da_dt":
+            array = cy_double_array(record.da_dt)
+        elif name == "de_dt":
+            array = cy_double_array(record.de_dt)
+        elif name == "dn_dt":
+            array = cy_double_array(record.dn_dt)
+        array.flags.writeable = False   # Shared by every read
+        self._arrays[name] = array
+        return array
+
+    def __reduce__(self):
+        # Rebuilt from a copy of its arrays and segments.
+        return (paired_evolution_result_from_state,
+                (cy_record_state(self._record.get(), self.world_names, self.segments),))
+
+    # Mapping of world name to EvolutionResult
+    def __getitem__(self, world_name):
+        return self._worlds[world_name]
+
+    def __iter__(self):
+        return iter(self.world_names)
+
+    def __len__(self):
+        return len(self.world_names)
+
+    def __contains__(self, world_name):
+        return world_name in self._worlds
+
+    def keys(self):
+        return self._worlds.keys()
+
+    def values(self):
+        return self._worlds.values()
+
+    def items(self):
+        return self._worlds.items()
+
+    def get(self, world_name, default=None):
+        return self._worlds.get(world_name, default)
+
+    @property
+    def worlds(self) -> dict:
+        """World name to :class:`EvolutionResult`."""
+        return dict(self._worlds)
+
+    @property
+    def time(self):
+        """Time of each stored step [s]."""
+        return self._array("time")
+
+    @property
+    def semi_major_axis(self):
+        """The shared orbit's semi-major axis [m]."""
+        return self._array("semi_major_axis")
+
+    @property
+    def eccentricity(self):
+        """The shared orbit's eccentricity."""
+        return self._array("eccentricity")
+
+    @property
+    def da_dt(self):
+        """The orbit's semi-major-axis rate [m s-1]."""
+        return self._array("da_dt")
+
+    @property
+    def de_dt(self):
+        """The orbit's eccentricity rate [s-1]."""
+        return self._array("de_dt")
+
+    @property
+    def dn_dt(self):
+        """The orbit's mean-motion rate, both worlds' contributions summed [rad s-2]."""
+        return self._array("dn_dt")
+
+    @property
+    def segments(self) -> list:
+        """One dict per integration segment (see the class)."""
+        cdef size_t i
+        if self._segments is None:
+            self._segments = [cy_segment_to_dict(self._record.get().segments[i], self.world_names)
+                              for i in range(self._record.get().segments.size())]
+        return self._segments
+
+    @property
+    def success(self) -> bool:
+        """The run reached the end of its span and left the system at its final state."""
+        return True if self._record.get().success else False
+
+    @property
+    def message(self) -> str:
+        """How the run ended."""
+        return self._record.get().message.decode("utf-8")
+
+    @property
+    def elapsed(self) -> float:
+        """Wall-clock time [s]."""
+        return self._record.get().elapsed
+
+    @property
+    def num_tide_solves(self) -> int:
+        """Both worlds' tide solves."""
+        return sum(result.num_tide_solves for result in self._worlds.values())
+
+    @property
+    def num_eos_solves(self) -> int:
+        """Both worlds' EOS solves."""
+        return sum(result.num_eos_solves for result in self._worlds.values())
+
+    def __repr__(self):
+        return (f"PairedEvolutionResult({self.world_names}, steps={self._record.get().time.size()}, "
+                f"success={self.success})")
+
+
+Mapping.register(PairedEvolutionResult)
+
+
+# A copy of a pair record's arrays, outcome, and segments as plain Python values.
+cdef dict cy_record_state(c_PairEvolutionRecord* record, tuple world_names, list segments):
+    cdef list bodies = []
+    cdef size_t b, step_i
+    cdef object tracked
+    for b in range(record.bodies.size()):
+        tracked = np.zeros(record.bodies[b].tracked.size(), dtype=np.uint8)
+        for step_i in range(record.bodies[b].tracked.size()):
+            tracked[step_i] = record.bodies[b].tracked[step_i]
+        bodies.append({
+            "world_index": <long long>record.bodies[b].world_index,
+            "rigid": bool(record.bodies[b].rigid),
+            "thermal": bool(record.bodies[b].thermal),
+            "num_layers": <long long>record.bodies[b].num_layers,
+            "spin_ratio": cy_double_array(record.bodies[b].spin_ratio),
+            "spin_frequency": cy_double_array(record.bodies[b].spin_frequency),
+            "tidal_heating": cy_double_array(record.bodies[b].tidal_heating),
+            "da_dt": cy_double_array(record.bodies[b].da_dt),
+            "de_dt": cy_double_array(record.bodies[b].de_dt),
+            "dspin_dt": cy_double_array(record.bodies[b].dspin_dt),
+            "tracked": tracked,
+            "temperature": cy_double_array(record.bodies[b].temperature),
+            "num_tide_solves": <long long>record.bodies[b].num_tide_solves,
+            "num_eos_solves": <long long>record.bodies[b].num_eos_solves,
+        })
+    return {
+        "world_names": world_names,
+        "time": cy_double_array(record.time),
+        "semi_major_axis": cy_double_array(record.semi_major_axis),
+        "eccentricity": cy_double_array(record.eccentricity),
+        "da_dt": cy_double_array(record.da_dt),
+        "de_dt": cy_double_array(record.de_dt),
+        "dn_dt": cy_double_array(record.dn_dt),
+        "success": bool(record.success),
+        "message": record.message.decode("utf-8"),
+        "elapsed": record.elapsed,
+        "segments": copy.deepcopy(segments),
+        "bodies": bodies,
+    }
+
+
+# Fills a C++ vector of doubles with a copy of an array.
+cdef void cy_fill_vector(vector[double]& values, object array):
+    cdef double[::1] array_view = np.ascontiguousarray(array, dtype=np.float64)
+    values.resize(array_view.shape[0])
+    if array_view.shape[0] > 0:
+        memcpy(values.data(), &array_view[0], array_view.shape[0] * sizeof(double))
+
+
+def paired_evolution_result_from_state(dict state) -> PairedEvolutionResult:
+    """A :class:`PairedEvolutionResult` rebuilt from a copy of its arrays and segments (unpickling and copies)."""
+    cdef shared_ptr[c_PairEvolutionRecord] record = c_new_pair_evolution_record()
+    cdef c_PairEvolutionRecord* record_ptr = record.get()
+    cdef size_t b, step_i
+    cdef dict body_state
+    cy_fill_vector(record_ptr.time, state["time"])
+    cy_fill_vector(record_ptr.semi_major_axis, state["semi_major_axis"])
+    cy_fill_vector(record_ptr.eccentricity, state["eccentricity"])
+    cy_fill_vector(record_ptr.da_dt, state["da_dt"])
+    cy_fill_vector(record_ptr.de_dt, state["de_dt"])
+    cy_fill_vector(record_ptr.dn_dt, state["dn_dt"])
+    record_ptr.success = <cpp_bool>bool(state["success"])
+    record_ptr.message = state["message"].encode("utf-8")
+    record_ptr.elapsed = <double>state["elapsed"]
+    for b in range(len(state["bodies"])):
+        body_state = state["bodies"][b]
+        record_ptr.bodies[b].world_index = <size_t>body_state["world_index"]
+        record_ptr.bodies[b].rigid = <cpp_bool>body_state["rigid"]
+        record_ptr.bodies[b].thermal = <cpp_bool>body_state["thermal"]
+        record_ptr.bodies[b].num_layers = <size_t>body_state["num_layers"]
+        cy_fill_vector(record_ptr.bodies[b].spin_ratio, body_state["spin_ratio"])
+        cy_fill_vector(record_ptr.bodies[b].spin_frequency, body_state["spin_frequency"])
+        cy_fill_vector(record_ptr.bodies[b].tidal_heating, body_state["tidal_heating"])
+        cy_fill_vector(record_ptr.bodies[b].da_dt, body_state["da_dt"])
+        cy_fill_vector(record_ptr.bodies[b].de_dt, body_state["de_dt"])
+        cy_fill_vector(record_ptr.bodies[b].dspin_dt, body_state["dspin_dt"])
+        cy_fill_vector(record_ptr.bodies[b].temperature, body_state["temperature"])
+        record_ptr.bodies[b].tracked.resize(len(body_state["tracked"]))
+        for step_i in range(len(body_state["tracked"])):
+            record_ptr.bodies[b].tracked[step_i] = <unsigned char>body_state["tracked"][step_i]
+        record_ptr.bodies[b].num_tide_solves = <size_t>body_state["num_tide_solves"]
+        record_ptr.bodies[b].num_eos_solves = <size_t>body_state["num_eos_solves"]
+    cdef PairedEvolutionResult result = PairedEvolutionResult._wrap(record, tuple(state["world_names"]))
+    result._segments = list(state["segments"])
+    return result
+
+
+def evolution_result_from_state(dict state, str world_name) -> EvolutionResult:
+    """An :class:`EvolutionResult` rebuilt from a copy of its pair's arrays (unpickling and copies)."""
+    return paired_evolution_result_from_state(state)[world_name]
+
+
+# A Python function of the spin ratio as a C++ balance; an error or a non-finite value is a failed probe.
+cdef double cy_call_balance(void* context_ptr, double spin_ratio) noexcept with gil:
+    try:
+        return float((<object>context_ptr)(spin_ratio))
+    except BaseException:
+        return NAN
+
+
+cdef dict cy_root_result_to_dict(c_SpinRootResult result):
+    return {
+        "lower": result.lower,
+        "upper": result.upper,
+        "spin_ratio": result.spin_ratio,
+        "balance": result.balance,
+        "num_probes": <long long>result.num_probes,
+    }
+
+
+def spin_search_points(double start, double center, moving_up, double finest):
+    """The spin ratios a capture test samples from ``start`` toward the far side of the commensurability ``center``
+    (up to 0.25 past it), in the order a spin moving that way (up when ``moving_up``) meets them, spaced by factors of
+    2 in their distance from ``center`` from ``finest`` out (:meth:`System.evolve`).
+
+    Returns
+    -------
+    np.ndarray
+    """
+    cdef vector[double] points = c_spin_search_points(start, center, <cpp_bool>bool(moving_up), finest)
+    return cy_double_array(points)
+
+
+def locate_spin_root(balance, double spin_ratio, double tolerance, double finest):
+    """The stable root of a spin balance that a spin at ``spin_ratio`` reaches (the capture test of
+    :meth:`System.evolve`): the first sign change of ``balance(s)`` in the direction it points, searched up to 0.25
+    past the nearest commensurability and bracketed to ``tolerance``.
+
+    Parameters
+    ----------
+    balance : callable
+        ds/dt as a function of the spin ratio; a non-finite value or an error is a failed probe, which is skipped.
+    spin_ratio, tolerance, finest : float
+        The start, the final bracket width, and the finest search offset about the commensurability [spin ratio].
+
+    Returns
+    -------
+    dict or None
+        The bracket (``lower``, ``upper``), the combination of its two sides that zeroes the balance (``spin_ratio``,
+        ``balance``), and ``num_probes``; None with no root ahead.
+    """
+    cdef c_SpinRootResult result = c_locate_callback_root(
+        cy_call_balance, <void*>balance, spin_ratio, tolerance, finest)
+    return cy_root_result_to_dict(result) if result.found else None
+
+
+def refine_spin_root(balance, double lower, double upper, double tolerance):
+    """Shrinks a bracket of a root of ``balance(s)`` (positive at ``lower``, negative at ``upper``) below ``tolerance``
+    by the Illinois method with a bisection fallback (:meth:`System.evolve`). Returns the dict of
+    :func:`locate_spin_root`."""
+    cdef c_SpinRootResult result = c_refine_callback_root(cy_call_balance, <void*>balance, lower, upper, tolerance)
+    return cy_root_result_to_dict(result)
+
+
+def build_spin_window(balance, double root_ratio, double resolution):
+    """The window that holds a tracked spin about the stable root ``root_ratio`` of ``balance(s)``
+    (:meth:`System.evolve`): edges stepping out from ``resolution`` by factors of 4 while the balance restores reliably
+    (beyond three times its noise at the root).
+
+    Returns
+    -------
+    dict or None
+        ``lower``, ``upper``, ``noise``, and ``num_probes``; None when a side has no reliably restoring point.
+    """
+    cdef c_SpinRootResult result = c_build_callback_window(cy_call_balance, <void*>balance, root_ratio, resolution)
+    if not result.found:
+        return None
+    return {"lower": result.lower, "upper": result.upper, "noise": result.noise,
+            "num_probes": <long long>result.num_probes}
 
 
 # The configurations a copy or a pickle of a system carries over: its own and each member world's.
@@ -704,7 +1267,6 @@ cdef class System:
             time_span,
             *,
             evolve_thermal=True,
-            surface_temperature=None,
             orbit_rtol=1.0e-9,
             thermal_rtol=1.0e-4,
             spin_rtol=1.0e-4,
@@ -714,37 +1276,38 @@ cdef class System:
             root_tolerance=1.0e-10,
             resolution=1.0e-8,
             max_wall_time=None):
-        """Evolve a world and its tidal host over a time span, the world's spin tracking its spin-orbit equilibria.
+        """Evolve a world and its tidal host together over a time span, each spin tracking its spin-orbit equilibria.
 
-        Integrates the shared orbit (a, e), the host's spin, the world's spin, and, with ``evolve_thermal``, the
-        temperature of each of the world's layers, with both bodies raising tides (:meth:`calc_pair_evolution`) and
-        CyRK's LSODA. Near a stable spin-orbit equilibrium the world's spin relaxes onto it within years to kyr while
-        the orbit and the interior change over Myr to Gyr, so the spin is integrated only between equilibria (*free*);
-        on one (*tracked*) it is set to the equilibrium of each state, found by a root search of the spin balance, and
-        the rates are the combination of the two sides of that root that zeroes it. Captures, the windows that hold a
-        tracked spin, and releases (an equilibrium vanishing with its unstable neighbor) are integration events. See
-        :mod:`TidalPy.Structures.system.evolution` and the System documentation.
+        The pair is ``world`` and its tidal host (usually each the other's), and the two are treated alike. Integrates
+        their shared orbit (a, e), both spins, and, with ``evolve_thermal``, the temperature of every layer of each
+        world that has layers, with both bodies raising tides (:meth:`calc_pair_evolution`) and CyRK's LSODA, all in
+        C++. A world with no tide model is rigid: its spin frequency stays as it is. Near a stable spin-orbit
+        equilibrium a spin relaxes onto it within years to kyr while the orbit and the interiors change over Myr to
+        Gyr, so each spin is integrated only between equilibria (*free*); on one (*tracked*) it is set to the
+        equilibrium of each state, found by a root search of its balance, and its rates are the combination of the two
+        sides of that root that zeroes it. Captures, the windows that hold a tracked spin, and releases (an
+        equilibrium vanishing with its unstable neighbor) are integration events. A world's tide does not depend on
+        the other's spin, so it is solved again only when its own spin moves. See the System documentation.
 
         The orbit, the spins, and the temperatures start from the system's current state, and the system is left at
-        the final one. With ``evolve_thermal``, every rate evaluation at a new state solves the world's EOS with its
-        temperature profile (``solve_temperature``), its heat sources at the integration time, and its layers warming
+        the final one. With ``evolve_thermal``, every rate evaluation at a new state solves each thermal world's EOS
+        with its temperature profile (``solve_temperature``), its surface at its insolation temperature from the
+        system (no flow through it without a star), its heat sources at the integration time, and its layers warming
         at :meth:`calc_layer_temperature_rate <TidalPy.Structures.worlds.BaseWorld.calc_layer_temperature_rate>`;
-        without it the world keeps the structure it has (solve its EOS first). The host's spin is always free.
+        without it each world keeps the structure it has (solve its EOS first). A layer that can change state melts
+        and freezes inside its own radii.
 
         Parameters
         ----------
         world : int or str or BaseWorld
-            The orbiting world; it needs a tidal host and a prograde spin.
+            One world of the pair; it needs a tidal host.
         time_span : tuple of float
             (start, end) [s]; the start is also the heat sources' clock.
         evolve_thermal : bool, optional
-            Evolve the layer temperatures and re-solve the EOS at every state. Default True.
-        surface_temperature : float, optional
-            Temperature [K] the world's surface radiates to. None (default) takes the system's insolation equilibrium
-            temperature when it has a star, else leaves no flow through the surface.
+            Evolve the layer temperatures of each world with layers and re-solve its EOS at every state. Default True.
         orbit_rtol : float, optional
-            Relative tolerance on a / a0, e, and the host's spin. The orbit changes by fractions of a percent over Gyr,
-            so it needs a tight one. Default 1e-9.
+            Relative tolerance on a / a0 and e. The orbit changes by fractions of a percent over Gyr, so it needs a
+            tight one. Default 1e-9.
         thermal_rtol, spin_rtol : float, optional
             Relative tolerances on the layer temperatures and on a free spin ratio. Default 1e-4.
         atol : float, optional
@@ -763,41 +1326,51 @@ cdef class System:
 
         Returns
         -------
-        EvolutionResult
-            The state at every integration step (time, semi-major axis, eccentricity, spin ratio and frequency, the
-            host's spin, layer temperatures, the world's tidal heating, and whether the spin was tracked), the
-            segments, and the counts of tide and EOS solves.
+        PairedEvolutionResult
+            A mapping of each world's name (``world`` first) to its :class:`EvolutionResult` (spin ratio and frequency,
+            tidal heating, its contributions to da/dt and de/dt, its dspin/dt, layer temperatures, and whether its spin
+            was tracked, at every stored step), with the shared time, semi-major axis, eccentricity, and summed rates,
+            the segments, and the outcome.
 
         Raises
         ------
         ValueError
-            The world has no tidal host or no prograde spin, the span is not increasing, with ``evolve_thermal`` the
-            world has no layers or a layer temperature that is not finite and positive, or the capture settings are out
-            of order (root_tolerance < resolution < capture_margin <= capture_band < 0.25 is required).
+            The world has no tidal host or no usable orbit about it, a dissipating world's spin is not finite and at
+            least zero, the span is not increasing, with ``evolve_thermal`` a world with layers has a layer temperature
+            that is not finite and positive, a tolerance is not positive, or the capture settings are out of order
+            (root_tolerance < resolution < capture_margin <= capture_band < 0.25 is required).
 
         Assumptions
         -----------
         * A tracked spin sits exactly on its equilibrium; the neglected lag is its relaxation time over the evolution
           time.
-        * The world has no permanent (triaxial) figure; its spin follows the tidal torques alone.
+        * The worlds have no permanent (triaxial) figure and no rotational flattening; their spins follow the tidal
+          torques alone.
+        * Layer boundaries are fixed.
         """
-        if not isinstance(world, BaseWorld):
-            world = self._world_wrappers[self._resolve_index(world)]
-        return evolve_pair(
-            self,
-            world,
-            time_span,
-            evolve_thermal=evolve_thermal,
-            surface_temperature=surface_temperature,
-            orbit_rtol=orbit_rtol,
-            thermal_rtol=thermal_rtol,
-            spin_rtol=spin_rtol,
-            atol=atol,
-            capture_band=capture_band,
-            capture_margin=capture_margin,
-            root_tolerance=root_tolerance,
-            resolution=resolution,
-            max_wall_time=max_wall_time)
+        cdef size_t index = <size_t>self._resolve_index(world)
+        start, end = time_span
+        cdef double t_start = <double>start
+        cdef double t_end = <double>end
+        cdef c_PairEvolveSettings settings
+        settings.evolve_thermal = <cpp_bool>bool(evolve_thermal)
+        settings.orbit_rtol     = <double>orbit_rtol
+        settings.thermal_rtol   = <double>thermal_rtol
+        settings.spin_rtol      = <double>spin_rtol
+        settings.atol           = <double>atol
+        settings.capture_band   = <double>capture_band
+        settings.capture_margin = <double>capture_margin
+        settings.root_tolerance = <double>root_tolerance
+        settings.resolution     = <double>resolution
+        settings.max_wall_time  = NAN if max_wall_time is None else <double>max_wall_time
+        cdef shared_ptr[c_PairEvolutionRecord] record
+        with nogil:
+            record = c_evolve_pair(self._system.get(), index, t_start, t_end, settings)
+        cdef size_t b
+        cdef tuple world_names = tuple(
+            cy_world_name(self._system.get(), record.get().bodies[b].world_index)
+            for b in range(record.get().bodies.size()))
+        return PairedEvolutionResult._wrap(record, world_names)
 
     @property
     def config(self):
