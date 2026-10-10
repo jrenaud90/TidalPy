@@ -18,9 +18,10 @@ on:
     types:
       - published
 
-# Supersede an in-progress manual run of the same ref, but never interrupt a release build part way through.
+# Supersede an in-progress manual run of the same ref, but never interrupt a release build part way through. The
+# event name keeps a manual run on a release tag out of that release's group, where it would cancel the release.
 concurrency:
-  group: build-wheels-${{ github.ref }}
+  group: build-wheels-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
 
 # Nothing here writes to the repository; the upload job authenticates to PyPI with its own token.
