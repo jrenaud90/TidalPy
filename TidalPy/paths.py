@@ -1,10 +1,20 @@
 import os
+import tempfile
+import warnings
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from platformdirs import user_documents_dir
 
 from . import version
+
+# Environment variable naming the directory that holds TidalPy's data directories, in place of
+# ``<user documents>/TidalPy``. Useful where the home directory is read-only (HPC nodes, containers, sandboxed CI).
+DATA_DIR_ENVIRONMENT_VARIABLE = "TIDALPY_DATA_DIR"
+
+# Data directories already reported as unusable, so each is warned about once per session.
+_WARNED_UNUSABLE_DATA_DIRS: set = set()
 
 
 def get_data_version() -> str:
@@ -19,7 +29,7 @@ def get_data_version() -> str:
     Returns
     -------
     str
-        A version label of the form ``"<major>.<minor>.X"`` (e.g. ``"0.7.X"``).
+        A version label of the form ``"<major>.<minor>.X"`` (e.g. ``"0.8.X"``).
     """
     parts = str(version).split(".")
     # Keep only the leading integer of each component (handles tags like "8b1").
@@ -28,31 +38,125 @@ def get_data_version() -> str:
     return f"{major or '0'}.{minor or '0'}.X"
 
 
+def get_data_dir() -> str:
+    """ The version-scoped TidalPy data directory, which holds ``Config``, ``Logs``, ``Worlds``, and ``Materials``.
+
+    ``<TIDALPY_DATA_DIR>/<data version>`` when the ``TIDALPY_DATA_DIR`` environment variable is set, otherwise
+    ``<user documents>/TidalPy/<data version>``. The directory is not created here.
+
+    Returns
+    -------
+    str
+        The data directory's path.
+    """
+    base_dir = os.environ.get(DATA_DIR_ENVIRONMENT_VARIABLE, "").strip()
+    if not base_dir:
+        base_dir = os.path.join(user_documents_dir(), "TidalPy")
+    # Absolute, so a relative TIDALPY_DATA_DIR does not move with the working directory during a session.
+    return os.path.join(os.path.abspath(os.path.expanduser(base_dir)), get_data_version())
+
+
+def warn_unusable_data_dir(reason) -> None:
+    """ Warn, once per session and data directory, that TidalPy runs without its data directory.
+
+    Parameters
+    ----------
+    reason : object
+        Why the directory cannot be used (usually the ``OSError`` raised), quoted in the warning.
+    """
+    data_dir = get_data_dir()
+    if data_dir in _WARNED_UNUSABLE_DATA_DIRS:
+        return
+    _WARNED_UNUSABLE_DATA_DIRS.add(data_dir)
+    warnings.warn(
+        f"TidalPy cannot use its data directory {data_dir} ({reason}), so it runs without one: the packaged default "
+        "configuration is used in place of TidalPy_Configs.toml, no log file is written there, and the bundled "
+        f"worlds are read from the package. Set the {DATA_DIR_ENVIRONMENT_VARIABLE} environment variable to a "
+        "writable directory to keep a data directory.",
+        stacklevel=2)
+
+
+def _data_sub_dir(name: str) -> Optional[str]:
+    """ ``<data directory>/<name>``, created if absent; None, with a one-time warning, when it cannot be created. """
+    directory = os.path.join(get_data_dir(), name)
+    # Checked before creating, which costs ten times more: the packs ask for their directory on every lookup.
+    if os.path.isdir(directory):
+        return directory
+    try:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        warn_unusable_data_dir(error)
+        return None
+    return directory
+
+
+def write_file_atomically(path: str, contents: bytes, keep_existing: bool = False) -> None:
+    """ Write ``contents`` to ``path`` so that no reader ever sees a partial file.
+
+    The bytes go to a temporary file in the same directory, which then replaces ``path`` in one step. Several
+    processes starting together on a fresh data directory (``pytest -n``, a process pool, an array job) can then all
+    install the same default file while others read it.
+
+    Parameters
+    ----------
+    path : str
+        The file to write.
+    contents : bytes
+        Its full contents.
+    keep_existing : bool, default=False
+        Leave a file that already exists alone. A file another process creates in the meantime is kept as well,
+        including when it is open there (Windows refuses to replace an open file).
+
+    Raises
+    ------
+    OSError
+        If the file cannot be written and does not exist afterward.
+    """
+    if keep_existing and os.path.isfile(path):
+        return
+    directory = os.path.dirname(os.path.abspath(path))
+    handle, temporary_path = tempfile.mkstemp(dir=directory, prefix=".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as temporary_file:
+            temporary_file.write(contents)
+        try:
+            os.replace(temporary_path, path)
+        except OSError:
+            if not os.path.isfile(path):
+                raise
+            # Another process wrote the file first and holds it open; its copy is as good as this one.
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
 # TidalPy directories
-def get_config_dir() -> str:
-    """ TidalPy directory containing global configurations. """
-    config_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Config')
-    # Create directory if it does not exist
-    Path(config_dir).mkdir(parents=True, exist_ok=True)
-    return config_dir
+def get_config_dir() -> Optional[str]:
+    """ TidalPy directory containing global configurations; None when it cannot be created. """
+    return _data_sub_dir('Config')
 
-def get_log_dir() -> str:
-    """ TidalPy directory containing log files. """
-    log_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Logs')
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    return log_dir
+def get_log_dir() -> Optional[str]:
+    """ TidalPy directory containing log files; None when it cannot be created. """
+    return _data_sub_dir('Logs')
 
-def get_worlds_dir() -> str:
-    """ TidalPy directory containing configurations for various pre-built worlds. """
-    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds')
-    Path(worlds_dir).mkdir(parents=True, exist_ok=True)
-    return worlds_dir
+def get_worlds_dir() -> Optional[str]:
+    """ TidalPy directory containing world and system configurations; None when it cannot be created.
 
-def create_data_dirs():
-    """ Creates TidalPy data directories if not already present. """
-    get_config_dir()
-    get_log_dir()
-    get_worlds_dir()
+    This is the user-editable home for the ``WorldPack`` example worlds. The
+    packaged worlds are copied here on first use; the world builder then prefers
+    this directory over the packaged copies, so edits made here take effect
+    without modifying the installed package.
+    """
+    return _data_sub_dir('Worlds')
+
+def get_materials_dir() -> Optional[str]:
+    """ TidalPy directory containing named material configurations; None when it cannot be created.
+
+    This is the user-editable home for the ``MatPack`` materials. The packaged materials are copied here on first
+    use, and a material named in ``load_material`` is read from here before the packaged copy.
+    """
+    return _data_sub_dir('Materials')
+
 
 def timestamped_str(
     string_to_stamp: str = '',
@@ -120,74 +224,32 @@ def timestamped_str(
         return f'{string_to_stamp}{separation}{timestamp}'
 
 
-def unique_path(attempt_path: str, is_dir: bool = None, make_dir: bool = False) -> str:
-    """ Creates a unique directory or filename with appended numbers if file/dir already exists.
+# How many numbered alternatives unique_path tries before giving up.
+_MAX_UNIQUE_PATH_TRIES = 20
+
+
+def unique_path(attempt_path: str) -> str:
+    """ A file path that does not exist yet: ``attempt_path`` itself, or with ``_0``, ``_1``, ... before its extension.
 
     Parameters
     ----------
     attempt_path : str
-        Desired Name. This could be a path itself.
-    is_dir : bool = None
-        Is this a directory or file? If left as None the function will try to guess.
-    make_dir : bool = False
-        If is_dir and make_dir are both True then an attempt to mkdir will be made.
+        The desired file path.
 
     Returns
     -------
-    dir_file_path : str
-        The new, unique, path to the directory or file.
+    str
+        The first of those paths that names no existing file.
+
+    Raises
+    ------
+    FileExistsError
+        When every numbered alternative up to ``_MAX_UNIQUE_PATH_TRIES`` exists too.
     """
-
-    if is_dir is None:
-        # User didn't state if this was a directory or file. Make a guess based on if there is a period in it or not.
-        if '.' in attempt_path:
-            is_dir = False
-        else:
-            is_dir = True
-
-    # Check if there are multiple subdirectories in the path. For each subdirectory make a directory if requested.
-    if os.pardir in attempt_path:
-        sub_dirs = attempt_path.split(os.pardir)
-        last_dir = len(sub_dirs) - 1
-        growing_dir = ''
-        for sub_dir_i, sub_dir in enumerate(sub_dirs):
-            growing_dir = sub_dir
-            if sub_dir_i == last_dir:
-                if not is_dir:
-                    break
-            if not os.path.isdir(growing_dir):
-                if make_dir:
-                    os.mkdir(growing_dir)
-            growing_dir += os.pardir
-
-    # Check if the path already exists. If it does, add a number to make a unique path.
-    if is_dir:
-        attempt_path_original = attempt_path
-        try_num = 0
-        while True:
-            if os.path.isdir(attempt_path):
-                attempt_path = f'{attempt_path_original}_{try_num}'
-                try_num += 1
-            else:
-                break
-            if try_num > 20:
-                raise FileExistsError('Large number of filepaths tested. No unique path found.')
-
-    else:
-        attempt_path_original = '.'.join(attempt_path.split('.')[:-1])
-        extension = attempt_path.split('.')[-1]
-        try_num = 0
-        while True:
-            if os.path.isfile(attempt_path):
-                attempt_path = f'{attempt_path_original}_{try_num}.{extension}'
-                try_num += 1
-            else:
-                break
-            if try_num > 20:
-                raise FileExistsError('Large number of filepaths tested. No unique path found.')
-
-    # Make the directory
-    if make_dir and is_dir:
-        os.mkdir(attempt_path)
-
-    return attempt_path
+    stem, extension = os.path.splitext(attempt_path)
+    candidate = attempt_path
+    for try_num in range(_MAX_UNIQUE_PATH_TRIES + 1):
+        if not os.path.exists(candidate):
+            return candidate
+        candidate = f'{stem}_{try_num}{extension}'
+    raise FileExistsError(f'No unique path found for {attempt_path} after {_MAX_UNIQUE_PATH_TRIES} tries.')

@@ -1,0 +1,33 @@
+# serpentinite: antigorite serpentinite, for hydrated icy-moon cores (low confidence).
+# Solid: Birch-Murnaghan of Nestola et al. (2010), fit to 5.9 GPa (anomalous softening near 6 GPa); typical antigorite
+# density; shear modulus from Vp/Vs = 1.77 (Bezacier et al. 2010). Expansivity, conductivity, and heat capacity:
+# unsourced estimates.
+# Viscosity: unsourced placeholder; the Hilairet et al. (2007) antigorite flow law should replace it.
+# No melting: dehydration near 900 to 1000 K at 1 to 3 GPa (Ulmer and Trommsdorff 1995) cannot be represented by a
+# solidus and liquidus.
+schema_version = "0.2.0"
+description = "Antigorite serpentinite (hydrated rock); dehydration is not represented."
+category = "rocky"
+
+[solid]
+thermal_conductivity_w_mk = 2.5
+heat_capacity_j_kgk = 1000.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 2620.0
+reference_bulk_modulus_pa = 6.29e10
+bulk_modulus_derivative = 6.1
+thermal_expansion_1_k = 3.0e-5
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.7e10
+
+[solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20
+
+[solid.shear_rheology]
+model = "maxwell"

@@ -1,0 +1,26 @@
+# liquid_iron: liquid iron, for a molten core; liquid only.
+# Anderson and Ahrens (1994): 7019 kg m-3 at 1811 K, K_S0 = 109.7 GPa, K_S0' = 4.66. The isothermal K_T0 and the
+# Gruneisen parameter are derived from the same work (via BurnMan), so a tidal deformation sees K_S; K_S0' stands in for
+# K_T0', and their K'' is dropped.
+# Viscosity at 1811 K and 1 bar (Assael et al. 2006; about 1e-2 Pa s at core conditions, de Wijs et al. 1998).
+# Conductivity: an unsourced Wiedemann-Franz estimate (resistivity about 1.35e-6 ohm m).
+schema_version = "0.2.0"
+description = "Liquid iron (Anderson and Ahrens 1994); always liquid."
+category = "rocky"
+
+[liquid]
+thermal_conductivity_w_mk = 33.0
+heat_capacity_j_kgk = 830.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 7019.0
+reference_bulk_modulus_pa = 8.5e10
+bulk_modulus_derivative = 4.66
+thermal_expansion_1_k = 9.2e-5
+reference_temperature_k = 1811.0
+gruneisen_parameter = 1.74
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 6.0e-3

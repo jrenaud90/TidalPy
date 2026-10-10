@@ -1,0 +1,18 @@
+# giant_core: the rock core of a giant planet; liquid only (likely near or above melting at 15000 to 20000 K;
+# Guillot 2005). A compact core is a simplification: Juno results favor a dilute core in Jupiter.
+# Density: the Seager et al. (2007), Table 3, MgSiO3 modified polytrope (cold, valid to 1e16 Pa, no thermal expansion).
+# Their H2O (rho0 1460, c 0.00311, n 0.513) and Fe (8300, 0.00349, 0.528) fits suit an icy or iron core.
+# No viscosity (unsourced). Conductivity and heat capacity: unsourced placeholders.
+schema_version = "0.2.0"
+description = "Rock core of a giant planet (Seager et al. 2007 MgSiO3 modified polytrope); treated as fluid."
+category = "giant"
+
+[liquid]
+thermal_conductivity_w_mk = 10.0
+heat_capacity_j_kgk = 1000.0
+
+[liquid.eos]
+model = "modified_polytrope"
+reference_density_kg_m3 = 4100.0
+polytrope_coefficient = 0.00161
+polytrope_exponent = 0.541

@@ -1,0 +1,63 @@
+"""An EOS solve fails when its structure is far from the world's stated mass (``maximum_eos_mass_ratio``)."""
+import math
+
+import pytest
+
+import TidalPy
+from TidalPy.Material import Material, Phase
+from TidalPy.Structures.configs import build_world
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds import BaseWorld
+
+# Birch-Murnaghan layers at 80% of these densities: the only surface-pressure root holds about 60 times the mass.
+MASS = 0.692 * 5.972e24
+RADIUS = 0.92 * 6.371e6
+CORE_RADIUS = 0.19 * RADIUS
+CORE_MASS = 0.236 * MASS
+
+
+def _birch_murnaghan(density):
+    return Material(solid=Phase(
+        eos={"model": "birch_murnaghan",
+             "reference_density_kg_m3": density,
+             "reference_bulk_modulus_pa": 1.0e11,
+             "bulk_modulus_derivative": 4.0},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 3.7e10}))
+
+
+def _collapsing_world():
+    core_density = CORE_MASS / ((4.0 / 3.0) * math.pi * CORE_RADIUS ** 3)
+    mantle_density = (MASS - CORE_MASS) / ((4.0 / 3.0) * math.pi * (RADIUS ** 3 - CORE_RADIUS ** 3))
+    world = BaseWorld("collapsing", RADIUS, MASS)
+    world.add_layer(Layer("core", 0, 0.0, CORE_RADIUS, 0.0, _birch_murnaghan(0.8 * core_density), state="liquid"))
+    world.add_layer(Layer("mantle", 1, CORE_RADIUS, RADIUS, 0.0, _birch_murnaghan(0.8 * mantle_density)))
+    return world
+
+
+def test_structure_far_from_the_stated_mass_fails():
+    world = _collapsing_world()
+    result = world.solve_eos()
+    assert not result["success"]
+    assert not world.eos_solved
+    assert "maximum_eos_mass_ratio" in result["message"]
+    assert "times its stated mass" in result["message"]
+
+
+def test_the_limit_comes_from_the_config():
+    numerical = TidalPy.config["numerical"]
+    original = numerical["maximum_eos_mass_ratio"]
+    try:
+        numerical["maximum_eos_mass_ratio"] = 1.0e6
+        TidalPy.constants.update_constants()
+        assert _collapsing_world().solve_eos()["success"]
+    finally:
+        numerical["maximum_eos_mass_ratio"] = original
+        TidalPy.constants.update_constants()
+
+
+@pytest.mark.parametrize("name", ["io", "earth_simple", "jupiter_simple"])
+def test_bundled_worlds_are_within_the_limit(name):
+    world = build_world(name)
+    assert world.solve_eos()["success"]
+    ratio = world.planet_mass_eos / world.mass
+    assert 1.0 / TidalPy.constants.maximum_eos_mass_ratio < ratio < TidalPy.constants.maximum_eos_mass_ratio

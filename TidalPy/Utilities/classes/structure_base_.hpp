@@ -1,0 +1,88 @@
+#pragma once
+/* Spherical geometry base class.
+ *
+ * The calc_* methods take explicit arguments rather than reading the stored radius and mass, so they stay
+ * pure functions with no hidden state.
+ *
+ * Binary payload: radius then mass.
+ */
+
+#include <cmath>
+#include <memory>
+#include <stdexcept>
+
+#include "constants_.hpp"
+#include "tidalpy_base_.hpp"
+
+namespace tidalpy {
+
+class c_StructureBase : public c_TidalPyBaseClass {
+public:
+    c_StructureBase() = default;
+
+    c_StructureBase(double radius, double mass)
+        : p_radius(radius), p_mass(mass) {}
+
+    ~c_StructureBase() override = default;
+
+    double get_radius() const noexcept { return p_radius; }
+    double get_mass()   const noexcept { return p_mass; }
+
+    // Geometry; all MKS in and out.
+    // Surface area of a sphere [m^2]
+    double calc_surface_area(double radius) const noexcept {
+        return 4.0 * TidalPyConstants::d_PI * radius * radius;
+    }
+
+    // Volume of a solid sphere [m^3]
+    double calc_volume_sphere(double radius) const noexcept {
+        return (4.0 / 3.0) * TidalPyConstants::d_PI * radius * radius * radius;
+    }
+
+    // Volume of a spherical shell [m^3]
+    double calc_volume_shell(double radius_outer, double radius_inner) const noexcept {
+        return calc_volume_sphere(radius_outer) - calc_volume_sphere(radius_inner);
+    }
+
+    // Surface gravitational acceleration [m/s^2]
+    double calc_surface_gravity(double mass, double radius) const noexcept {
+        if (radius == 0.0) return 0.0;
+        return c_get_G() * mass / (radius * radius);
+    }
+
+    // Mean density [kg/m^3]
+    double calc_mean_density(double mass, double volume) const noexcept {
+        if (volume == 0.0) return 0.0;
+        return mass / volume;
+    }
+
+    // Escape velocity [m/s]
+    double calc_escape_velocity(double mass, double radius) const noexcept {
+        if (radius == 0.0) return 0.0;
+        return std::sqrt(2.0 * c_get_G() * mass / radius);
+    }
+
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::StructureBase); }
+
+    // A subclass inherits this scratch unless it overrides it; load_binary detects its class id and falls back.
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_StructureBase>();
+    }
+
+protected:
+    // Radius then mass, which open the payload of every layer and world record too.
+    void p_write_payload(std::ostream& out) const override {
+        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
+    }
+
+    void p_read_payload(std::istream& in, bool /*force*/) override {
+        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
+    }
+
+    double p_radius = 0.0;  // [m]
+    double p_mass   = 0.0;  // [kg]
+};
+
+} // namespace tidalpy

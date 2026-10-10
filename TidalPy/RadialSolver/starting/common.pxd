@@ -1,12 +1,15 @@
-cdef double complex cf_z_calc(
-    double complex x_squared,
-    int degree_l
-    ) noexcept nogil
+from libcpp.complex cimport complex as cpp_complex
 
-cdef void cf_takeuchi_phi_psi(
-    double complex z,
-    int degree_l,
-    double complex* phi_ptr,
-    double complex* phi_lplus1_ptr,
-    double complex* psi_ptr,
-    ) noexcept nogil
+
+cdef extern from "common_.hpp" nogil:
+
+    cdef cpp_complex[double] c_z_calc(
+        cpp_complex[double]& x_squared,
+        int degree_l) noexcept
+
+    cdef void c_takeuchi_phi_psi(
+        cpp_complex[double]& z2,
+        int degree_l,
+        cpp_complex[double]* phi_ptr,
+        cpp_complex[double]* phi_lplus1_ptr,
+        cpp_complex[double]* psi_ptr) noexcept

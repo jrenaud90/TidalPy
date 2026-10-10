@@ -1,0 +1,142 @@
+# Earth-Thermal: earth_simple with a mantle viscosity that follows pressure as well as temperature, for thermal and
+# thermal-orbital evolution. Structure, densities, mass, and C/MR2 = 0.3307 are earth_simple's.
+# earth_simple's viscosity suits only an isothermal mantle: with the profile solved, its deep mantle softens to
+# about 1e17 Pa s and its M2 Q falls to 28.
+# Mantle viscosity: MatPack peridotite's dry-olivine diffusion and dislocation creep (Hirth and Kohlstedt 2003,
+# Table 1; activation volume from Dixon and Durham 2018), 1 mm grains, 0.1 MPa; fitted to 14 GPa, extrapolated below.
+# Temperatures are solved by default; pass the surface temperature to solve_eos or the surface carries no heat.
+# With a 288 K surface: k2 = 0.300 and Q = 315 at M2 (solid Earth 0.30 and about 280; neither fitted), and a
+# mantle heat flow of 8.2e13 W (Earth's mantle: about 3.5e13 W).
+schema_version = "0.2.0"
+name = "Earth-Thermal"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+
+# Temperatures are solved; the mantle's is the top of its adiabat.
+[eos_solver]
+solve_temperature = true
+
+[layers.inner_core]
+layer_index = 0
+radius_outer_m = 1221500.0            # PREM inner-core boundary
+use_tides = true
+temperature_k = 5500.0
+use_heating = true
+
+[layers.inner_core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.inner_core.material.solid.eos]
+model = "constant"
+reference_density_kg_m3 = 12900.0     # PREM inner core, 12.76 to 13.09
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.inner_core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.inner_core.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 5500.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.inner_core.shear_rheology]
+model = "maxwell"
+
+[layers.outer_core]
+layer_index = 1
+radius_outer_m = 3480000.0            # PREM core-mantle boundary
+use_tides = false
+temperature_k = 4500.0
+
+# Liquid-only material: a static fluid outer core.
+[layers.outer_core.material.liquid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.outer_core.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 11384.6     # fitted to the mass and C/MR2
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.mantle]
+layer_index = 2
+radius_fraction = 1.0                 # outer radius = full world radius
+use_tides = true
+temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3516.322    # fitted to the mass and C/MR2
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 2.211e11           # fitted to k2 = 0.30 at M2
+
+# MatPack peridotite's creep law.
+[layers.mantle.material.solid.shear_viscosity]
+model = "composite"
+
+# Diffusion creep: A = 1.5e9 MPa-1 um3 s-1, so eta = 3.33e14 d^3 exp[(E + P V) / (R T)].
+[[layers.mantle.material.solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 3.33e14
+stress_pa = 1.0e5
+stress_expo = 1.0
+grain_size_m = 1.0e-3
+grain_size_expo = 3.0
+molar_activation_energy_j_mol = 3.75e5
+molar_activation_volume_m3_mol = 6.0e-6
+
+# Dislocation creep: A = 1.1e5 MPa-3.5 s-1.
+[[layers.mantle.material.solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 4.55e15
+stress_pa = 1.0e5
+stress_expo = 3.5
+grain_size_m = 1.0e-3
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 5.3e5
+molar_activation_volume_m3_mol = 1.5e-5
+
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+viscosity_depth_fraction = 0.3       # Rayleigh number sees the upper mantle's viscosity
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"

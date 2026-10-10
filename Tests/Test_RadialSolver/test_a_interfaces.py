@@ -1,185 +1,65 @@
+"""Interface solver: what it fills, and that it keeps independent solutions independent.
+
+The upper-layer values themselves are checked against the classic solver's in test_comparison/test_compare_interfaces.
+"""
+import numpy as np
 import pytest
 
-import numpy as np
-
-from TidalPy.RadialSolver.shooting import find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces import solve_upper_y_at_interface
 
-tpy_0p4_results = {
-    (True, True, True, True): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), (0.3+0.3j), (0.4+0.4j), (0.5+0.5j), (0.6+0.6j),
-         (-0.1-0.1j), (-0.2-0.2j), (-0.3-0.3j), (-0.4-0.4j), (-0.5-0.5j), (-0.6-0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), (0.54+0.54j), (0.76+0.76j), (1+1j), (12.06+12.06j)],
-        dtype=np.complex128, order="C"),
-    (True, True, True, False): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), (0.3+0.3j), (0.4+0.4j), (0.5+0.5j), (0.6+0.6j),
-         (-0.1-0.1j), (-0.2-0.2j), (-0.3-0.3j), (-0.4-0.4j), (-0.5-0.5j), (-0.6-0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), (0.54+0.54j), (0.76+0.76j), (1+1j), (12.06+12.06j)],
-        dtype=np.complex128, order="C"),
-    (True, True, False, True): np.asarray(
-        [0j, 0j, np.nan, np.nan, np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (True, True, False, False): np.asarray(
-        [(0.01578947368421052+0.01578947368421052j), (0.02105263157894738+0.02105263157894738j), (-0.02631578947368418-0.02631578947368418j), (-5.747368421052632-5.747368421052632j), np.nan, np.nan,
-         (-0.01578947368421052-0.01578947368421052j), (-0.02105263157894738-0.02105263157894738j), (0.02631578947368418+0.02631578947368418j), (5.747368421052632+5.747368421052632j), np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (True, False, True, True): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), (0.3+0.3j), (0.4+0.4j), (0.5+0.5j), (0.6+0.6j),
-         (-0.1-0.1j), (-0.2-0.2j), (-0.3-0.3j), (-0.4-0.4j), (-0.5-0.5j), (-0.6-0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), (0.54+0.54j), (0.76+0.76j), (1+1j), (12.06+12.06j)],
-        dtype=np.complex128, order="C"),
-    (True, False, True, False): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), (0.3+0.3j), (0.4+0.4j), (0.5+0.5j), (0.6+0.6j),
-         (-0.1-0.1j), (-0.2-0.2j), (-0.3-0.3j), (-0.4-0.4j), (-0.5-0.5j), (-0.6-0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), (0.54+0.54j), (0.76+0.76j), (1+1j), (12.06+12.06j)],
-        dtype=np.complex128, order="C"),
-    (True, False, False, True): np.asarray(
-        [0j, 0j, np.nan, np.nan, np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (True, False, False, False): np.asarray(
-        [(0.01578947368421052+0.01578947368421052j), (0.02105263157894738+0.02105263157894738j), (-0.02631578947368418-0.02631578947368418j), (-5.747368421052632-5.747368421052632j), np.nan, np.nan,
-         (-0.01578947368421052-0.01578947368421052j), (-0.02105263157894738-0.02105263157894738j), (0.02631578947368418+0.02631578947368418j), (5.747368421052632+5.747368421052632j), np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (False, True, True, True): np.asarray(
-        [0j, (-3800-3800j), 0j, 0j, (0.5+0.5j), (0.600001180416904-9.599998819583096j),
-         (1+0j), (20520+0j), 0j, 0j, 0j, (-6.374251281747724e-06+0j),
-         0j, 0j, (1+0j), 0j, 0j, 0j],
-        dtype=np.complex128, order="C"),
-    (False, True, True, False): np.asarray(
-        [0j, (-3800-3800j), 0j, 0j, (0.5+0.5j), (0.600001180416904-9.599998819583096j),
-         (1+0j), (20520+0j), 0j, 0j, 0j, (-6.374251281747724e-06+0j),
-         0j, 0j, (1+0j), 0j, 0j, 0j],
-        dtype=np.complex128, order="C"),
-    (False, True, False, True): np.asarray(
-        [(0.5+0.5j), (0.6-9.6j), np.nan, np.nan, np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (False, True, False, False): np.asarray(
-        [0j, (-3800-3800j), (0.5+0.5j), (0.600001180416904-9.599998819583096j), np.nan, np.nan,
-         (1+0j), (20520+0j), 0j, (-6.374251281747724e-06+0j), np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (False, False, True, True): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), 0j, 0j, (0.5+0.5j), (0.6+0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), 0j, 0j, (1+1j), (12.06+12.06j),
-         0j, 0j, (1+0j), 0j, 0j, 0j],
-        dtype=np.complex128, order="C"),
-    (False, False, True, False): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), 0j, 0j, (0.5+0.5j), (0.6+0.6j),
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), 0j, 0j, (1+1j), (12.06+12.06j),
-         0j, 0j, (1+0j), 0j, 0j, 0j],
-        dtype=np.complex128, order="C"),
-    (False, False, False, True): np.asarray(
-        [(0.09505598613897154+0.09505598613897154j), (-4.283624807144646-4.283624807144646j), np.nan, np.nan, np.nan, np.nan],
-        dtype=np.complex128, order="C"),
-    (False, False, False, False): np.asarray(
-        [(0.1+0.1j), (0.2+0.2j), (0.5+0.5j), (0.6+0.6j), np.nan, np.nan,
-         (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), (1+1j), (12.06+12.06j), np.nan, np.nan],
-        dtype=np.complex128, order="C")
+STATIC_LIQUID_DENSITY = 7600.
+INTERFACE_GRAVITY = 2.7
+G_TO_USE = 6.67430e-11
+SOLID, LIQUID = 0, 1
+MAX_NUM_Y = 6
+
+# Each layer kind's (solutions, stored ys): a solid carries 3 of y1 to y6, a dynamic liquid 2 of y1, y2, y5, y6, and a
+# static liquid 1 of y5 and y7.
+LAYER_KIND_SIZES = {
+    (SOLID, True): (3, 6),
+    (SOLID, False): (3, 6),
+    (LIQUID, False): (2, 4),
+    (LIQUID, True): (1, 2),
 }
+# Lower-layer solutions drawn at random are linearly independent, unlike hand-picked rows such as a row and its
+# negative, which made some pairings collapse to exactly zero and test nothing.
+RANDOM_SEED = 2024
+PAIRINGS = [(lower_type, lower_static, upper_type, upper_static)
+            for lower_type in (SOLID, LIQUID) for lower_static in (True, False)
+            for upper_type in (SOLID, LIQUID) for upper_static in (True, False)]
+PAIRING_IDS = [f"{'solid' if lt == SOLID else 'liquid'}_{'static' if ls else 'dynamic'}"
+               f"__to__{'solid' if ut == SOLID else 'liquid'}_{'static' if us else 'dynamic'}"
+               for lt, ls, ut, us in PAIRINGS]
 
-static_liquid_density=7600.
-interface_gravity=2.7
-G_to_use=6.67430e-11
 
-y_lower_solid = np.asarray(
-    ((0.1+0.1j, 0.2+0.2j, 0.3+0.3j, 0.4+0.4j, 0.5+0.5j, 0.6+0.6j),
-    (-0.1-0.1j, -0.2-0.2j, -0.3-0.3j, -0.4-0.4j, -0.5-0.5j,-0.6-0.6j),
-    (1.6*(0.1+0.1j), 1.7*(0.2+0.2j), 1.8*(0.3+0.3j), 1.9*(0.4+0.4j), 2.0*(0.5+0.5j), 20.1*(0.6+0.6j))), dtype=np.complex128
-)
-y_lower_liquid = np.asarray(
-    ((0.1+0.1j, 0.2+0.2j, 0.5+0.5j, 0.6+0.6j, np.nan, np.nan),
-    (1.6*(0.1+0.1j), 1.7*(0.2+0.2j), 2.0*(0.5+0.5j), 20.1*(0.6+0.6j), np.nan, np.nan)), dtype=np.complex128
-)
-y_lower_staticliq = np.asarray(
-    ((0.5+0.5j, 0.6-9.6j, np.nan, np.nan, np.nan, np.nan),), dtype=np.complex128
-)
+def _independent_lower_y(layer_type, is_static):
+    num_solutions, num_ys = LAYER_KIND_SIZES[(layer_type, is_static)]
+    rng = np.random.default_rng(RANDOM_SEED)
+    lower_y = np.full((num_solutions, MAX_NUM_Y), np.nan, dtype=np.complex128)
+    lower_y[:, :num_ys] = rng.normal(size=(num_solutions, num_ys)) + 1j * rng.normal(size=(num_solutions, num_ys))
+    return lower_y
 
-MAX_NUM_Ys = 6
 
-@pytest.mark.parametrize('lower_layer_type', (0, 1))
-@pytest.mark.parametrize('lower_is_static', (True, False))
-@pytest.mark.parametrize('upper_layer_type', (0, 1))
-@pytest.mark.parametrize('upper_is_static', (True, False))
-@pytest.mark.parametrize('lower_is_incompressible', (True, False))
-@pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_driver(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static,
-                          lower_is_incompressible, upper_is_incompressible):
-
-    # TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
-    if lower_is_incompressible or upper_is_incompressible:
-        pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
-
-    num_sols_lower = find_num_shooting_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
-    num_ys_lower   = num_sols_lower * 2
-    num_sols_upper = find_num_shooting_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
-    num_ys_upper   = num_sols_upper * 2
-
-    # Determine which lower layer y solution to use
-    if (lower_layer_type == 0):
-        lower_y = y_lower_solid
-    elif lower_is_static:
-        lower_y = y_lower_staticliq
-    else:
-        lower_y = y_lower_liquid
-    
-    # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
-    upper_y = np.nan * np.ones((3, 6), dtype=np.complex128, order='C')
-
+def _solve(lower_type, lower_static, upper_type, upper_static):
+    upper_y = np.full((3, MAX_NUM_Y), np.nan, dtype=np.complex128)
     solve_upper_y_at_interface(
-        lower_y, upper_y,
-        lower_layer_type, lower_is_static, lower_is_incompressible,
-        upper_layer_type, upper_is_static, upper_is_incompressible,
-        interface_gravity, static_liquid_density, G_to_use
-        )
-
-    # Make sure the correct number of array elements were set.
-    assert np.sum(~np.isnan(upper_y)) == (num_sols_upper * num_ys_upper)
+        _independent_lower_y(lower_type, lower_static), upper_y, lower_type, lower_static, upper_type, upper_static,
+        INTERFACE_GRAVITY, STATIC_LIQUID_DENSITY, G_TO_USE)
+    return upper_y
 
 
-@pytest.mark.parametrize('lower_layer_type', (0, 1))
-@pytest.mark.parametrize('lower_is_static', (True, False))
-@pytest.mark.parametrize('upper_layer_type', (0, 1))
-@pytest.mark.parametrize('upper_is_static', (True, False))
-@pytest.mark.parametrize('lower_is_incompressible', (True, False))
-@pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_accuracy(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static,
-                            lower_is_incompressible, upper_is_incompressible):
-    """ Use results from TidalPy 0.4.0 to test the accuracy of the current interface solver. """
+@pytest.mark.parametrize("lower_type, lower_static, upper_type, upper_static", PAIRINGS, ids=PAIRING_IDS)
+def test_the_interface_fills_every_solution_of_the_upper_layer(lower_type, lower_static, upper_type, upper_static):
+    """Exactly the upper layer's solutions and stored ys are filled, all finite; the rest stay NaN."""
+    num_solutions, num_ys = LAYER_KIND_SIZES[(upper_type, upper_static)]
+    upper_y = _solve(lower_type, lower_static, upper_type, upper_static)
+    assert np.all(np.isfinite(upper_y[:num_solutions, :num_ys]))
+    assert np.sum(~np.isnan(upper_y)) == num_solutions * num_ys
 
-    # TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
-    if lower_is_incompressible or upper_is_incompressible:
-        pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
 
-    lower_layer_is_solid = lower_layer_type == 0
-    upper_layer_is_solid = upper_layer_type == 0
-    if (lower_layer_is_solid, lower_is_static, upper_layer_is_solid, upper_is_static) not in tpy_0p4_results:
-        pytest.skip(f'Combination {(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static)} not found (or not implemented) in pre-calculated TidalPy v0.4 results.')
-
-    else:
-        num_sols_lower = find_num_shooting_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
-        num_ys_lower   = num_sols_lower * 2
-        num_sols_upper = find_num_shooting_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
-        num_ys_upper   = num_sols_upper * 2
-
-        # Determine which lower layer y solution to use
-        if (lower_layer_type == 0):
-            lower_y = y_lower_solid
-        elif lower_is_static:
-            lower_y = y_lower_staticliq
-        else:
-            lower_y = y_lower_liquid
-        
-        # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
-        upper_y = np.nan * np.ones((3, 6), dtype=np.complex128, order='C')
-        
-        solve_upper_y_at_interface(
-            lower_y, upper_y,
-            lower_layer_type, lower_is_static, lower_is_incompressible,
-            upper_layer_type, upper_is_static, upper_is_incompressible,
-            interface_gravity, static_liquid_density, G_to_use
-            )
-
-        # Compare results to TidalPy 0.4.0 pre-calculated interface solution.
-        comparison_results = tpy_0p4_results[(lower_layer_is_solid, lower_is_static, upper_layer_is_solid, upper_is_static)]
-        comparison_results_no_nan = comparison_results[~np.isnan(comparison_results)]
-        upper_y_no_nan = upper_y[~np.isnan(upper_y)]
-        np.allclose(upper_y_no_nan.flatten(), comparison_results_no_nan)
+@pytest.mark.parametrize("lower_type, lower_static, upper_type, upper_static", PAIRINGS, ids=PAIRING_IDS)
+def test_independent_lower_solutions_give_independent_upper_ones(lower_type, lower_static, upper_type, upper_static):
+    """The upper layer starts with as many independent solutions as it carries, so no pairing loses one."""
+    num_solutions, num_ys = LAYER_KIND_SIZES[(upper_type, upper_static)]
+    upper_y = _solve(lower_type, lower_static, upper_type, upper_static)[:num_solutions, :num_ys]
+    assert np.linalg.matrix_rank(upper_y) == num_solutions

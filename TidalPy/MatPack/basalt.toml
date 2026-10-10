@@ -1,0 +1,76 @@
+# basalt: mafic crust as a dense gabbro (plagioclase An60 0.55, clinopyroxene 0.35, olivine Fo70 0.10 by volume).
+# Real basalt with porosity, cracks, or glass is softer. Eclogite (above about 1.5 GPa) is not represented.
+# Solid: Birch-Murnaghan (fit 0 to 3 GPa), expansivity, and shear modulus derived from the Stixrude and
+# Lithgow-Bertelloni (2011) end-members with BurnMan; heat capacity a power law through the derived 300 and 1200 K
+# values. Conductivity: Turcotte and Schubert (2002), Table 4.1.
+# Viscosity: dry Maryland diabase dislocation creep (Mackwell et al. 1998) at 1 MPa stress.
+# Melting: unsourced round values in the dry-basalt interval of Yoder and Tilley (1962) (low confidence). Latent heat:
+# Ghosh and McSween (1998).
+# Liquid: unsourced density and bulk modulus, the peridotite melt's expansivity, basaltic melt viscosity near 1500 K
+# (Shaw 1972), and the solid's conductivity and heat capacity.
+schema_version = "0.2.0"
+description = "Mafic crust (dense gabbro) with diabase creep and constant melting temperatures."
+category = "rocky"
+latent_heat_j_kg = 4.0e5
+
+[solid]
+thermal_conductivity_w_mk = 2.0
+heat_capacity_j_kgk = 1160.0
+heat_capacity_temperature_exponent = 0.216
+thermal_reference_temperature_k = 1200.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3030.0
+reference_bulk_modulus_pa = 8.75e10
+bulk_modulus_derivative = 4.6
+thermal_expansion_1_k = 1.9e-5
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 4.9e10
+pressure_derivative = 1.24
+temperature_derivative_pa_k = -7.4e6
+reference_temperature_k = 300.0
+
+[solid.shear_viscosity]
+model = "arrhenius"
+arrhenius_coeff = 9.9e26
+stress_pa = 1.0e6
+stress_expo = 4.7
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 4.85e5
+molar_activation_volume_m3_mol = 0.0
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+thermal_conductivity_w_mk = 2.0
+heat_capacity_j_kgk = 1160.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 2650.0
+reference_bulk_modulus_pa = 1.8e10
+bulk_modulus_derivative = 5.0
+thermal_expansion_1_k = 6.5e-5
+reference_temperature_k = 1500.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 30.0
+
+[melting.solidus]
+model = "constant"
+temperature_k = 1373.0
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 1523.0
+
+[melting.weakening]
+model = "henning"

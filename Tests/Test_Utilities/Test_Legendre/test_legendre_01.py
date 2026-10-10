@@ -1,0 +1,119 @@
+"""Tests for the associated Legendre tables (``legendre``, l = 2..10) and recurrence (``legendre_generic``).
+
+Values and first and second colatitude derivatives are checked against ``scipy.special.lpmv`` (unnormalized,
+Condon-Shortley phase), against each other, and against the hand-coded l = 2 forms.
+"""
+import numpy as np
+import pytest
+
+from scipy.special import lpmv
+
+from TidalPy.Utilities.legendre import legendre, legendre_generic
+
+
+# Away from the exact poles, where the m >= 1 derivatives have a removable 1/sin(theta) structure.
+_COLATS = np.linspace(0.15, np.pi - 0.15, 13)
+_LM = [(l, m) for l in range(2, 11) for m in range(0, l + 1)]
+
+
+def _scipy_triple(l, m, colat):
+    """(P, dP/dtheta, d2P/dtheta2) from scipy's lpmv.
+
+    Previously used `scipy.special.assoc_legendre_p` but that is not available in older versions of scipy.
+
+    The first derivative uses (1 - x^2) dP_l^m/dx = (l + m) P_{l-1}^m - l x P_l^m with x = cos(theta); the second
+    comes from the associated Legendre equation in colatitude.
+    """
+    x = np.cos(colat)
+    s = np.sin(colat)
+    p = lpmv(m, l, x)
+    first = -((l + m) * lpmv(m, l - 1, x) - l * x * p) / s
+    second = -(x / s) * first - (l * (l + 1) - m * m / (s * s)) * p
+    return (float(p),
+            float(first),
+            float(second))
+
+
+@pytest.mark.parametrize("func", [legendre, legendre_generic], ids=["table", "generic"])
+@pytest.mark.parametrize("l,m", _LM)
+def test_matches_scipy(func, l, m):
+    """The value and derivatives match scipy at every test colatitude."""
+    for colat in _COLATS:
+        got = func(l, m, float(colat))
+        ref = _scipy_triple(l, m, colat)
+        # The reference combines terms as large as the triple, so a component that is zero by parity (at the
+        # equator) carries roundoff on that scale.
+        scale = max(1.0, float(np.max(np.abs(ref))))
+        assert np.allclose(got, ref, rtol=1e-11, atol=1e-11 * scale), \
+            f"{func.__name__} l={l} m={m} colat={colat}: {got} vs scipy {ref}"
+
+
+@pytest.mark.parametrize("l,m", _LM)
+def test_table_matches_generic(l, m):
+    """The table and the recurrence agree at every test colatitude."""
+    for colat in _COLATS:
+        assert np.allclose(legendre(l, m, float(colat)),
+                           legendre_generic(l, m, float(colat)),
+                           rtol=1e-11, atol=1e-11)
+
+
+@pytest.mark.parametrize("m", [0, 1, 2])
+def test_l2_hardcoded_reference(m):
+    """The l = 2 table reproduces the hand-coded forms used by the tidal potential kernel."""
+    for colat in _COLATS:
+        c = np.cos(colat)
+        s = np.sin(colat)
+        # (P, dP/dtheta, d2P/dtheta2) for m = 0, 1, 2.
+        ref = {
+            0: (0.5 * (3 * c * c - 1.0), -3.0 * c * s, 3.0 * (s * s - c * c)),
+            1: (-3.0 * c * s, 3.0 * (s * s - c * c), 12.0 * c * s),
+            2: (3.0 * s * s, 6.0 * c * s, 6.0 * (c * c - s * s)),
+        }
+        assert np.allclose(legendre(2, m, float(colat)), ref[m], rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("func", [legendre, legendre_generic], ids=["table", "generic"])
+@pytest.mark.parametrize("l,m", [(2, 3), (3, -1)], ids=["m_above_l", "negative_m"])
+def test_out_of_range_order_is_nan(func, l, m):
+    """An undefined order returns a NaN triple."""
+    assert all(np.isnan(func(l, m, 0.7)))
+
+
+def test_generic_supports_high_degree():
+    """The recurrence matches scipy at l = 11, beyond the tables, which return NaN there."""
+    for colat in _COLATS:
+        got = legendre_generic(11, 4, float(colat))
+        ref = _scipy_triple(11, 4, colat)
+        scale = max(1.0, float(np.max(np.abs(ref))))
+        assert np.allclose(got, ref, rtol=1e-10, atol=1e-10 * scale)
+    assert all(np.isnan(legendre(11, 4, 0.7)))
+
+
+# The recurrence derivatives stay exact at the poles, where a chain rule through x = cos(theta) would multiply an
+# infinite dP/dx (odd m) by sin(theta) = 0.
+_POLAR_COLATS = [0.0, 1.0e-6, 1.0e-3, np.pi - 1.0e-6, np.pi]
+
+
+@pytest.mark.parametrize("l,m", _LM)
+def test_generic_matches_the_tables_at_the_poles(l, m):
+    """The recurrence is finite and matches the tables at and near the poles."""
+    for colat in _POLAR_COLATS:
+        table = np.array(legendre(l, m, float(colat)))
+        generic = np.array(legendre_generic(l, m, float(colat)))
+        scale = max(1.0, float(np.max(np.abs(table))))
+        assert np.all(np.isfinite(generic)), f"l={l} m={m} colat={colat}: {generic}"
+        np.testing.assert_allclose(generic, table, rtol=1e-10, atol=1e-10 * scale,
+                                   err_msg=f"l={l} m={m} colat={colat}")
+
+
+@pytest.mark.parametrize("m", range(0, 13))
+def test_generic_derivatives_past_the_tables(m):
+    """At l = 12 the recurrence derivatives match central differences of the value, near the poles too."""
+    step = 1.0e-5
+    for colat in (1.0e-3, 0.2, 1.3, np.pi - 1.0e-3):
+        value, first, second = legendre_generic(12, m, float(colat))
+        above = legendre_generic(12, m, float(colat) + step)[0]
+        below = legendre_generic(12, m, float(colat) - step)[0]
+        scale = max(1.0, abs(value), abs(above))
+        assert first == pytest.approx((above - below) / (2.0 * step), rel=1e-5, abs=1e-5 * scale)
+        assert second == pytest.approx((above - 2.0 * value + below) / step ** 2, rel=1e-4, abs=1e-3 * scale)

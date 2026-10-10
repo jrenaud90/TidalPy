@@ -1,229 +1,105 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.string cimport npos as cpp_npos
+import numpy as np
 
-from TidalPy.RadialSolver.starting.takeuchi cimport (
-    cf_takeuchi_solid_dynamic_compressible,
-    cf_takeuchi_solid_static_compressible,
-    cf_takeuchi_liquid_dynamic_compressible
-    )
+import TidalPy
+cimport numpy as cnp
+cnp.import_array()
 
-from TidalPy.RadialSolver.starting.saito cimport cf_saito_liquid_static_incompressible
+from libcpp cimport bool as cpp_bool
+from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.RadialSolver.starting.kamata cimport (
-    cf_kamata_solid_dynamic_compressible,
-    cf_kamata_solid_static_compressible,
-    cf_kamata_solid_dynamic_incompressible,
-    cf_kamata_liquid_dynamic_compressible,
-    cf_kamata_liquid_dynamic_incompressible
-    )
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
+from libcpp.string cimport string as cpp_string
 
-cdef void cf_find_starting_conditions(
-        cpp_bool* success_ptr,
-        cpp_string& message,
+from TidalPy.constants cimport cy_resolve_G, get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants import starting_method_from_name
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton, whose G cy_resolve_G reads.
+set_tidalpy_config_ptr(get_shared_config_address())
+
+
+def find_starting_conditions(
         int layer_type,
-        bint is_static,
-        bint is_incompressible,
-        cpp_bool use_kamata,
+        cpp_bool is_static,
+        cpp_bool is_incompressible,
+        object starting_method,
         double frequency,
         double radius,
         double density,
         double complex bulk_modulus,
         double complex shear_modulus,
         int degree_l,
-        double G_to_use,
-        size_t num_ys, 
-        double complex* starting_conditions_ptr,
-        cpp_bool run_y_checks = True
-        ) noexcept nogil:
-
-    cdef size_t num_sols_for_assumption
-    cdef size_t num_ys_for_assumption
-
-    # Assume we are successful and adjust if we are not
-    success_ptr[0] = True
-
-    # For static liquid layers, no matter the other assumptions, we use saito's method.
-    if (not (layer_type == 0)) and is_static:
-        # Liquid Static Layer
-        if run_y_checks:
-            num_sols_for_assumption = 1
-            num_ys_for_assumption   = 2
-            if num_ys_for_assumption != num_ys:
-                success_ptr[0] = False
-                message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-        if success_ptr[0]:
-            cf_saito_liquid_static_incompressible(
-                radius, degree_l, num_ys, starting_conditions_ptr
-                )
-        
-    # Work through the Kamata models
-    elif use_kamata:
-        # Kamata solid layer
-        if (layer_type == 0):
-            # Solid layer
-            if is_static and is_incompressible:
-                success_ptr[0] = False
-                message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nRecommend using dynamic-incompressible instead.')
-            elif is_static and (not is_incompressible):
-                if run_y_checks:  
-                    num_sols_for_assumption = 3
-                    num_ys_for_assumption   = 6
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_kamata_solid_static_compressible(
-                        radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                    )
-            elif (not is_static) and is_incompressible:
-                if run_y_checks:
-                    num_sols_for_assumption = 3
-                    num_ys_for_assumption   = 6
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_kamata_solid_dynamic_incompressible(
-                        frequency, radius, density, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        )
-            else:
-                if run_y_checks:
-                    num_sols_for_assumption = 3
-                    num_ys_for_assumption   = 6
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_kamata_solid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, 
-                        starting_conditions_ptr
-                        )
-        else:
-            if is_static and is_incompressible:
-                # Covered by Saito method.
-                pass
-            elif is_static and (not is_incompressible):     
-                # Covered by Saito method.
-                pass
-            elif (not is_static) and is_incompressible:
-                if run_y_checks:
-                    num_sols_for_assumption = 2
-                    num_ys_for_assumption   = 4
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_kamata_liquid_dynamic_incompressible(
-                        frequency, radius, density, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        )
-                
-            else:
-                if run_y_checks:
-                    num_sols_for_assumption = 2
-                    num_ys_for_assumption   = 4
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_kamata_liquid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        )
-                
-    # Work through the Takeuchi models
-    else:
-        if is_incompressible:
-            success_ptr[0] = False
-            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.')
-        else:
-            if (layer_type == 0):
-                # Solid layer
-                if is_static:
-                    if run_y_checks:
-                        num_sols_for_assumption = 3
-                        num_ys_for_assumption   = 6
-                        if num_ys_for_assumption != num_ys:
-                            success_ptr[0] = False
-                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                    if success_ptr[0]:
-                        cf_takeuchi_solid_static_compressible(
-                            radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        )
-                else:
-                    if run_y_checks:
-                        num_sols_for_assumption = 3
-                        num_ys_for_assumption   = 6
-                        if num_ys_for_assumption != num_ys:
-                            success_ptr[0] = False
-                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions:: Incorrect number of ys for given the starting condition assumptions.')
-                    if success_ptr[0]:
-                        cf_takeuchi_solid_dynamic_compressible(
-                            frequency, radius, density, bulk_modulus, shear_modulus,
-                            degree_l, G_to_use, num_ys, starting_conditions_ptr
-                            )
-            else:
-                if is_static:
-                    # Handled by Saito
-                    pass
-                else:
-                    if run_y_checks:
-                        num_sols_for_assumption = 2
-                        num_ys_for_assumption   = 4
-                        if num_ys_for_assumption != num_ys:
-                            success_ptr[0] = False
-                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                    if success_ptr[0]:
-                        cf_takeuchi_liquid_dynamic_compressible(
-                            frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                            )
-    
-
-def find_starting_conditions(
-        int layer_type,
-        bint is_static,
-        bint is_incompressible,
-        cpp_bool use_kamata,
-        double frequency,
-        double radius,
-        double density,
-        double bulk_modulus,
-        double complex shear_modulus,
-        int degree_l,
-        double G_to_use,
+        object G_to_use,
         double complex[:, ::1] starting_conditions_view,
-        cpp_bool run_y_checks = True
-        ):
-    
-    # Feedback
-    cdef cpp_string message = cpp_string("No message set.")
+        cpp_bool run_y_checks = True):
+    """
+    Dispatch to the correct starting condition function.
+
+    Parameters
+    ----------
+    layer_type : int
+        0 = solid, 1 = liquid.
+    is_static : bool
+        True for static tides.
+    is_incompressible : bool
+        True for incompressible.
+    starting_method : str or None
+        ``'takeuchi'`` (Takeuchi and Saito 1972), ``'kamata'`` (Kamata et al. 2015), ``'power_series'`` (Martens 2016),
+        or ``'unity'`` (unit vectors); aliases as ``TidalPy.constants.STARTING_METHOD_ALIASES``. None takes the
+        ``[radial_solver] starting_method`` of the TidalPy configuration.
+    frequency : float
+        Forcing frequency [rad s-1].
+    radius : float
+        Radius [m].
+    density : float
+        Density [kg m-3].
+    bulk_modulus : complex
+        Bulk modulus [Pa].
+    shear_modulus : complex
+        Shear modulus [Pa].
+    degree_l : int
+        Tidal harmonic order.
+    G_to_use : float or None
+        Gravitational constant [m3 kg-1 s-2]; None takes the TidalPy configuration's value (SciPy's G).
+    starting_conditions_view : complex[:, ::1]
+        Output array of shape [num_solutions, num_ys].
+    run_y_checks : bool, optional
+        If True, validate num_ys. Default True.
+    """
+    cdef cpp_string message = cpp_string(b"No message set.")
     cdef cpp_bool success = False
 
-    # starting conditions are passed as an array with shape [num_solutions, num_ys]
-    cdef ssize_t num_ys = starting_conditions_view.shape[1]
-    cdef double complex* starting_conditions_ptr = <double complex*>&starting_conditions_view[0, 0]
+    cy_check_solution_buffer(
+        "find_starting_conditions's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], layer_type, is_static)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
 
-    cf_find_starting_conditions(
+    cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
+    cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
+
+    c_find_starting_conditions(
         &success,
         message,
         layer_type,
         is_static,
         is_incompressible,
-        use_kamata,
+        starting_method_from_name(
+            TidalPy.config['radial_solver']['starting_method'] if starting_method is None else starting_method),
         frequency,
         radius,
         density,
-        bulk_modulus,
-        <double complex>shear_modulus,
+        K,
+        mu,
         degree_l,
-        G_to_use,
+        cy_resolve_G(G_to_use),
         num_ys,
-        starting_conditions_ptr,
+        ptr,
         run_y_checks
         )
 
     if not success:
-        if message.find(cpp_string('not implemented')) != cpp_npos:
-            raise NotImplementedError(message.decode('utf-8'))
-        else:
-            raise Exception(message.decode('utf-8'))
+        # An unknown method, a power series that refused to start, or a buffer of the wrong size.
+        raise RuntimeError(message.decode('utf-8'))

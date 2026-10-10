@@ -11,12 +11,14 @@ FILE_PATH = os.path.dirname(__file__)
 REPO_PATH = os.path.abspath(os.path.join(FILE_PATH, os.pardir))
 
 # This build never imports TidalPy. The package is not installed on Read the Docs, because compiling its C++
-# extension modules takes most of the build time limit and nothing here needs them, so there is no `sys.path`
-# entry for it and no autodoc or autosummary pass. Everything rendered here is either hand written, a notebook
-# shown from its stored outputs, or read out of pyproject.toml below.
+# extension modules overruns the 15 minute build limit on its own, so there is no `sys.path` entry for it
+# and no autodoc or autosummary pass. Everything rendered here is either hand written, a notebook shown from
+# its stored outputs, or read out of pyproject.toml below.
 
 # Basic configurations
 html_static_path = ["_static"]
+# Self-contained pages served next to the generated ones (linked from index.md and future_structure.md).
+html_extra_path = ["code_map.html"]
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
 pyproject_path = os.path.join(REPO_PATH, 'pyproject.toml')
@@ -78,15 +80,17 @@ src = os.path.join(REPO_PATH, "NOTICE")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
-# Copy all demos over
-demo_src_dir = Path(os.path.join(FILE_PATH, os.pardir, "Demos"))
-demo_dst_dir = Path(os.path.join(FILE_PATH, "Demos"))
-demo_dst_dir.mkdir(exist_ok=True)
-for notebook in demo_src_dir.glob("*.ipynb"):
-    # New filename with underscores instead of spaces
-    new_name = notebook.name.replace(" ", "_")
-    dest_file = demo_dst_dir / new_name
-    shutil.copy2(notebook, dest_file)
+# Copy the demos and benchmarks over, preserving their topic subfolders.
+for folder_name in ("Demos", "Benchmarks"):
+    notebook_src = Path(os.path.join(FILE_PATH, os.pardir, folder_name))
+    notebook_dst = Path(os.path.join(FILE_PATH, folder_name))
+    if notebook_src.is_dir():
+        for notebook in notebook_src.rglob("*.ipynb"):
+            if ".ipynb_checkpoints" in notebook.parts:
+                continue
+            dest_file = notebook_dst / notebook.relative_to(notebook_src)
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(notebook, dest_file)
 
 # Prep other theme and extension settings.
 extensions = []

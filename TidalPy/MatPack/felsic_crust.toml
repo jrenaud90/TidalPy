@@ -1,0 +1,75 @@
+# felsic_crust: granitic continental crust (quartz 0.30, plagioclase An20 0.60, clinopyroxene 0.10 by volume; albite
+# stands in for K-feldspar, absent from Stixrude and Lithgow-Bertelloni 2011). Confidence low.
+# Solid: Birch-Murnaghan, expansivity, and shear modulus derived from the Stixrude and Lithgow-Bertelloni (2011)
+# end-members with BurnMan; the bulk modulus is set below the derived 56 to 59 GPa because their quartz is too stiff.
+# Expansivity is constant (the quartz alpha-beta transition spoils a fit).
+# Heat capacity: the derived 300 K value with an unsourced exponent. Conductivity: Turcotte and Schubert (2002),
+# Table 4.1. Viscosity: wet quartzite dislocation creep (Gleason and Tullis 1995) at 1 MPa stress.
+# Melting: unsourced round dry values (the water-saturated solidus is near 950 K; Tuttle and Bowen 1958) and a typical
+# silicate latent heat. Liquid: unsourced density, bulk modulus, and expansivity; viscosity inside the 1e5 to 1e10 Pa s
+# range of Hess and Dingwell (1996).
+schema_version = "0.2.0"
+description = "Granitic continental crust with wet-quartzite creep and constant melting temperatures."
+category = "rocky"
+latent_heat_j_kg = 3.5e5
+
+[solid]
+thermal_conductivity_w_mk = 3.0
+heat_capacity_j_kgk = 910.0
+heat_capacity_temperature_exponent = 0.22
+thermal_reference_temperature_k = 300.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 2690.0
+reference_bulk_modulus_pa = 5.5e10
+bulk_modulus_derivative = 5.0
+thermal_expansion_1_k = 2.6e-5
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 4.1e10
+pressure_derivative = 1.1
+temperature_derivative_pa_k = -6.2e6
+reference_temperature_k = 300.0
+
+[solid.shear_viscosity]
+model = "arrhenius"
+arrhenius_coeff = 4.5e27
+stress_pa = 1.0e6
+stress_expo = 4.0
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 2.23e5
+molar_activation_volume_m3_mol = 0.0
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+thermal_conductivity_w_mk = 3.0
+heat_capacity_j_kgk = 1200.0
+
+[liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 2300.0
+bulk_modulus_pa = 1.2e10
+thermal_expansion_1_k = 6.5e-5
+reference_temperature_k = 1400.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e7
+
+[melting.solidus]
+model = "constant"
+temperature_k = 1220.0
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 1400.0
+
+[melting.weakening]
+model = "henning"

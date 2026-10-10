@@ -1,47 +1,36 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-########################################################################################################################
-#### Liquid Layers
-########################################################################################################################
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
+
+from libcpp.complex cimport complex as cpp_complex
+
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
 
 
-cdef void cf_saito_liquid_static_incompressible(
+def saito_liquid_static_incompressible(
         double radius,
         int degree_l,
-        size_t num_ys, 
-        double complex* starting_conditions_ptr
-        ) noexcept nogil:
-    """ Calculate the initial guess at the bottom of a liquid layer using the static assumption.
+        double complex[:, ::1] starting_conditions_view):
+    """
+    Calculate Saito starting conditions for a liquid static incompressible layer.
 
-    This function uses the Saito 1974 equations (Eq. 19).
-
-    Using the static assumption in a liquid layer results in one independent solutions for the radial derivative.
-
-    These independent solution allow for a general tidal harmonic l, for static tides (w = 0).
-    However, compressibility and all dissipation dependence is lost due to no dependence on bulk or shear moduli.
-
-
-    References
-    ----------
-    S74
+    S74 Eq. 19. One independent solution.
 
     Parameters
     ----------
-    radius : double
-        Radius where the radial functions are calculated. [m]
-    degree_l : unsigned char
+    radius : float
+        Radius [m].
+    degree_l : int
         Tidal harmonic order.
-    num_ys : ssize_t
-        Number of radial solutions for this layer type.
-    starting_conditions_ptr : double complex*, <Output>
-        Desired starting conditions for this layer.
-        One independent liquid guess (sn1)
+    starting_conditions_view : complex[:, ::1]
+        Output array of shape [1, num_ys].
     """
-
-    # See Eq. 19 in Saito 1974
-    # # y5 solution 0
-    starting_conditions_ptr[0] = radius**degree_l
-
-    # # y7 solution 0
-    starting_conditions_ptr[1] = 2. * (degree_l - 1.) * radius**(degree_l - 1.)
+    cy_check_solution_buffer(
+        "saito_liquid_static_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, True)
+    cdef size_t num_ys = starting_conditions_view.shape[1]
+    cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
+    c_saito_liquid_static_incompressible(radius, degree_l, num_ys, ptr)

@@ -1,29 +1,163 @@
+# Io: Fe-FeS core, warm silicate mantle, and a 100 km melt-weakened asthenosphere that does almost all of the
+# dissipating (the asthenosphere end-member of Segatz et al. 1988; thickness from Khurana et al. 2011).
+# Core density 5150 kg/m3 (Anderson et al. 2001) and asthenosphere 3200 kg/m3; the mantle reference density,
+# 3344.887 kg/m3, reproduces the mass (g = 1.7964 m/s2 vs 1.796 observed; central pressure 7.34 GPa).
+# C/MR2 = 0.3832 vs 0.37685 measured (Anderson et al. 2001); the core radius is the lever.
+# Viscosity law: eta_ref exp[(E/R)(1/T - 1/T_ref)], E = 300 kJ/mol, referenced to each layer's temperature.
+# Fitted: asthenosphere viscosity 3.5362e12 Pa s gives 9.330e13 W (Lainey et al. 2009: (9.33 +/- 1.83)e13 W) with
+# Jupiter's mass at a = 4.217e8 m, e = 0.0041, synchronous; core 6.4e-6, mantle 0.041, asthenosphere 0.959 of it.
+# k2 = 0.036 - 0.015i; Juno's Re(k2) = 0.125 +/- 0.047, Q = 11.4 +/- 3.6 (Park et al. 2025) is not matched.
+# Spin is Io's observed rate. In a System keep it synchronous with
+# world.set_spin_frequency(system.calc_orbital_frequency(world)).
+schema_version = "0.2.0"
 name = "Io"
-type = "burnman"
-radius = 1821490.0
-orbital_period = 1.769
-eccentricity = 0.0041
-spin_period = 1.769
+type = "terrestrial"
+radius_m = 1821490.0
+mass_kg = 8.9298e22
+spin_frequency_rad_s = 4.110913e-05
 albedo = 0.63
-force_spin_sync = true
 
-[layers.Core]
-type = "iron"
-is_tidal = false
-radius = 810000.0
-material = [ "Pyrite", "Fe_Dewaele",]
-material_source = [ "TidalPy", "other",]
-material_fractions = [ 0.5, 0.5,]
-temperature_mode = "user-defined"
-temperature_fixed = 1800.0
+# Temperatures are prescribed (the fit holds at these values), so the EOS solve keeps them.
+[eos_solver]
+solve_temperature = false
 
-[layers.Mantle]
-type = "rock"
-is_tidal = true
-radius = 1821490.0
-material = [ "forsterite", "mg_perovskite",]
-material_source = [ "SLB_2011", "SLB_2011",]
-material_fractions = [ 0.65, 0.35,]
-temperature_mode = "adiabatic"
-temperature_top = 1800.0
-surface_temperature = 100.0
+[layers.core]
+layer_index = 0
+radius_outer_m = 810000.0
+use_tides = true
+temperature_k = 1900.0
+use_heating = true
+
+[layers.core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.core.material.solid.eos]
+model = "constant"
+reference_density_kg_m3 = 5150.0
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.core.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20        # solid iron core
+reference_temperature_k = 1900.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.core.shear_rheology]
+model = "maxwell"
+
+[layers.mantle]
+layer_index = 1
+radius_outer_m = 1721490.0
+use_tides = true
+temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3344.8870
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e19        # warm solid silicate
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening; below the solidus at 1600 K.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
+[layers.asthenosphere]
+layer_index = 2
+radius_fraction = 1.0
+use_tides = true
+temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.asthenosphere.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.asthenosphere.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3200.0      # partially molten silicate
+reference_bulk_modulus_pa = 1.28e11
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.asthenosphere.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 1.0e9              # melt-weakened
+
+[layers.asthenosphere.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 3.5362e12     # fitted to Io's observed heat output
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.asthenosphere.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.asthenosphere.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening; below the solidus at 1600 K.
+[layers.asthenosphere.material.melting]
+preset = "peridotite"
+
+[layers.asthenosphere.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.asthenosphere.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.asthenosphere.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"

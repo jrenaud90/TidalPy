@@ -1,0 +1,59 @@
+# ice_iii: water ice III (about 0.21 to 0.35 GPa), melting into liquid water (low confidence).
+# Solid: bulk modulus and K0' of the Journaux et al. (2020), Table 3 cold curve, with the reference density rescaled
+# (derived here) to 1160 kg m-3 at 0.25 GPa and 250 K. Expansivity: unsourced estimate. Shear modulus: SeaFreeze law for
+# ices III, V, and VI (Journaux et al. 2020) at 1160 kg m-3 and 250 K.
+# Viscosity: unsourced placeholder (ice III is the weakest ice phase; Durham et al. 1997, 2010). Conductivity (lower
+# than ice Ih; Ahrens et al. 2022), heat capacity, and latent heat are unsourced estimates.
+# Melting: IAPWS R14-08 (2011) ice III curve, anchored at its triple point (251.165 K, 208.566 MPa). Liquid: water.
+schema_version = "0.2.0"
+description = "Water ice III with the IAPWS melting curve, melting into liquid water."
+category = "icy"
+latent_heat_j_kg = 3.3e5
+
+[solid]
+thermal_conductivity_w_mk = 1.3
+heat_capacity_j_kgk = 2000.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 1133.0
+reference_bulk_modulus_pa = 9.9e9
+bulk_modulus_derivative = 6.0
+thermal_expansion_1_k = 1.5e-4
+reference_temperature_k = 250.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 3.9e9
+pressure_derivative = 1.8
+temperature_derivative_pa_k = -1.4e7
+reference_pressure_pa = 2.5e8
+reference_temperature_k = 250.0
+
+[solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e14
+reference_temperature_k = 250.0
+molar_activation_energy_j_mol = 1.1e5
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+preset = "water"
+
+[melting.solidus]
+model = "simon_glatzel"
+temperature_k = 251.165
+reference_pressure_pa = 2.08566e8
+simon_a_pa = 6.256e7
+simon_c = 60.0
+
+[melting.liquidus]
+model = "simon_glatzel"
+temperature_k = 251.165
+reference_pressure_pa = 2.08566e8
+simon_a_pa = 6.256e7
+simon_c = 60.0

@@ -1,1 +1,0 @@
-from .factorial import find_factorial as find_factorial

@@ -1,13 +1,19 @@
-# From Delrez+2018 and Kane2018
-# Updated using Agol+2020, Mass from Mann+2019, Luminosity from Ducrot+2020
-
+# TRAPPIST-1: the M8V host star of the seven-planet system. Stars carry no layers or equation of state.
+# Mass 0.0898 solar masses (Agol et al. 2021, from the Mann et al. 2019 calibration and the Gaia parallax) and
+# radius 0.1192 solar radii (Delrez et al. 2018), as in TidalPy's constants_.hpp. Effective temperature 2566 K.
+# Luminosity 5.474e-4 solar (Agol et al. 2021) is stated, not derived: Stefan-Boltzmann on this radius and
+# temperature gives 1.4 percent more, so the published values disagree slightly and the measured one is kept.
+schema_version = "0.2.0"
 name = "TRAPPIST-1"
 type = "star"
-radius = 82927000.0
-mass = 1.786e+29
-luminosity = 2.11799e+23
-tides_on = false
+radius_m = 82927440.0
+mass_kg = 1.785615e29
+effective_temperature_k = 2566.0
+luminosity_w = 2.095447e23
 
+# Fully convective, so the fluid Love numbers of an n = 1.5 polytrope (k2 = 0.287), with Q' = 3 Q / (2 k2) = 1e6
+# (M-dwarf values are poorly constrained, roughly 1e5 to 1e7).
 [tides]
-model = "global_approx"
-fixed_q = 5000.0
+global_tidal_model = "fixed_q"
+fixed_k = [0.287, 0.106, 0.0548, 0.0331, 0.022, 0.0155, 0.0114, 0.00872, 0.00684]
+fixed_q = [1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5]

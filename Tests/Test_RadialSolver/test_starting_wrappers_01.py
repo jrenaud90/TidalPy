@@ -1,0 +1,195 @@
+"""Each starting-condition wrapper matches the driver path that selects it; boundary and partition helpers run."""
+import numpy as np
+import pytest
+
+from TidalPy.constants import G
+from TidalPy.RadialSolver.boundaries.boundaries import apply_surface_bc
+from TidalPy.RadialSolver.interfaces.reversed import top_to_bottom_interface_bc
+from TidalPy.RadialSolver.starting.common import takeuchi_phi_psi, z_calc
+from TidalPy.RadialSolver.derivatives.odes import find_num_shooting_solutions
+from TidalPy.RadialSolver.starting.driver import find_starting_conditions
+from TidalPy.RadialSolver.starting.kamata import (
+    kamata_liquid_dynamic_compressible,
+    kamata_liquid_dynamic_incompressible,
+    kamata_solid_dynamic_compressible,
+    kamata_solid_dynamic_incompressible,
+    kamata_solid_static_compressible,
+    kamata_solid_static_incompressible,
+)
+from TidalPy.RadialSolver.starting.power_series import (
+    power_series_liquid_dynamic_compressible,
+    power_series_liquid_dynamic_incompressible,
+    power_series_solid_dynamic_compressible,
+    power_series_solid_dynamic_incompressible,
+    power_series_solid_static_compressible,
+    power_series_solid_static_incompressible,
+)
+from TidalPy.RadialSolver.starting.saito import saito_liquid_static_incompressible
+from TidalPy.RadialSolver.starting.takeuchi import (
+    takeuchi_liquid_dynamic_compressible,
+    takeuchi_liquid_dynamic_incompressible,
+    takeuchi_solid_dynamic_compressible,
+    takeuchi_solid_dynamic_incompressible,
+    takeuchi_solid_static_compressible,
+    takeuchi_solid_static_incompressible,
+)
+from TidalPy.Utilities.arrays.interp import partition_radius_by_layer
+
+FREQUENCY = 2.0 * np.pi / 86400.0
+RADIUS = 1.0e5
+DENSITY = 7000.0
+BULK = 200.0e9 + 0.0j
+SHEAR = 100.0e9 + 1.0e8j
+DEGREE_L = 2
+
+# Positional arguments each wrapper takes before its output view; incompressible layers take no bulk modulus.
+WRAPPER_ARGS = {
+    "full": (FREQUENCY, RADIUS, DENSITY, BULK, SHEAR, DEGREE_L, G),
+    "static_solid": (RADIUS, DENSITY, BULK, SHEAR, DEGREE_L, G),
+    "liquid": (FREQUENCY, RADIUS, DENSITY, BULK, DEGREE_L, G),
+    "solid_incomp": (FREQUENCY, RADIUS, DENSITY, SHEAR, DEGREE_L, G),
+    "static_solid_incomp": (RADIUS, DENSITY, SHEAR, DEGREE_L, G),
+    "liquid_incomp": (FREQUENCY, RADIUS, DENSITY, DEGREE_L, G),
+    "saito": (RADIUS, DEGREE_L),
+}
+
+# (wrapper, argument kind, layer_type, is_static, is_incompressible, starting_method)
+CASES = (
+    (kamata_solid_dynamic_compressible, "full", 0, False, False, "kamata"),
+    (kamata_solid_static_compressible, "static_solid", 0, True, False, "kamata"),
+    (kamata_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "kamata"),
+    (kamata_liquid_dynamic_compressible, "liquid", 1, False, False, "kamata"),
+    (kamata_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "kamata"),
+    (kamata_solid_static_incompressible, "static_solid_incomp", 0, True, True, "kamata"),
+    (takeuchi_solid_dynamic_compressible, "full", 0, False, False, "takeuchi"),
+    (takeuchi_solid_static_compressible, "static_solid", 0, True, False, "takeuchi"),
+    (takeuchi_liquid_dynamic_compressible, "liquid", 1, False, False, "takeuchi"),
+    (takeuchi_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "takeuchi"),
+    (takeuchi_solid_static_incompressible, "static_solid_incomp", 0, True, True, "takeuchi"),
+    (takeuchi_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "takeuchi"),
+    (power_series_solid_dynamic_compressible, "full", 0, False, False, "power_series"),
+    (power_series_solid_static_compressible, "static_solid", 0, True, False, "power_series"),
+    (power_series_solid_dynamic_incompressible, "solid_incomp", 0, False, True, "power_series"),
+    (power_series_solid_static_incompressible, "static_solid_incomp", 0, True, True, "power_series"),
+    (power_series_liquid_dynamic_compressible, "liquid", 1, False, False, "power_series"),
+    (power_series_liquid_dynamic_incompressible, "liquid_incomp", 1, False, True, "power_series"),
+    (saito_liquid_static_incompressible, "saito", 1, True, True, "takeuchi"),
+)
+
+
+def _empty(layer_type, is_static, is_incompressible):
+    """The driver sizes the view as (num_solutions, 2 * num_solutions); anything else it rejects."""
+    num_sols = find_num_shooting_solutions(layer_type, is_static, is_incompressible)
+    return np.zeros((num_sols, 2 * num_sols), dtype=np.complex128, order="C")
+
+
+@pytest.mark.parametrize("wrapper, kind, layer_type, is_static, is_incompressible, starting_method",
+                         CASES, ids=[case[0].__name__ for case in CASES])
+def test_wrapper_matches_the_driver(
+        wrapper,
+        kind,
+        layer_type,
+        is_static,
+        is_incompressible,
+        starting_method):
+    """Calling a wrapper directly gives what the driver gives for the combination that selects it."""
+    direct = _empty(layer_type, is_static, is_incompressible)
+    wrapper(*WRAPPER_ARGS[kind], direct)
+
+    through_driver = _empty(layer_type, is_static, is_incompressible)
+    find_starting_conditions(
+        layer_type,
+        is_static,
+        is_incompressible,
+        starting_method,
+        FREQUENCY,
+        RADIUS,
+        DENSITY,
+        BULK,
+        SHEAR,
+        DEGREE_L,
+        G,
+        through_driver)
+
+    assert np.all(np.isfinite(direct.view(np.float64))), direct
+    assert not np.all(direct == 0.0), "the wrapper wrote nothing"
+    np.testing.assert_allclose(direct, through_driver, rtol=1.0e-12, atol=0.0)
+
+
+
+@pytest.mark.parametrize("degree_l", (2, 3, 4))
+def test_z_calc_is_finite_and_small_argument_limit(degree_l):
+    """z -> x^2 / (2l + 3) as x^2 -> 0 (KMN15 Eq. B14)."""
+    tiny = 1.0e-12 + 0.0j
+    assert z_calc(tiny, degree_l) == pytest.approx(tiny / (2 * degree_l + 3), rel=1.0e-6)
+    value = z_calc(0.5 + 0.25j, degree_l)
+    assert np.isfinite(value.real) and np.isfinite(value.imag)
+
+
+@pytest.mark.parametrize("degree_l", (2, 3))
+def test_takeuchi_phi_psi_returns_three_finite_values(degree_l):
+    """phi, phi_{l+1}, psi (TS72 Eq. 103); all three are finite and phi -> 1 at small argument."""
+    result = takeuchi_phi_psi(1.0e-14 + 0.0j, degree_l)
+    assert len(result) == 3
+    assert all(np.isfinite(complex(value)) for value in result)
+    assert complex(result[0]) == pytest.approx(1.0 + 0.0j, abs=1.0e-9)
+
+
+def test_apply_surface_bc_writes_a_finite_constant_vector():
+    """A three-solution solid surface solve returns finite constants for a tidal boundary condition."""
+    constants = np.zeros(3, dtype=np.complex128)
+    bc = np.asarray([0.0, 0.0, (2.0 * DEGREE_L + 1.0) / RADIUS], dtype=np.float64)
+    uppermost = np.zeros((3, 6), dtype=np.complex128, order="C")
+    for index in range(3):
+        uppermost[index, index] = 1.0 + 0.0j
+        uppermost[index, 5] = 1.0e-6 * (index + 1)
+
+    apply_surface_bc(
+        constants,
+        bc,
+        uppermost,
+        1.62,
+        G,
+        0,
+        0,
+        False,
+        False)
+
+    assert np.all(np.isfinite(constants.view(np.float64))), constants
+
+
+def test_top_to_bottom_interface_bc_runs_for_a_solid_under_solid():
+    """The reversed interface helper fills the lower layer's constants from the layer above."""
+    constants = np.zeros(3, dtype=np.complex128)
+    above = np.asarray([1.0 + 0.0j, 0.5 + 0.0j, 0.25 + 0.0j], dtype=np.complex128)
+    uppermost = np.zeros((3, 6), dtype=np.complex128, order="C")
+    for index in range(3):
+        uppermost[index, index] = 1.0 + 0.0j
+
+    top_to_bottom_interface_bc(
+        constants,
+        above,
+        uppermost,
+        1.62,
+        1.60,
+        3500.0,
+        3300.0,
+        0,
+        0,
+        False,
+        False)
+
+    # Solid under solid: the constants pass straight through.
+    np.testing.assert_array_equal(constants, above)
+
+
+def test_partition_radius_by_layer_splits_at_the_repeated_interface():
+    """Each interface radius appears twice; the first copy belongs to the layer below."""
+    radius = np.asarray([0.0, 500.0, 1000.0, 1000.0, 1500.0, 2000.0], dtype=np.float64)
+    uppers = np.asarray([1000.0, 2000.0], dtype=np.float64)
+
+    first_index, num_slices = partition_radius_by_layer(radius, uppers)
+
+    assert list(first_index) == [0, 3]
+    assert list(num_slices) == [3, 3]
+    assert sum(num_slices) == radius.size

@@ -1,0 +1,107 @@
+# peridotite: upper mantle (olivine Fo90 0.60, orthopyroxene 0.20, clinopyroxene 0.10, garnet 0.10 by volume).
+# Solid: Birch-Murnaghan (fit 0 to 14 GPa; transition-zone phases not included), expansivity, and shear modulus derived
+# from the Stixrude and Lithgow-Bertelloni (2011) end-members with BurnMan (Voigt-Reuss-Hill). Gruneisen parameter:
+# forsterite's. Heat capacity: power law through the derived 300 and 1600 K values. Conductivity: Turcotte and Schubert
+# (2002).
+# Viscosity: dry olivine diffusion and dislocation creep in parallel (Hirth and Kohlstedt 2003, Table 1; dislocation
+# activation volume from Dixon and Durham 2018). Tidal rheology: Andrade (Jackson and Faul 2010; Efroimsky 2012).
+# Melting: Monteux et al. (2016), Eqs. 10 to 13, two Simon-Glatzel branches each, joined at 20 GPa; latent heat after
+# Ghosh and McSween (1998). Melt weakening after Henning et al. (2009).
+# Liquid: density of Monteux et al. (2016) (Thomas and Asimow 2013); bulk modulus and expansivity of the de Koker et al.
+# (2013) Mg-silicate liquids at 2200 K (via BurnMan); viscosity near the liquidus (Dingwell et al. 2004). Conductivity
+# and heat capacity: unsourced, the solid's values.
+schema_version = "0.2.0"
+description = "Upper-mantle peridotite with Monteux et al. (2016) melting curves and a silicate melt."
+category = "rocky"
+latent_heat_j_kg = 4.0e5
+
+[solid]
+thermal_conductivity_w_mk = 3.3
+heat_capacity_j_kgk = 1260.0
+heat_capacity_temperature_exponent = 0.228
+thermal_reference_temperature_k = 1600.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3370.0
+reference_bulk_modulus_pa = 1.25e11
+bulk_modulus_derivative = 4.9
+thermal_expansion_1_k = 2.2e-5
+reference_temperature_k = 300.0
+gruneisen_parameter = 0.99
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 7.7e10
+pressure_derivative = 1.42
+temperature_derivative_pa_k = -1.25e7
+reference_temperature_k = 300.0
+
+[solid.shear_viscosity]
+model = "composite"
+
+# Diffusion creep: A = 1.5e9 MPa-1 um3 s-1.
+[[solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 3.33e14
+stress_pa = 1.0e5
+stress_expo = 1.0
+grain_size_m = 1.0e-3
+grain_size_expo = 3.0
+molar_activation_energy_j_mol = 3.75e5
+molar_activation_volume_m3_mol = 6.0e-6
+
+# Dislocation creep: A = 1.1e5 MPa-3.5 s-1.
+[[solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 4.55e15
+stress_pa = 1.0e5
+stress_expo = 3.5
+grain_size_m = 1.0e-3
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 5.3e5
+molar_activation_volume_m3_mol = 1.5e-5
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+thermal_conductivity_w_mk = 3.3
+heat_capacity_j_kgk = 1260.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 2680.0
+reference_bulk_modulus_pa = 2.0e10
+bulk_modulus_derivative = 6.5
+thermal_expansion_1_k = 6.5e-5
+reference_temperature_k = 2200.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 0.1
+
+[melting.solidus]
+model = "simon_glatzel_2"
+temperature_k = 1661.2
+simon_a_pa = 1.336e9
+simon_c = 7.437
+transition_pressure_pa = 2.0e10
+high_temperature_k = 2081.8
+high_simon_a_pa = 1.0169e11
+high_simon_c = 1.226
+
+[melting.liquidus]
+model = "simon_glatzel_2"
+temperature_k = 1982.1
+simon_a_pa = 6.594e9
+simon_c = 5.374
+transition_pressure_pa = 2.0e10
+high_temperature_k = 78.74
+high_simon_a_pa = 4.054e6
+high_simon_c = 2.44
+
+[melting.weakening]
+model = "henning"

@@ -1,36 +1,126 @@
-name = "Earth_Simple"
-type = "layered"
-radius = 6371000.0
-semi_major_axis = 1.0
-semi_major_axis_in_au = true
-eccentricity = 0.01671022
-spin_period = 1.0
-tides_on = true
+# Earth-Simple: solid inner core and static liquid outer core under a tidally active mantle, and the worked example
+# of the world schema (Documentation/Structures/config/toml_schema.md); earth_prem is the seismic profile.
+# Layers are built inner to outer; each sets its outer radius by one of radius_outer_m, radius_fraction, or
+# volume_fraction. A layer with a liquid-only material is a liquid.
+# Core boundaries are PREM's (1221.5 and 3480 km); the inner core is fixed at 12900 kg/m3.
+# Fitted: outer core 11384.6 kg/m3 and mantle reference density 3516.322 kg/m3 to the mass, 5.972e24 kg, and
+# C/MR2 = 0.3307 (Williams 1994); g = 9.820 m/s2; central pressure 365 GPa (PREM: 364).
+# Generic temperatures and viscosities (law as in io.toml, E = 300 kJ/mol): inner core 5500 K, 1e20 Pa s; outer
+# core 4500 K; mantle 1600 K, 1e21 Pa s, Andrade.
+# Fitted: mantle rigidity 2.211e11 Pa gives k2 = 0.300 at the 12.4206 hour M2 period, the solid-Earth value (Wahr
+# 1981). With the outer core made solid, k2 drops to 0.2395.
+# Q = 246 at M2, not fitted (solid Earth about 280). Heating with the Moon's mass at a = 3.844e8 m, e = 0.0549 and
+# Earth's rotation: 1.5e11 W, all but 6e-9 of it in the mantle.
+schema_version = "0.2.0"
+name = "Earth-Simple"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
 
-[tides]
-model = "global_approx"
-fixed_q = 100.0
+# Temperatures are prescribed (the fits hold at these values), so the EOS solve keeps them.
+[eos_solver]
+solve_temperature = false
 
-[layers.Inner_Core]
-type = "iron"
-is_tidal = false
-radius = 1220000.0
-density = 17000.0
+[layers.inner_core]
+layer_index = 0
+radius_outer_m = 1221500.0            # PREM inner-core boundary
+use_tides = true
+temperature_k = 5500.0
+use_heating = true
 
-[layers.Outer_Core]
-type = "iron"
-is_tidal = false
-radius = 3480000.0
-density = 12000.0
+[layers.inner_core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
 
-[layers.Lower_Mantle]
-type = "rock"
-is_tidal = false
-radius = 5711000.0
-density = 5000.0
+[layers.inner_core.material.solid.eos]
+model = "constant"
+reference_density_kg_m3 = 12900.0     # PREM inner core, 12.76 to 13.09
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
 
-[layers.Upper_Mantle]
-type = "rock"
-is_tidal = true
-radius = 6371000.0
-density = 3300.0
+[layers.inner_core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.inner_core.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 5500.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.inner_core.shear_rheology]
+model = "maxwell"
+
+[layers.outer_core]
+layer_index = 1
+radius_outer_m = 3480000.0            # PREM core-mantle boundary
+use_tides = false
+temperature_k = 4500.0
+
+# Liquid-only material: a static fluid outer core.
+[layers.outer_core.material.liquid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.outer_core.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 11384.6     # fitted to the mass and C/MR2
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.mantle]
+layer_index = 2
+radius_fraction = 1.0                 # outer radius = full world radius
+use_tides = true
+temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3516.322    # fitted to the mass and C/MR2
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 2.211e11           # fitted to k2 = 0.30 at M2
+
+[layers.mantle.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite melting curves (Monteux et al. 2016) with Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"

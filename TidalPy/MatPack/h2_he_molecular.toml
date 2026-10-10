@@ -1,0 +1,26 @@
+# h2_he_molecular: the molecular hydrogen-helium envelope of a Jupiter-like planet; liquid only.
+# n = 1 polytrope (Hubbard 1984; Stevenson 1982) with Jupiter's K = 2 G R^2 / pi, R = 69911 km (Saturn: 1.44e5). It
+# somewhat overestimates the molecular-region density; the Saumon et al. (1995) tables or the Militzer and Hubbard
+# (2013) EOS are detailed alternatives through the interpolate law. Above about 1 kbar the outer layer is closer to an
+# n = 2.5 ideal diatomic gas (unsourced).
+# Thermal properties and viscosity: within the Jupiter-adiabat ranges of French et al. (2012).
+# Fluid-envelope tides are usually a world-level fixed_q or fixed_dt model (Jupiter: k2 = 0.565, Durante et al. 2020;
+# k2 / Q = 1.10e-5, Lainey et al. 2009).
+schema_version = "0.2.0"
+description = "Molecular H2-He envelope on Jupiter's n = 1 polytrope; always fluid."
+category = "giant"
+
+[liquid]
+thermal_conductivity_w_mk = 10.0
+heat_capacity_j_kgk = 1.35e4
+
+[liquid.eos]
+model = "polytrope"
+polytropic_constant = 2.08e5
+polytropic_index = 1.0
+thermal_expansion_1_k = 3.0e-5
+reference_temperature_k = 165.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 3.0e-4

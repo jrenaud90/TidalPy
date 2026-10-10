@@ -1,0 +1,52 @@
+# Example-Profile: a world built from a radial data file, showing data_file, refinement of detected layers, and an
+# override of the RK45 default such worlds pin.
+#
+# The profile (radius, density, Vp, Vs, optional viscosities; columns found by name) splits into layers at each
+# solid-liquid transition and repeated radius. A [layers.<name>] table refines one detected layer (by layer_index or
+# the name layer_N) or every layer within radius_range_m; a given outer radius must match the detected boundary.
+# PREM.csv gives twelve layers. The path resolves against this file's folder, then the worlds data directory, then
+# the WorldPack. From Python, a `data` mapping of arrays can replace data_file.
+
+schema_version = "0.2.0"
+name = "Example-Profile"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"
+
+# Data-file worlds pin RK45 for the equation-of-state solve unless the file overrides it, as here.
+[eos_solver]
+integration_method = "DOP853"
+rtol = 1.0e-9
+
+[tides]
+global_tidal_model = "rheology"
+love_method = "radial_solver"
+
+# Refines every detected layer from the core-mantle boundary up (named mantle_0 to mantle_9) with a rheology, a
+# viscosity, and a temperature; the profile's density and moduli stay. Each key applies to every one of these
+# layers, so tidal_scale is left at its default.
+[layers.mantle]
+radius_range_m = [3480.0e3, 6371.0e3]
+use_tides = true
+temperature_k = 1600.0
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.material.solid.shear_viscosity]
+model = "constant"                      # the profile has no viscosity, so give one
+reference_viscosity_pas = 1.0e21
+
+# Refines the innermost detected layer, layer_0, to switch its dissipation on.
+[layers.layer_0]
+use_tides = true
+tidal_scale = 0.001
+temperature_k = 5500.0
+
+[layers.layer_0.material.solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20

@@ -1,0 +1,70 @@
+# ice_ih: water ice Ih, melting into liquid water.
+# Solid: Birch-Murnaghan at 250 K from IAPWS-06 (Feistel and Wagner 2006; K0' derived over 0 to 200 MPa); ice III takes
+# over above about 210 MPa. Expansivity: the 250 K value (it varies from 3.0e-5 to 1.6e-4 K-1 with temperature, which no
+# law here represents).
+# Shear modulus: SeaFreeze ice Ih (Journaux et al. 2020) at 920 kg m-3 and 250 K. Conductivity: power law through
+# Petrenko and Whitworth (1999). Heat capacity: power law fit to IAPWS-06 from 100 to 273 K.
+# Viscosity: volume-diffusion creep (Goldsby and Kohlstedt 2001) at a 0.5 mm grain size; their basal-slip,
+# grain-boundary-sliding, and dislocation mechanisms are not included.
+# Melting: a fit to the IAPWS R14-08 (2011) ice Ih curve (maximum error 0.17 K), held at about 251 K above the
+# 208.566 MPa triple point, where ice III takes over. Latent heat: IAPWS. Liquid: water.
+schema_version = "0.2.0"
+description = "Water ice Ih (IAPWS-06) with diffusion creep, melting into liquid water."
+category = "icy"
+latent_heat_j_kg = 3.334e5
+
+[solid]
+thermal_conductivity_w_mk = 2.43
+conductivity_temperature_exponent = -0.84
+heat_capacity_j_kgk = 1927.0
+heat_capacity_temperature_exponent = 0.87
+thermal_reference_temperature_k = 250.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 920.0
+reference_bulk_modulus_pa = 8.79e9
+bulk_modulus_derivative = 5.4
+thermal_expansion_1_k = 1.48e-4
+reference_temperature_k = 250.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 3.62e9
+pressure_derivative = -0.48
+temperature_derivative_pa_k = -6.6e6
+reference_temperature_k = 250.0
+
+# Volume diffusion: eta = A T d^2 exp(E / (R T)), A = R / (42 V_m D0v).
+[solid.shear_viscosity]
+model = "arrhenius"
+arrhenius_coeff = 1.104e7
+additional_temp_dependence = true
+stress_pa = 1.0
+stress_expo = 1.0
+grain_size_m = 5.0e-4
+grain_size_expo = 2.0
+molar_activation_energy_j_mol = 5.94e4
+molar_activation_volume_m3_mol = 0.0
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+preset = "water"
+
+[melting.solidus]
+model = "simon_glatzel"
+temperature_k = 273.16
+simon_a_pa = -4.15e8
+simon_c = 8.25
+maximum_pressure_pa = 2.08566e8
+
+[melting.liquidus]
+model = "simon_glatzel"
+temperature_k = 273.16
+simon_a_pa = -4.15e8
+simon_c = 8.25
+maximum_pressure_pa = 2.08566e8

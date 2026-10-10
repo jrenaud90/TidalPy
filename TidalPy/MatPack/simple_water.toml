@@ -1,0 +1,21 @@
+# simple_water: uniform liquid water ocean; liquid only.
+# Rounded IAPWS liquid water near 273 K (Patek et al. 2009; Huber et al. 2009, 2012). Expansivity: the positive value
+# near 50 MPa, as in a pressurized ocean (IAPWS G12-15).
+schema_version = "0.2.0"
+description = "Uniform liquid water: constant density and bulk modulus; always liquid."
+category = "simplified"
+
+[liquid]
+thermal_conductivity_w_mk = 0.56
+heat_capacity_j_kgk = 4200.0
+
+[liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 1000.0
+bulk_modulus_pa = 2.2e9
+thermal_expansion_1_k = 1.0e-4
+reference_temperature_k = 273.15
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.8e-3

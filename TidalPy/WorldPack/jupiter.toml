@@ -1,11 +1,80 @@
+# Jupiter: a heavy-element core, a metallic hydrogen mantle, and a molecular hydrogen envelope, all fluid.
+# Radius 69911 km (IAU nominal mean) and mass 1.898125e27 kg, as in TidalPy's constants_.hpp; g = 25.920 m/s2.
+# Boundaries at 0.15 (core) and 0.78 (metallic transition, near 1 Mbar) of the radius; core held at 20000 kg/m3.
+# Fitted: mantle 2377.224 and envelope 263.7333 kg/m3, to the mass and to C/MR2 = 0.2640. C/MR2 is not measured;
+# it sits within the 0.2629 to 0.2645 of the Helled et al. (2011) interior models.
+# Resulting layer masses: core 16.177, mantle 268.439, envelope 33.211 Earth masses. Juno-era models favor a dilute
+# core rather than this sharp one.
+# Solved k2 = 0.5344, not fitted, vs 0.565 +/- 0.006 from Juno (Durante et al. 2020); jupiter_simple gives 1.5.
+# Caveat: one density per layer. The central pressure, 9580 GPa, is over twice the ~4000 GPa of published models;
+# use a better interior for pressure or density profiles.
+# The inner layers are static liquids. A rigid rock core (shear modulus 1e11 Pa) would lower k2 by a relative 7e-5.
+# Tides: constant phase lag, k2 = 0.590 (hydrostatic) and Q = 53500, from k2/Q = (1.102 +/- 0.203)e-5
+# (Lainey et al. 2009). Higher degrees use the unmeasured default k_l ~ k_2 / (l - 1). None of it uses the interior.
+# Spin is the 9.925 h System III period. Add Jupiter to a System to give it an orbit.
+schema_version = "0.2.0"
 name = "Jupiter"
-type = "gas_giant"
-radius = 69911000.0
-mass = 1.898e+27
-semi_major_axis = 5.20336301
-semi_major_axis_in_au = true
-eccentricity = 0.04839266
-tides_on = false
+type = "gasgiant"
+radius_m = 69911000.0
+mass_kg = 1.898125e27
+spin_frequency_rad_s = 1.7585181e-04
+albedo = 0.503
+
+# Layer temperatures are prescribed, not solved: the rock and ice thermal constants do not describe hydrogen.
+[eos_solver]
+solve_temperature = false
 
 [tides]
-fixed_q = 8000.0
+global_tidal_model = "fixed_q"
+fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]
+fixed_q = [53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0]
+
+[layers.core]
+layer_index = 0
+radius_outer_m = 10486650.0           # 0.15 of the radius
+use_tides = false
+temperature_k = 20000.0
+use_heating = true
+
+# Liquid-only material: the heavy-element core is a static liquid.
+[layers.core.material.liquid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.core.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 20000.0     # held fixed
+bulk_modulus_pa = 2.0e11
+thermal_expansion_1_k = 5.2e-5
+
+[layers.core.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
+[layers.mantle]
+layer_index = 1
+radius_outer_m = 54530580.0           # 0.78 of the radius, near the 1 Mbar metallic transition
+use_tides = false
+temperature_k = 10000.0
+
+# Liquid-only material: metallic hydrogen.
+[layers.mantle.material.liquid]
+thermal_conductivity_w_mk = 2.3
+heat_capacity_j_kgk = 2000.0
+
+[layers.mantle.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 2377.224    # fitted, with the envelope, to the mass and C/MR2
+bulk_modulus_pa = 1.4e10
+thermal_expansion_1_k = 4.0e-5
+
+[layers.envelope]
+layer_index = 2
+radius_fraction = 1.0
+use_tides = true
+tidal_scale = 1.0
+temperature_k = 2000.0
+use_heating = true
+
+[layers.envelope.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 263.7333    # fitted, with the mantle, to the mass and C/MR2

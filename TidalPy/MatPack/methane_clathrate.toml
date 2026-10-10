@@ -1,0 +1,39 @@
+# methane_clathrate: structure I methane hydrate.
+# Solid: typical sI density (Sloan and Koh 2008); bulk and shear moduli from E = 8.5 GPa and a Poisson ratio of 0.314
+# (Choukroun et al. 2013, via Ahrens et al. 2022, Table 4); K0' an unsourced ice-like value; expansivity three times the
+# linear 77e-6 K-1 at 200 K (Choukroun et al. 2013).
+# Viscosity: dislocation creep (Durham et al. 2003) at 0.1 MPa stress, over 20 times stronger than ice. Conductivity:
+# Waite et al. (2007); Choukroun et al. (2013). Heat capacity near 260 K: Waite et al. (2007), via Durham et al. (2010).
+# No melting: dissociation into water (or ice) and methane gas, near 273 K at 2.6 MPa (Sloan and Koh 2008), cannot be
+# represented by a solidus and liquidus.
+schema_version = "0.2.0"
+description = "Structure I methane clathrate hydrate; dissociation is not represented."
+category = "icy"
+
+[solid]
+thermal_conductivity_w_mk = 0.54
+heat_capacity_j_kgk = 2100.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 920.0
+reference_bulk_modulus_pa = 7.6e9
+bulk_modulus_derivative = 5.5
+thermal_expansion_1_k = 2.3e-4
+reference_temperature_k = 200.0
+
+[solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.2e9
+
+[solid.shear_viscosity]
+model = "arrhenius"
+arrhenius_coeff = 2.23e4
+stress_pa = 1.0e5
+stress_expo = 2.2
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 9.0e4
+molar_activation_volume_m3_mol = 1.9e-5
+
+[solid.shear_rheology]
+model = "maxwell"

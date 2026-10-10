@@ -1,5 +1,92 @@
 # TidalPy Major Change Log
 
+## Version 0.8.X
+
+### Version 0.8.0 (2026-10-01)
+
+_This release is extensive (this update has been in the works for almost 2.5 years!) sorry for that. I would recommend treating this as a major new update and just dive into the documentation as if it was a new package. Please reach out to joseph.p.renaud@nasa.gov to invite you to the TidalPy slack for more discussion and help._
+
+**TidalPy 0.8.0 replaces TidalPy's backend with a new C++ backend.** The classic Cython, numba, and Python modules are removed, and the new modules carry their final names: `Structures`, `RadialSolver`, `Tides`, `Material`, `Rheology`, `Viscosity`, `PartialMelt`, `Cooling`, `Radiogenics`, `Dynamics`, `Stellar`, and `Utilities`. Module, class, and function names and signatures change, so code written for 0.7.X needs to be updated: see the migration guide in the documentation (https://tidalpy.readthedocs.io/en/latest/future_structure.html). Pin `TidalPy<0.8` to keep using 0.7.X API.
+
+#### New Features
+
+##### C++ Backend
+This is a high-level summary only. The full API and design notes can be found in TidalPy's documentation. The migration guide explains the rationale for this change and presents porting examples.
+
+* `TidalPy.Utilities` adds a C++ base-class hierarchy with schema-versioned TOML config files; C++ logging via `spdlog`; non-dimensionalization scales (`Utilities.dimensions`) and unit/orbital-element conversions (`Utilities.conversions`); and closed-form associated Legendre tables for degrees 2..10 (plus a generic evaluator via `xsf` sub module).
+* Physics model families (`Rheology`, `Viscosity`, `PartialMelt`, `Cooling`, `Radiogenics`, the tide models of `Tides`, the luminosity models of `Stellar`, and the equation-of-state and shear-modulus laws of `Material`), each with vectorized (ndarray) calls, config save/loads, and binary serialization support. All are built on one parameter-spec system, so every model shares the same Python surface (construction by position or keyword, `make_*`, `parameters`, `get_parameter`, `with_parameters`, `get_config_dict`) and refuses a config key it does not read, naming the closest one it does.
+* A Zener (standard linear solid) rheology, `Rheology.Zener` (`zener`, `sls`), which relaxes to a set fraction of its modulus instead of to zero, as a bulk response needs.
+* Materials (`TidalPy.Material`): a `Material` combines a solid and a liquid `Phase` (each an equation-of-state law, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) with melting curves that can follow the pressure, melt weakening, optional bulk mixing of the melt (which a Zener bulk rheology turns into bulk dissipation), and latent heat. `Material.calc_state` gives every property at a pressure and temperature. Each layer carries physics switches that default to the simplest and fastest case: `use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, `use_tides`, and `state`.
+* World, layer, and system classes (`TidalPy.Structures`). TOML-driven world building; one `Layer` class with its material and other models; a whole-planet EOS solve with radius-continuous profile getters, which finds each layer's solid and liquid zones as it integrates (the Love solve takes each zone as a layer), lets a layer hold its mass and move, and can integrate temperature and heat flow through each layer's cooling model (conduction, or boundary layers around an adiabat) with radiogenic, tidal, and prescribed heat sources and per-layer temperature rates; whole-planet Love numbers as a world method (shooting or propagation-matrix, tidal/loading/free boundary conditions, cached for repeated solves, with a surface-conditioning diagnostic); global (1D) tidal dissipation for every world type (rheology-driven through the radial solver, or analytic cpl/ctl/ctl_q models); 3D tidal stress/strain/heating (secular or instantaneous, full 4D grids or analytically collapsed totals/profiles, latitude bands); spin and orbital rate engines (`Dynamics`); stellar luminosity models (`Stellar`); and a `System` class linking worlds (insolation, single- and dual-body tidal evolution with energy-balance checks).
+* A melting layer is split into a liquid zone only where its shear modulus vanishes (`[numerical] minimum_solid_rigidity` default 0), so partial melt stays a melt-weakened solid that flexes and dissipates with the layers around it, and `minimum_complex_rigidity` defaults to 1e-15; the tidal response and heating change continuously as a layer melts.
+* A rebuilt standalone radial solver (`TidalPy.RadialSolver.radial_solver`), call-compatible with the 0.7.X one, using CyRK dense output so the radial solution is evaluated exactly at any radius instead of interpolated from a fixed grid. Adds dense post-solve evaluation (`get_radial_solution`, `eos_call`), per-Love-number quality factors and phase lags, and a homogeneous-sphere convenience helper (`homogeneous_love_numbers`).
+* CyRK's explicit `Tsit5`, `Vern7`, and `Vern8` integrators are available to the EOS and Love-number solves (`integration_method` of `radial_solver`, `solve_eos`, and `solve_love_numbers`, and the `[eos_solver]` and `[radial_solver]` tables).
+* A rebuilt tides engine (`TidalPy.Tides`): unsquared eccentricity functions for degrees 2..10 at truncation levels 2, 4, 6, 8, 10, 20, and 50 (default 10), where level N keeps every product of two eccentricity functions, and so the heating, through e^N as the 0.7.X level N did, and unsquared obliquity functions (off, I^1, I^2, and fully general), used by one truncation-based Kaula potential engine in place of the 0.7.X per-scenario potential modules. Note the convention change: the 0.7.X eccentricity and inclination functions were the squared G^2/F^2, while the new ones are unsquared G/F. A tidal solve warns once per world when its eccentricity is past the range of its truncation level at its spin rate; the ranges are measured separately for near-synchronous, moderate, and fast rotators, and `recommend_eccentricity_truncation` and `recommend_obliquity_truncation` pick a level for a tolerance and spin rate.
+* 20 executed tutorial notebooks (`Demos/`), validation benchmarks against published Love numbers, BurnMan, and the tidal dissipation results of Renaud et al. (2021) plus a performance-tracking harness (`Benchmarks/`), and end-to-end tests (`Tests/Test_E2E/`).
+* Speed, measured against TidalPy 0.7 on the same machine with the same inputs (the full table, method, and caveats are in the migration guide). Building a planet with its interior is about 220x faster now that the equation of state is integrated directly and the materials and worlds are read from memory: a fresh Io went from 1.4 seconds to about a millisecond. 3D heating maps are 2.4-5.9x faster on one thread (instantaneous and orbit-averaged) and 6.8-13x at the default thread count, a single radiogenic heating evaluation about 5x, vectorized rheology 3x, and global tidal heating 2.2-3.8x at every truncation level measured. The numba start-up cost is gone: a 0.7.X tidal heating call takes about 7 seconds during warm up and about a second at the start of every later session, while 0.8.0 takes a fraction of a millisecond. The standalone radial solver is about the same or in some cases a little slower, however it is much more accurate and stable then the previous versions.
+* Every object writes the configuration it was built from (`get_config_dict`, with model tables keyed exactly as the `make_*` factories accept them) and rebuilds from it (`build_world` and `build_system` take a name, a path, or a config dictionary, with optional nested `overrides`; `build_layer_from_dict` rebuilds a layer), and `save_to_toml` writes the current state of a world or system as a buildable file under a version header. A world file may pin its own `[eos_solver]` and `[radial_solver]` settings so that it reproduces a run with the configuration file alone, and the configuration loader warns about keys it does not read.
+* Conveniences on the world and system classes: `calc_tides` and the 3D calls take their orbital state from the world's `System` when it is left out, and `calc_tides` returns its results.
+* Native radial-solver input builders (`TidalPy.RadialSolver.build_inputs`): `build_rs_input_homogeneous_layers` and `build_rs_input_from_data` assemble the density and complex-modulus profiles the standalone solver takes from layer descriptions and `Rheology` models, in C++.
+* Bundled worlds, rebuilt on the new schema from the 0.7.X WorldPack: the terrestrial bodies `io`, `europa`, `luna`, `mercury`, `earth_simple`, `earth_thermal`, `earth_prem`, `pluto`, `charon`, `triton`, and `trappist1b` through `trappist1h`; the `luna_dynamic`, `mercury_dynamic`, `pluto_dynamic`, and `europa_dynamic` variants, whose liquid layer (and, for Europa, a new ocean) is solved with the dynamic equations on a pressure-dependent law; the gas giants `jupiter_simple`, `jupiter`, and `neptune`; the stars `sol` and `trappist1`; and the systems `sol_system` and `pluto_charon_system` (Pluto and Charon as a mutually synchronous pair about the Sun).
+* MatPack (`TidalPy.Material.load_material`, `available_materials`): many named materials with their literature sources (simplified materials; mantle, crust, and core materials; water ices, water, and other volatiles; giant-planet envelopes and cores).
+* The material, world, and system files of the data directory (and the packaged ones it has no copy of) are read into memory when TidalPy is imported (`TidalPy.database`). A file edited, added, or deleted during a session is noticed by the next build. On Python 3.11 and later these files are parsed with the standard library's `tomllib`, about ten times faster than `toml`.
+* `System.evolve(host, world)` integrates a world and its tidal host in C++ with CyRK's implicit solvers (LSODA by default), evolving their shared orbit, both spins, and optionally every layer's temperature with both bodies raising tides. Capture into, passage through, and release from spin-orbit locks follow from the equations. It returns a `PairedEvolutionResult`, and its defaults come from the `[evolution]` configuration section, which a system file's own `[evolution]` table overrides.
+
+##### Package
+* One configuration file, `TidalPy_Configs.toml` (packaged defaults in `TidalPy.defaultc`, loaded to `TidalPy.config`). The packaged defaults are parsed on every load and the user's file is merged over them, so a partial file works and a new default reaches an existing file. `TidalPy.save_config(path)` writes the effective configuration under a header naming the TidalPy, SciPy, and CyRK versions.
+* The C++ (spdlog) logger now writes a single `TidalPy_<timestamp>.log` file. The Python `logging`-based logger is removed. In a Jupyter notebook, warnings print below the cell (`[logging] notebook_console_level`), and `TidalPy.capture_log` collects log messages within a `with` block.
+* The TidalPy data/config directories move with the minor version to `.../TidalPy/0.8.X/`. Upgrading from 0.7.X starts a fresh directory; the 0.7.X configuration and world files use a different format and are not read by 0.8.0.
+* `TidalPy.get_include()` lists every TidalPy directory that holds a C++ header, after CyRK's include directories.
+
+#### Removed
+* The classic modules: `TidalPy.structures`, `tides`, the classic `RadialSolver` and `Material`, `rheology`, `cooling`, `radiogenics`, `dynamics`, `stellar`, `orbit`, `Extending` (BurnMan planet building), the classic `WorldPack` archive, `numba_scipy`, `utilities`, `output`, and `logger`. The migration guide maps each onto its replacement.
+* `TidalPy.toolbox` (`quick_tidal_dissipation`, `quick_dual_body_tidal_dissipation`) has no replacement yet. Instead most functionality should be done using the new world and system classes (the migration guide has the worked example).
+* The import-time deprecation notice added in 0.7.6. `TidalPy.exceptions.TidalPyDeprecationWarning` remains importable, so code that filters it keeps working.
+* `TidalPy.exceptions` keeps only `TidalPyException`, `InitializationError`, `ArgumentException`, `ConfigurationException`, `ModelException`, `UnknownModelError`, `TidalPyIntegrationException`, `SolutionFailedError`, and `TidalPyDeprecationWarning`. The C++ backend raises `ValueError`, `RuntimeError`, `TypeError`, and `NotImplementedError`.
+* `TidalPy.extensive_logging`, `TidalPy.extensive_checks`, `TidalPy.world_config_dir`, and the constants `min_spin_orbit_diff` and `min_viscosity`, which only the classic modules read.
+
+#### Fixes
+* `TidalPy.clear_cache` deleted every `__pycache__` directory in the Python environment's `site-packages`, not only TidalPy's. It now clears only the installed TidalPy package.
+* `TidalPy.RadialSolver`: the Takeuchi and Saito (1972) starting conditions, which the shooting method uses by default, evaluated their phi and psi functions with a truncated series at every argument, to avoid a floating-point cancellation near zero (issue #41). The series drifts once the argument k^2 r^2 passes about 1 (a 2e-5 relative error at 10, meaningless past about 30), which high degrees, short forcing periods, and dynamic liquid layers reach. Arguments above 0.5 now use the exact definitions, so the functions hold about 1e-13 everywhere. At such large arguments the Takeuchi solutions are themselves nearly dependent, and the re-orthonormalization of the shooting method (below) keeps such solves accurate.
+* `TidalPy.RadialSolver`: the compressible-solid starting conditions (Takeuchi and Kamata) lost precision in (beta^2 k^2 - omega^2) / gamma when the forcing frequency squared is far above gamma = 4 pi G rho / 3, which is at periods shorter than about an hour (a 1e-10 relative error at 0.1 rad/s, 1e-6 at 1 rad/s). It is now computed without the cancellation. Together with the fix above, Love numbers at tidal periods are unchanged (the bundled worlds move by less than 1e-10 at tight tolerances), while at a one-minute period Takeuchi Love numbers that were off by up to 2.5% now match the Kamata starting conditions to 1e-10 for layered bodies and 7e-5 in the worst homogeneous case.
+* `TidalPy.RadialSolver` now allows rigid translation of the body such that every degree-1 surface condition for loading are properly calculated (issues #53 and #99). The 0.7.X solver returned h', l', and k' carrying an arbitrary translation set by integration error, which changed with the forcing period and the tolerance, by order one at periods longer than about a month. A degree-1 loading solve now fixes the frame of the body's own center of mass (CE, k' = 0) in its surface solve (Guo et al. 2004; Martens 2016) and reports the Love numbers and the radial functions there, or in the CM, CF, CL, or CH frame of Blewitt (2003) through the new `degree1_frame` argument and `[radial_solver]` key. A body whose layers are all static now solves, and so does one with a liquid surface layer (a static liquid surface has no l', so the CF and CL frames are refused there). A 0.7.X result can mimic the new CE frame by performing (h' - k') and (l' - k').
+* `TidalPy.RadialSolver`: dynamic liquid layers lost accuracy at long forcing periods and failed at longer ones, as their independent solutions became nearly dependent by the surface, and 0.7.X only printed a warning below a fixed 2.5e-5 rad/s. The shooting method now integrates a dynamic liquid in the pressure variable P = y2 - rho g y1 + rho y5, and a layer's independent solutions as one system that is re-orthonormalized where they become nearly dependent (`[numerical] minimum_solution_independence`). The Love numbers of neutral dynamic liquids and near-static solids hold the requested tolerance down to the 1e-16 rad/s minimum frequency, and the warning is removed. `steps_taken` gives each layer's step count, shared by its solutions, and `orthonormalizations` counts each layer's restarts.
+* The `off` cooling model reported a boundary-layer thickness of half the layer, a value with no meaning for a layer that does not cool; it now reports NaN.
+* `TidalPy.RadialSolver.radial_solver` never attached its extension to TidalPy's logger, so the C++ warnings of the world it builds from a supplied profile (its EOS and Love solves) were dropped. They now reach the log.
+
+#### Refactors
+
+##### Utilities
+* Implemented a new constant/parameter backend that can be accessed in C++ but modified in Python/Cython.
+  * Refactored `constants.d_DBL_MANT_DIG` to `constants.d_DBL_MANT_DIGITS` for readability.
+  * Refactored `constants.d_PI_DBL` to `constants.d_PI`.
+  * Refactored `constants.d_NAN_DBL` to `constants.d_NAN`.
+
+#### Tests
+* Test suites for every module. The tests that compared the new implementations against the 0.7.X ones now compare against frozen reference data generated from the 0.7.X code (`frozen/*.npz` beside each test, and `Tests/Test_RadialSolver/test_dense_benchmark/`).
+* `Tests/Test_Tides/Test_Classes/test_collapse_vs_legacy_01.py` pins the global collapse (cpl) against frozen results from the 0.7.X `toolbox.quick_tides` for synchronous and non-synchronous cases at degrees 2 and 3.
+* The 0.7.X test suites (`Test_Old` and the classic halves of the module suites) are removed with the modules they tested.
+* The suite runs against a fresh temporary data directory (`Tests/conftest.py` sets `TIDALPY_DATA_DIR` before TidalPy is imported), so the user's `TidalPy_Configs.toml` no longer changes test results and nothing is written to the user's data directory.
+* CI installs `nbformat`, `nbclient`, and `ipykernel`, so the demo and benchmark notebooks run there; the notebook test skips demo S02 by name, with its reason, so a plain `pytest Tests/` passes.
+
+#### Documentation
+* A documentation page for every module, the tutorial notebooks, and the benchmarks. The migration guide (`future_structure.md`, kept at its 0.7.6 address) maps the 0.7.X modules, classes, and functions onto their replacements with verified porting examples. The 0.7.X module pages are removed.
+
+#### Dependencies
+* Removed: `numba`, `dill`, `pathos`, `astropy`, and `astroquery` (and the `numba_scipy` entry point), which only the classic modules used. `psutil` moves to the `dev` extra (used for performance-benchmark). The `burnman` and `julia` extras are removed; BurnMan is only needed to run the `Benchmarks/EOS/EOS_vs_BurnMan.ipynb` comparison.
+* Added: `tqdm` (progress bars for long calculations).
+* `cyrk>=0.20.0`. `System.evolve` drives CyRK's implicit solvers (BDF, LSODA, Radau) from C++ with events and a user Jacobian, and relies on the fix to their dense LU solve in CyRK 0.20.0, which also brings the explicit `Tsit5`, `Vern7`, and `Vern8` methods.
+* `pandas>=1.5` was added to the `dev` requirements. It is used by the performance-benchmark views in `Benchmarks/Performance`.
+
+##### `spdlog` Submodule
+* Adds [spdlog](https://github.com/gabime/spdlog) (header-only C++ logging) as a submodule at `Dependencies/spdlog`.
+
+##### `XSF` Submodule
+* Adds the [xsf](https://github.com/scipy/xsf) package as a submodule. The spherical Bessel function headers are used in various `RadialSolver` calculations.
+
+##### `Eigen` Submodule
+* Adds the [Eigen](https://gitlab.com/libeigen/eigen) package as a submodule. It provides much of LAPACK's functionality used in the radial solver's propagation-matrix method.
+
 ## Version 0.7.X
 
 ### Version 0.7.6 (2026-09-28)
@@ -186,7 +273,7 @@ This release backports the fixes to this backend that were found while developin
 ### Version 0.6.9 (2025-09-19)
 
 #### Fixes
-* Fixed issue where `TidalPy.RadialSolver.shooting` would pick the incorrect starting index. If the starting layer (set by the starting radius) was not the first layer it could cause a int overflow and lead to access violation crashes. 
+* Fixed issue where `TidalPy.RadialSolver.shooting` would pick the incorrect starting index. If the starting layer (set by the starting radius) was not the first layer it could cause a int overflow and lead to access violation crashes.
 
 #### Dependencies
 * Updates some GitHub action dependencies.
@@ -226,7 +313,7 @@ This release backports the fixes to this backend that were found while developin
 
 #### New
 * Added test to check if structure arrays have been changed.
-* Added debug flag to installation files to help with cython debugging. 
+* Added debug flag to installation files to help with cython debugging.
 
 #### Fixes
 * Fixed issue where TidalPy structures (layers, planets, etc.) would return editable arrays instead of copies of arrays. This could lead to subsequent functions (like planet paint) changing the arrays. This fixes GitHub Issue [#74](https://github.com/jrenaud90/TidalPy/issues/74).
@@ -276,10 +363,10 @@ This release backports the fixes to this backend that were found while developin
 #### RadialSolver Changes
 * Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
 * Decoupled radial solver from shooting method.
-  * Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
+  * Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver.
   * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
 * Added Propagation Matrix technique to RadialSolver
-  * This is simplified for now. Only planets with 1 solid, static, incompressible layer are allowed. 
+  * This is simplified for now. Only planets with 1 solid, static, incompressible layer are allowed.
     * Other assumptions can be approximated, e.g., liquid layers use a small shear modulus.
     * Multiple layers should also work if you have discontinuities in density, shear, etc. within your "one layer".
   * A cythonized solid fundamental matrix implementation can be found in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
@@ -287,7 +374,7 @@ This release backports the fixes to this backend that were found while developin
   * TidalPy now requires `radial_solver` input arrays to be defined in a precise manner:
     * `radius_array` must start at 0.
     * Each layer's upper and lower radius must be in the `radius_array`. That means if there is more than one layer there will be two identical radius values!
-      * E.g., if a planet has a ICB at 1000km and a CMB at 3500km. Then `radius_array` must be setup with 2 values of 1000km and 2 values of 3500km. 
+      * E.g., if a planet has a ICB at 1000km and a CMB at 3500km. Then `radius_array` must be setup with 2 values of 1000km and 2 values of 3500km.
       * Other parameters should be defined on a "as layer" basis. So shear modulus at the 1st 1000km would be the shear of the inner core, at the 2nd 1000km it would be the shear modulus of the outer core. Likewise shear modulus at the 1st 3500km would be for the outer core and at the 2nd 3500km would be the shear modulus for the mantle. Same goes for density and bulk modulus.
 * Added warning to check for instabilities (based on large number of steps taken; requires `warnings=True`).
 * Changes to `radial_solver` arguments:
@@ -311,7 +398,7 @@ This release backports the fixes to this backend that were found while developin
     * `eos_integration_method` Runge-Kutta method to use for EOSS (default="RK45"). `eos_rtol` and `eos_atol` can also be provided to control integration error.
     * `eos_pressure_tol` (default=1.0e-3) and `eos_max_iters` (default=40) control the pressure convergence of the EOSS.
   * Added optional argument `perform_checks` (default=True) that performs many checks on the user input before running the solution (small performance penalty, but highly recommend leaving on until your inputs are tested).
-  * Added optional argument `log_info` (default=False) that will log key physical and diagnostic information to TidalPy's log (which can be set to be consol print, log file, or both via TidalPy's configurations). 
+  * Added optional argument `log_info` (default=False) that will log key physical and diagnostic information to TidalPy's log (which can be set to be consol print, log file, or both via TidalPy's configurations).
     * Note there is a performance hit when using this, particularly if logging to file is enabled.
 
 **New RadialSolver Helpers**
@@ -343,7 +430,7 @@ This release backports the fixes to this backend that were found while developin
 * Cythonized radial heating functions that use the sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.heating` (based on Tobie+2005)
 * Improved logging so it is less spammy.
 * Logger now logs all exceptions raised.
-* Moved TidalPy's default config and world config dir to user's "Documents" folder (from system appdata folder). 
+* Moved TidalPy's default config and world config dir to user's "Documents" folder (from system appdata folder).
   * If upgrading from previous version of TidalPy, you can safely delete the old config directory.
     * On Windows the old dir was: "'C:\\Users\\<username>\\AppData\\Local\\TidalPy'"; The new dir is "'C:\\Users\\<username>\\Documents\\TidalPy'"
     * On Mac the old dir was: "'/Users/<username>/Library/Application Support/TidalPy'"; The new dir is "'/Users/<username>/Documents/TidalPy'"
@@ -423,7 +510,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 
 #### Cythonizing TidalPy
 * A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and extension classes. The reasons for doing this are numerous. This transition will be completed in stages with minor versions (v0.X.0) each bringing a new set of cythonized updates until all njited functions are retired.
-* For this version: 
+* For this version:
   * Converted `TidalPy.radial_solver.radial_solver` to cythonized `TidalPy.RadialSolver.radial_solver`.
     * The old radial solver method will be removed in TidalPy version 0.6.0.
   * Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
@@ -446,7 +533,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
   * There is a new `TidalPy.clear_data()` function to delete all data stored in these locations. Data will be rebuilt the next time TidalPy is imported.
   * New `TidalPy.set_config(config_path)` to change the active configuration file used by TidalPy.
     * Note that `TidalPy.reinit()` should be called after changing the configurations.
-  * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from. 
+  * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from.
   * Moved away from the system of `default.py` configurations for sub modules. All default configs are stored in the same `TidalPy_Config.toml`
 * Shifted from `json` to `toml` files for world configs.
   * Store all world configs to a zip file for easier distribution.
@@ -537,7 +624,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 * Changes to radial ODE's
   * Input arguments and output diffeqs are now passed as numpy arrays rather than tuples.
   * Input and outputs are now passed as floats not complex (doubling the number of terms)
-* Added `numba-scipy` dependence to allow the use of scipy's special functions. 
+* Added `numba-scipy` dependence to allow the use of scipy's special functions.
   * Removed the pre-calculated factorial method. Using scipy's gamma now.
   * TODO: Note the numba-scipy package on github is not updated to the newest version of scipy. Packaging numba-scipy with TidalPy for now.
 
@@ -570,8 +657,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 * Fixed type hint bug in the numba-based tidal y solver.
 * Fixed bug that caused numba-based tidal y solver to not compile.
 * Fixed bug that was causing full TidalPy log to print while in a Jupyter Notebook environment.
-  * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the
-`print_log_in_jupyter` to `True` in the "configurations.py" file.
+  * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the `print_log_in_jupyter` to `True` in the "configurations.py" file.
 * Fixed an error in the multimode volumetric heating calculation where "_rr", "_thth", "_phiphi" were being double counted
 * Fixed an error in the stress/strain calculations where the static, instead of complex, shear was being used.
 
@@ -581,7 +667,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 
 #### Minor Changes
 * Removed the soon-to-be deprecated np.float, np.complex, np.int references.
-* Added a check to see if cartopy is installed before functions that depend on it are imported. 
+* Added a check to see if cartopy is installed before functions that depend on it are imported.
 
 #### Bug Fixes
 * Fixed coverage problem with github actions.
@@ -593,29 +679,23 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 *Multilayer scripts based on 0.3.3 or earlier will likely break with this version!*
 
 #### Major Changes
-* Added `TidalPy.modes.multilayer_modes.py` module to offer simplified calculation of multilayer tidal
-  heating.
-* Added `GridPlot` class to quickly make grid-like matplotlib figures.
-  Checkout `TidalPy.utilities.graphics.grid_plot.py`
+* Added `TidalPy.modes.multilayer_modes.py` module to offer simplified calculation of multilayer tidal heating.
+* Added `GridPlot` class to quickly make grid-like matplotlib figures. Checkout `TidalPy.utilities.graphics.grid_plot.py`
 * Added `Cartopy` dependence.
     * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
     * New jupyter notebooks to showcase map projects and GridPlot functionality.
-* Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used
-  correctly these can be nearly 100x faster.
+* Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
 * Added a new obliquity version of the mode version tidal potential.
 * Stress and strain relationship for multi-layer tides now allows for arbitrary rheology.
-* Created a single multilayer solver to handle an arbitrary layer structure.
-  See `TidalPy.tides.multilayer.numerical_int.solver.py`
+* Created a single multilayer solver to handle an arbitrary layer structure. See `TidalPy.tides.multilayer.numerical_int.solver.py`
 * Stress & Strain relationship now accounts for arbitrary rheology.
 * Created a single multi-mode solver for multilayer problems. See `TidalPy.tides.modes.multilayer_modes.py`
 * TidalPy now defaults to using the frequency dependent zeta versions of Andrade and Sundberg rheologies.
-    * This was done to avoid issues with real(complex_comp) at zero frequency which happens in multi mode
-      calculations.
+    * This was done to avoid issues with real(complex_comp) at zero frequency which happens in multi mode calculations.
 * Added numba-safe version of multilayer calc
 
 #### Minor Changes
-* Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius
-  and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
+* Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
 * Added more colormaps, updated how reserved versions are constructed, updated old maps.
 * Better support for post-multiprocessing function inputs.
 * Refactored tidal mode calculation functions into a new TidalPy.tides.modes module.
@@ -623,12 +703,10 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 * Added a dictionary to track known color maps. It can be imported at `TidalPy.utilities.cmaps.KNOWN_CMAPS`
 * Made some improvements to the unique_path function in io_helper.py
 * Rearranged the tidal potential argument order.
-* Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one
-  another.
+* Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one another.
 * Updated stress, strain, and displacement calculations to account for new low-memory calculation method.
 * Greatly increased performance of multilayer stress, strain, and potential calculations.
-* Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub
-  modules
+* Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub modules
 * Reworked numba-safe RK integrator. Does not reproduce scipy exactly for chaotic functions when numba is on.
 
 #### Bug Fixes
@@ -667,17 +745,10 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 *Scripts based on 0.2.x will likely break with this version!*
 
 #### Major Changes:
-* Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module
-  provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is
-  more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current
-  version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add
-  in a more robust Tidal Potential equation which will allow for additional physics.
-* Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become
-  available on PyPI.
-* Did away with most of the `_array` functions. Found a way for njit to compile a function to handle either arrays
-  or floats.
-    * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **
-      do** need to define array functions in the future: all the infrastructure is still in place.
+* Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for additional physics.
+* Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
+* Did away with most of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
+    * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever ** do** need to define array functions in the future: all the infrastructure is still in place.
 * Added a numba-safe Explicit Runge-Kutta integrator. This is fully wrapped in njit'd functions.
     * On its own this can be 5--20 times faster than `scipy.solve_ivp`.
     * This also allows the integration function to be used from within another njit'd function(s).
@@ -695,8 +766,7 @@ _This version is likely to break code based on TidalPy v0.4.X and earlier_
 * Improved various docstrings.
 * Refactored the `TidalPy.tools` to `TidalPy.toolbox`.
 * Refactored `Cookbooks` to `Demos`.
-* conversions.semi_a2orbital_motion and orbital_motion2semi_a now always return np.nan where they used to return
-  complex numbers.
+* conversions.semi_a2orbital_motion and orbital_motion2semi_a now always return np.nan where they used to return complex numbers.
 
 ## Version 0.2.X
 
@@ -712,19 +782,14 @@ Note: TidalPy version of "0.2.0" was never made publicly available. This is the 
     * Logger will not print to console if using a Jupyter notebook.
     * User can decide if the log is saved to disk or not.
 * Modified OOP Backend
-    * Models are now free to access the state properties of layers and planets. This eliminates the need to pass
-      arguments into model classes for calculations. All the user has to do is change the layer and/or planet's
-      state properties and then those changes will automatically propagate.
+    * Models are now free to access the state properties of layers and planets. This eliminates the need to pass arguments into model classes for calculations. All the user has to do is change the layer and/or planet's state properties and then those changes will automatically propagate.
 * New Rheology Scheme
-    * To better follow real physics, all strength-based models have been moved under the redesigned `Rheology`
-      class.
+    * To better follow real physics, all strength-based models have been moved under the redesigned `Rheology` class.
     * This includes: liquid and solid viscosity calculations, partial melting, and complex compliance
     * Love numbers are now calculated by a new `Tides` class instead of the `Rheology` (see next bullet point).
 * New Tides Module
-    * New `Tides` class and child classes have been implemented which handle all Love number and tidal calculations
-      for both a rheology-based approach or for the CPL/CTL model.
-    * This module contains functionality to calculate tidal heating and tidal potential derivatives based on a
-      complex compliance function and the various thermal and orbital parameters.
+    * New `Tides` class and child classes have been implemented which handle all Love number and tidal calculations for both a rheology-based approach or for the CPL/CTL model.
+    * This module contains functionality to calculate tidal heating and tidal potential derivatives based on a complex compliance function and the various thermal and orbital parameters.
     * The functions to calculate the Love numbers are also stored here.
     * New eccentricity functions have been added including terms up to and including e^20 and tidal order l=7.
     * New inclination functions have been added (with arbitrary accuracy) up to tidal order l=7.
@@ -737,21 +802,17 @@ Note: TidalPy version of "0.2.0" was never made publicly available. This is the 
 * Changed the setup pipeline to only require one command.
 
 #### QOL Improvements
-* Many new docstrings, type hints, and overall clean up of functions and classes. All docstrings should now follow
-  the numpy format.
+* Many new docstrings, type hints, and overall clean up of functions and classes. All docstrings should now follow the numpy format.
 * Many new tests for both the functional and OOP versions of TidalPy.
 * setup.py no longer requires a separate command line call to install the Burnman package.
 * More comments and spelling/typo fixes everywhere.
-* Added CVD-friendly color maps made by Crameri (2018; http://doi.org/10.5281/zenodo.1243862) to the
-  utilities.graphics module
+* Added CVD-friendly color maps made by Crameri (2018; http://doi.org/10.5281/zenodo.1243862) to the utilities.graphics module
 * More log.debug() calls all over. This should hopefully help bugfixes in the future (especially OOP bugs).
 
 #### Bug Fixes:
 * Fixed bug in world_builder.py : build_from_world where nested dicts were not being overwritten as expected.
 * Fixed bug in melt fraction checks for the float version of the Henning model.
-* Fixed bug in the Henning melting model where viscosity and shear was not being calculated correctly during the
-  breakdown band (critical melt fraction + ~5%). This only affected a phase space that was rarely important for
-  tidal calculations (planets would pass through it *very* quickly).
+* Fixed bug in the Henning melting model where viscosity and shear was not being calculated correctly during the breakdown band (critical melt fraction + ~5%). This only affected a phase space that was rarely important for tidal calculations (planets would pass through it *very* quickly).
 
 ## Version 0.1.X
 

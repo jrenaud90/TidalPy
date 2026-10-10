@@ -1,0 +1,62 @@
+# ice_vi: water ice VI (about 0.63 to 2.2 GPa), melting into liquid water.
+# Solid: second-order Birch-Murnaghan and expansivity of Bezacier et al. (2014) near 300 K. Shear modulus: SeaFreeze law
+# (Journaux et al. 2020) near 1330 kg m-3 (about 1 GPa) and 280 K.
+# Viscosity: activation energy and level of Barr et al. (2018), Eq. 19 (after Durham et al. 1997), anchored on the
+# melting curve at 1 GPa; the activation volume (derived here) keeps it near 4e14 Pa s at both ends of the melting
+# curve, inside the 1e13 to 1e17 Pa s used for high-pressure ices (Choblet et al. 2017; Kalousova et al. 2018).
+# Conductivity, heat capacity, and latent heat: unsourced estimates.
+# Melting: IAPWS R14-08 (2011) ice VI curve, anchored at its triple point (273.31 K, 632.4 MPa). Liquid: water.
+schema_version = "0.2.0"
+description = "Water ice VI (Bezacier et al. 2014) with the IAPWS melting curve, melting into liquid water."
+category = "icy"
+latent_heat_j_kg = 3.0e5
+
+[solid]
+thermal_conductivity_w_mk = 2.0
+heat_capacity_j_kgk = 2300.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 1271.0
+reference_bulk_modulus_pa = 1.405e10
+bulk_modulus_derivative = 4.0
+thermal_expansion_1_k = 1.46e-4
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 6.5e9
+pressure_derivative = 1.1
+temperature_derivative_pa_k = -1.4e7
+reference_pressure_pa = 1.0e9
+reference_temperature_k = 280.0
+
+[solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e14
+reference_temperature_k = 300.0
+reference_pressure_pa = 1.0e9
+molar_activation_energy_j_mol = 1.1e5
+molar_activation_volume_m3_mol = 2.4e-5
+
+[solid.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[liquid]
+preset = "water"
+
+[melting.solidus]
+model = "simon_glatzel"
+temperature_k = 273.31
+reference_pressure_pa = 6.324e8
+simon_a_pa = 6.797e8
+simon_c = 4.6
+
+[melting.liquidus]
+model = "simon_glatzel"
+temperature_k = 273.31
+reference_pressure_pa = 6.324e8
+simon_a_pa = 6.797e8
+simon_c = 4.6

@@ -1,0 +1,65 @@
+# iron_sulfide: an Fe-FeS core alloy with 16 wt% S (atomic S fraction 0.25 in the melt). Most values are derived here or
+# unsourced; confidence low.
+# Solid: bcc iron and troilite at 300 K mixed by additive volumes; bulk modulus a Reuss average of iron (166 GPa,
+# unsourced) and FeS V (Urakawa et al. 2004) with K0' = 4; expansivity a volume average of the same. The FeS V values
+# are near 1000 K, so the reference state is mixed. FeS phase changes below 12 GPa are not represented.
+# Shear modulus, viscosity, conductivity, and heat capacity: unsourced estimates between FeS and iron.
+# Melting: the Fe-FeS eutectic, constant to at least 8 GPa (Buono and Walker 2015); the liquidus at 16 wt% S is
+# unsourced. Latent heat: iron's (unsourced for the alloy).
+# Liquid: bulk modulus and K0' of Morard et al. (2018), as used by Xu et al. (2021), at X_S = 0.25 and 1900 K; density
+# mixes liquid iron and liquid FeS (unsourced, about 3900 kg m-3) by additive volumes; viscosity and expansivity assumed
+# close to liquid iron's.
+schema_version = "0.2.0"
+description = "Fe-FeS core alloy at 16 wt% S with a eutectic solidus (low confidence)."
+category = "rocky"
+latent_heat_j_kg = 2.5e5
+
+[solid]
+thermal_conductivity_w_mk = 20.0
+heat_capacity_j_kgk = 650.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 6150.0
+reference_bulk_modulus_pa = 7.7e10
+bulk_modulus_derivative = 4.0
+thermal_expansion_1_k = 7.4e-5
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 4.0e10
+
+[solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20
+
+[solid.shear_rheology]
+model = "maxwell"
+
+[liquid]
+thermal_conductivity_w_mk = 20.0
+heat_capacity_j_kgk = 650.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 5190.0
+reference_bulk_modulus_pa = 2.9e10
+bulk_modulus_derivative = 7.25
+thermal_expansion_1_k = 9.2e-5
+reference_temperature_k = 1900.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e-2
+
+[melting.solidus]
+model = "constant"
+temperature_k = 1261.0
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 1600.0
+
+[melting.weakening]
+model = "henning"

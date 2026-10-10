@@ -1,0 +1,17 @@
+# Earth-PREM-Q: earth_prem.toml with PREM's own attenuation; the profile's Q_mu and Q_kappa, not a viscosity, set
+# the loss. Every solid layer takes the seismic_q rheology:
+#     Q(omega) = Q_ref (omega / omega_ref)^a,   Re mu* = mu_ref / (1 + D / Q_ref),   Im mu* = Re mu* / Q(omega),
+# where D is the causal dispersion, (2 / pi) ln(omega_ref / omega) when a = 0. a = 0 keeps the seismic Q at tidal
+# periods; a > 0 (about 0.1 to 0.3 for Earth's mantle) lets it fall toward them. The liquid outer core takes no Q.
+# A layer table may refine detected layers and override these settings, but may not add a viscosity or melting.
+schema_version = "0.2.0"
+name = "Earth-PREM-Q"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"
+
+q_provided = true                                  # use the profile's q_mu and q_kappa columns
+q_reference_frequency_rad_s = 6.283185307179586    # 2 pi rad/s: PREM's 1 s reference period
+q_frequency_exponent = 0.0                         # the seismic Q at every frequency

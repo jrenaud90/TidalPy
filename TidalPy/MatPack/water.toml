@@ -1,0 +1,25 @@
+# water: liquid water; liquid only, and the melt of the ice materials.
+# Density at 273.15 K and 0.1 MPa (IAPWS SR6-08; Patek et al. 2009); K_T0 (IAPWS G12-15; Holten et al. 2014); K0'
+# derived from it over 0 to 100 MPa. Expansivity: the positive value near 50 MPa and 273 K, as in a pressurized ocean
+# (it changes sign near 277 K at 1 bar).
+# Viscosity (IAPWS 2008; Huber et al. 2009), conductivity (IAPWS 2011; Huber et al. 2012), and heat capacity (Patek
+# et al. 2009) at 273 K.
+schema_version = "0.2.0"
+description = "Liquid water (IAPWS); always liquid, and the melt of the ice materials."
+category = "icy"
+
+[liquid]
+thermal_conductivity_w_mk = 0.556
+heat_capacity_j_kgk = 4219.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 999.84
+reference_bulk_modulus_pa = 1.965e9
+bulk_modulus_derivative = 6.1
+thermal_expansion_1_k = 1.0e-4
+reference_temperature_k = 273.15
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.79e-3

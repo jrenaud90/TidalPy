@@ -19,7 +19,7 @@ authors:
   orcid: https://orcid.org/0000-0002-8619-8542
 identifiers:
 - type: doi
-  value: 10.5281/zenodo.7017475
+  value: 10.5281/zenodo.7017474
   description: Zenodo Record
 - type: url
   value: https://pypi.org/project/TidalPy/
@@ -49,9 +49,9 @@ keywords:
 - Pluto
 - Rheology
 license: Apache-2.0
-commit: 7fcbd65
-version: 0.7.6
-date-released: '2026-09-28'
+commit: 4b9c804
+version: 0.8.0
+date-released: '2026-10-10'
 preferred-citation:
   type: article
   authors:
@@ -60,4 +60,4 @@ preferred-citation:
   title: 'TidalPy: Software Suite for Solving Problems in Tidal Dynamics'
   journal: Zenodo
   year: 2022
-  doi: 10.5281/zenodo.7017475
+  doi: 10.5281/zenodo.7017474

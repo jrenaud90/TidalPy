@@ -1,291 +1,2479 @@
-{  
+{
+  "Structures.system.system": {
+    "name": "TidalPy.Structures.system.system",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "system",
+        "system.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "system"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "constants": {
     "name": "TidalPy.constants",
-    "sources": [["TidalPy", "constants.pyx"]],
-    "include_dirs": [["TidalPy"]],
+    "sources": [
+      [
+        "TidalPy",
+        "constants.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "utilities.types": {
-    "name": "TidalPy.utilities.types_x",
-    "sources": [["TidalPy", "utilities", "types_x.pyx"]],
-    "include_dirs": [["TidalPy", "utilities"]],
+  "Utilities.logging.logger": {
+    "name": "TidalPy.Utilities.logging.logger",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "logging",
+        "logger.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "utilities.conversions": {
-    "name": "TidalPy.utilities.conversions.conversions_x",
-    "sources": [["TidalPy", "utilities", "conversions", "conversions_x.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "conversions"]],
+  "Utilities.binary.binary": {
+    "name": "TidalPy.Utilities.binary.binary",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "binary",
+        "binary.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "utilities.dimensions.nondimensional": {
-    "name": "TidalPy.utilities.dimensions.nondimensional",
-    "sources": [["TidalPy", "utilities", "dimensions", "nondimensional.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "dimensions"]],
+  "Utilities.arrays.interp": {
+    "name": "TidalPy.Utilities.arrays.interp",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays",
+        "interp.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "utilities.math.numerics": {
-    "name": "TidalPy.utilities.math.numerics",
-    "sources": [["TidalPy", "utilities", "math", "numerics.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "math"]],
+  "Utilities.dimensions.nondimensional": {
+    "name": "TidalPy.Utilities.dimensions.nondimensional",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions",
+        "nondimensional.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "utilities.math.complex": {
-    "name": "TidalPy.utilities.math.complex",
-    "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "math"]],
+  "Utilities.conversions.conversions": {
+    "name": "TidalPy.Utilities.conversions.conversions",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "conversions",
+        "conversions.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "conversions"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "utilities.math.special": {
-    "name": "TidalPy.utilities.math.special",
-    "sources": [["TidalPy", "utilities", "math", "special.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "math"]],
+  "Utilities.legendre.legendre": {
+    "name": "TidalPy.Utilities.legendre.legendre",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre",
+        "legendre.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "utilities.classes.base": {
-    "name": "TidalPy.utilities.classes.base_x",
-    "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "classes"]],
+  "Utilities.classes.classes": {
+    "name": "TidalPy.Utilities.classes.classes",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "classes",
+        "classes.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "rheology.common": {
-    "name": "TidalPy.rheology.base",
-    "sources": [["TidalPy", "rheology", "base.pyx"]],
-    "include_dirs": [["TidalPy", "rheology", "base"]],
+  "Structures.layers.layer": {
+    "name": "TidalPy.Structures.layers.layer",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "layers",
+        "layer.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "rheology.models": {
-    "name": "TidalPy.rheology.models",
-    "sources": [["TidalPy", "rheology", "models.pyx"]],
-    "include_dirs": [["TidalPy", "rheology", "models"]],
+  "Structures.worlds.base": {
+    "name": "TidalPy.Structures.worlds.base",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds",
+        "base.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-  "Material.EOS.eos_solution": {
-    "name": "TidalPy.Material.eos.eos_solution",
-    "sources": [["TidalPy", "Material", "eos", "eos_solution.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos"], ["TidalPy", "utilities", "dimensions"]],
+  "Structures.worlds.terrestrial": {
+    "name": "TidalPy.Structures.worlds.terrestrial",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds",
+        "terrestrial.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "Material.EOS.ode": {
-    "name": "TidalPy.Material.eos.ode",
-    "sources": [["TidalPy", "Material", "eos", "ode.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos"]],
+  "Structures.worlds.gasgiant": {
+    "name": "TidalPy.Structures.worlds.gasgiant",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds",
+        "gasgiant.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "Material.EOS.solver": {
-    "name": "TidalPy.Material.eos.solver",
-    "sources": [["TidalPy", "Material", "eos", "solver.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos"]],
+  "Structures.worlds.stellar": {
+    "name": "TidalPy.Structures.worlds.stellar",
+    "sources": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds",
+        "stellar.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy"
+      ],
+      [
+        "TidalPy",
+        "Stellar"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "Material.EOS.methods.interpolate": {
-    "name": "TidalPy.Material.eos.methods.interpolate",
-    "sources": [["TidalPy", "Material", "eos", "methods", "interpolate.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos", "methods"]],
+  "Rheology.rheology": {
+    "name": "TidalPy.Rheology.rheology",
+    "sources": [
+      [
+        "TidalPy",
+        "Rheology",
+        "rheology.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-
-  "RadialSolver.constants": {
-    "name": "TidalPy.RadialSolver.constants",
-    "sources": [["TidalPy", "RadialSolver", "constants.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"]],
+  "Radiogenics.radiogenics": {
+    "name": "TidalPy.Radiogenics.radiogenics",
+    "sources": [
+      [
+        "TidalPy",
+        "Radiogenics",
+        "radiogenics.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.helpers": {
-    "name": "TidalPy.RadialSolver.helpers",
-    "sources": [["TidalPy", "RadialSolver", "helpers.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"]],
+  "Cooling.cooling": {
+    "name": "TidalPy.Cooling.cooling",
+    "sources": [
+      [
+        "TidalPy",
+        "Cooling",
+        "cooling.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "PartialMelt.melting": {
+    "name": "TidalPy.PartialMelt.melting",
+    "sources": [
+      [
+        "TidalPy",
+        "PartialMelt",
+        "melting.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Viscosity.viscosity": {
+    "name": "TidalPy.Viscosity.viscosity",
+    "sources": [
+      [
+        "TidalPy",
+        "Viscosity",
+        "viscosity.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Utilities.lookups.intmap": {
+    "name": "TidalPy.Utilities.lookups.intmap",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups",
+        "intmap.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.laws.laws": {
+    "name": "TidalPy.Material.laws.laws",
+    "sources": [
+      [
+        "TidalPy",
+        "Material",
+        "laws",
+        "laws.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.material": {
+    "name": "TidalPy.Material.material",
+    "sources": [
+      [
+        "TidalPy",
+        "Material",
+        "material.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.love": {
     "name": "TidalPy.RadialSolver.love",
-    "sources": [["TidalPy", "RadialSolver", "love.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "love.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.matrix_types.solid_matrix": {
-    "name": "TidalPy.RadialSolver.matrix_types.solid_matrix",
-    "sources": [["TidalPy", "RadialSolver", "matrix_types", "solid_matrix.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "matrix_types"]],
+  "RadialSolver.rs_constants": {
+    "name": "TidalPy.RadialSolver.rs_constants",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "rs_constants.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.solutions": {
+  "RadialSolver.rs_solution": {
     "name": "TidalPy.RadialSolver.rs_solution",
-    "sources": [["TidalPy", "RadialSolver", "rs_solution.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"], ["TidalPy", "Material", "eos"], ["TidalPy", "utilities", "dimensions"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "rs_solution.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.build_inputs": {
+    "name": "TidalPy.RadialSolver.build_inputs",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "build_inputs.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.derivatives.odes": {
     "name": "TidalPy.RadialSolver.derivatives.odes",
-    "sources": [["TidalPy", "RadialSolver", "derivatives", "odes.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives",
+        "odes.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.starting.common": {
     "name": "TidalPy.RadialSolver.starting.common",
-    "sources": [["TidalPy", "RadialSolver", "starting", "common.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "common.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.starting.kamata": {
     "name": "TidalPy.RadialSolver.starting.kamata",
-    "sources": [["TidalPy", "RadialSolver", "starting", "kamata.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "kamata.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.starting.saito": {
-    "name": "TidalPy.RadialSolver.starting.saito",
-    "sources": [["TidalPy", "RadialSolver", "starting", "saito.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+  "RadialSolver.starting.power_series": {
+    "name": "TidalPy.RadialSolver.starting.power_series",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "power_series.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.starting.takeuchi": {
     "name": "TidalPy.RadialSolver.starting.takeuchi",
-    "sources": [["TidalPy", "RadialSolver", "starting", "takeuchi.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "takeuchi.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.starting.saito": {
+    "name": "TidalPy.RadialSolver.starting.saito",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "saito.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.starting.driver": {
     "name": "TidalPy.RadialSolver.starting.driver",
-    "sources": [["TidalPy", "RadialSolver", "starting", "driver.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting",
+        "driver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.interfaces": {
+  "RadialSolver.interfaces.interfaces": {
     "name": "TidalPy.RadialSolver.interfaces.interfaces",
-    "sources": [["TidalPy", "RadialSolver", "interfaces", "interfaces.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "interfaces"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces",
+        "interfaces.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.interfaces.reversed": {
     "name": "TidalPy.RadialSolver.interfaces.reversed",
-    "sources": [["TidalPy", "RadialSolver", "interfaces", "reversed.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "interfaces"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "RadialSolver.boundaries.boundaries": {
-    "name": "TidalPy.RadialSolver.boundaries.boundaries",
-    "sources": [["TidalPy", "RadialSolver", "boundaries", "boundaries.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces",
+        "reversed.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.boundaries.surface_bc": {
     "name": "TidalPy.RadialSolver.boundaries.surface_bc",
-    "sources": [["TidalPy", "RadialSolver", "boundaries", "surface_bc.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries",
+        "surface_bc.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.collapse": {
-    "name": "TidalPy.RadialSolver.collapse.collapse",
-    "sources": [["TidalPy", "RadialSolver", "collapse", "collapse.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "collapse"]],
+  "RadialSolver.boundaries.boundaries": {
+    "name": "TidalPy.RadialSolver.boundaries.boundaries",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries",
+        "boundaries.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.shooting": {
-    "name": "TidalPy.RadialSolver.shooting",
-    "sources": [["TidalPy", "RadialSolver", "shooting.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "shooting"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "RadialSolver.matrix": {
-    "name": "TidalPy.RadialSolver.matrix",
-    "sources": [["TidalPy", "RadialSolver", "matrix.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "matrix"]],
+  "RadialSolver.matrix_types.solid_matrix": {
+    "name": "TidalPy.RadialSolver.matrix_types.solid_matrix",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types",
+        "solid_matrix.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
   "RadialSolver.solver": {
     "name": "TidalPy.RadialSolver.solver",
-    "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver",
+        "solver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "eos",
+        "methods"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Structures",
+        "layers"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Rheology"
+      ],
+      [
+        "TidalPy",
+        "Viscosity"
+      ],
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Cooling"
+      ],
+      [
+        "TidalPy",
+        "Radiogenics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-
-
-  "tides.multilayer.sensitivity": {
-    "name": "TidalPy.tides.multilayer.sensitivity",
-    "sources": [["TidalPy", "tides", "multilayer", "sensitivity.pyx"]],
-    "include_dirs": [["TidalPy", "tides", "multilayer"]],
+  "Dynamics.spin": {
+    "name": "TidalPy.Dynamics.spin",
+    "sources": [
+      [
+        "TidalPy",
+        "Dynamics",
+        "spin.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Dynamics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
   },
-  "tides.multilayer.heating": {
-    "name": "TidalPy.tides.multilayer.heating",
-    "sources": [["TidalPy", "tides", "multilayer", "heating.pyx"]],
-    "include_dirs": [["TidalPy", "tides", "multilayer"]],
+  "Dynamics.orbit_solver": {
+    "name": "TidalPy.Dynamics.orbit_solver",
+    "sources": [
+      [
+        "TidalPy",
+        "Dynamics",
+        "orbit_solver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Dynamics"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Stellar.luminosity": {
+    "name": "TidalPy.Stellar.luminosity",
+    "sources": [
+      [
+        "TidalPy",
+        "Stellar",
+        "luminosity.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Stellar"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.love.love": {
+    "name": "TidalPy.Tides.love.love",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "love",
+        "love.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.obliquity.obliquity_driver": {
+    "name": "TidalPy.Tides.obliquity.obliquity_driver",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity",
+        "obliquity_driver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.eccentricity.eccentricity_driver": {
+    "name": "TidalPy.Tides.eccentricity.eccentricity_driver",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity",
+        "eccentricity_driver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.potential.potential_common": {
+    "name": "TidalPy.Tides.potential.potential_common",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential",
+        "potential_common.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.potential.global": {
+    "name": "TidalPy.Tides.potential.global",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential",
+        "global.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.classes.tide": {
+    "name": "TidalPy.Tides.classes.tide",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "classes",
+        "tide.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.classes.collapse": {
+    "name": "TidalPy.Tides.classes.collapse",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "classes",
+        "collapse.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.multilayer.stress_strain": {
+    "name": "TidalPy.Tides.multilayer.stress_strain",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "multilayer",
+        "stress_strain.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "multilayer"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides.potential.potential_3d": {
+    "name": "TidalPy.Tides.potential.potential_3d",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential",
+        "potential_3d.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true

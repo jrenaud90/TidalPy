@@ -1,0 +1,25 @@
+# Farrell, W. E. (1972). Deformation of the Earth by surface loads. Reviews of Geophysics and Space Physics, 10(3), 761-797.
+# Table A2 (p. 791): "Love Numbers, Loaded Surface, G-B Earth Model", digitized row by row from the published table.
+# Columns as printed: n, -h'_n, n l'_n, -n k'_n (dimensionless). The n = inf row is the Boussinesq approximation (Farrell eq. 36).
+# Degree 1 is in the frame of the center of mass of the undeformed Earth (k'_1 = 0), Farrell section 3c.
+# Table A1 (p. 790) gives the tidal Love numbers of the same model: h_2 = 0.6114, l_2 = 0.0832, k_2 = 0.3040; h_3 = 0.2891, l_3 = 0.0145, k_3 = 0.0942; h_4 = 0.1749, l_4 = 0.0103, k_4 = 0.0429.
+1,0.290,0.113,0
+2,1.001,0.059,0.615
+3,1.052,0.223,0.585
+4,1.053,0.247,0.528
+5,1.088,0.243,0.516
+6,1.147,0.245,0.535
+8,1.291,0.269,0.604
+10,1.433,0.303,0.682
+18,1.893,0.452,0.952
+32,2.379,0.680,1.240
+56,2.753,0.878,1.402
+100,3.058,0.973,1.461
+180,3.474,1.023,1.591
+325,4.107,1.212,1.928
+550,4.629,1.460,2.249
+1000,4.906,1.623,2.431
+1800,4.953,1.656,2.465
+3000,4.954,1.657,2.468
+10000,4.956,1.657,2.469
+inf,5.005,1.673,2.482

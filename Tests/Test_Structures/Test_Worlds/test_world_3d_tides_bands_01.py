@@ -1,0 +1,117 @@
+"""Colatitude-band reductions of the 3D tidal heating (``calc_3d_tides`` with ``colatitude_min``/``colatitude_max``)."""
+
+import math
+
+import numpy as np
+import pytest
+
+from TidalPy.constants import G, mass_trap1
+from TidalPy.Utilities.conversions import orbital_motion2semi_a
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material
+from TidalPy.Rheology.rheology import Maxwell, Elastic
+from TidalPy.Tides.classes.tide import make_tide
+
+from shared_materials import constant_solid
+from numpy_compat import trapezoid
+
+_R = 1.0e6
+_DENSITY = 5000.0
+_VISC = 1.0e19
+_N = 2.0 * np.pi / 86400.0
+_ECC = 0.05
+_HOST = mass_trap1
+_MASS = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
+_SMA = orbital_motion2semi_a(_N, _HOST, _MASS)
+_STATE = dict(orbital_frequency=_N, spin_frequency=1.5 * _N, eccentricity=_ECC,
+              obliquity=0.0, semi_major_axis=_SMA, host_mass=_HOST)
+
+
+def _material():
+    return constant_solid(
+        _DENSITY, bulk_modulus=1.0e11, shear_modulus=5.0e10, shear_viscosity=_VISC, bulk_viscosity=_VISC)
+
+
+def _world():
+    world = BaseWorld("band_world", _R, _MASS)
+    world.add_layer(Layer("mantle", 0, 0.0, _R, _MASS, _material(), is_static=False, shear_rheology=Maxwell(),
+                          bulk_rheology=Elastic()))
+    world.set_tide_model(make_tide("rheology"))
+    world.set_tide_config(min_degree_l=2, max_degree_l=2,
+                          eccentricity_truncation=6, obliquity_truncation=0)
+    world.solve_eos(G_to_use=G)
+    return world
+
+
+def _band_total(world, colatitude_min, colatitude_max, latitude_nodes=32):
+    result = world.calc_3d_tides(
+        latitude_summed=True, longitude_summed=True, radial_summed=True,
+        latitude_nodes=latitude_nodes, latitude_analytic=False,
+        colatitude_min=colatitude_min, colatitude_max=colatitude_max, **_STATE)
+    return result["total"]
+
+
+def test_complementary_bands_sum_to_full_sphere():
+    world = _world()
+    split = 1.1
+    full = _band_total(world, 0.0, np.pi)
+    north = _band_total(world, 0.0, split)
+    south = _band_total(world, split, np.pi)
+    assert full > 0.0
+    assert 0.0 < north < full
+    assert 0.0 < south < full
+    assert math.isclose(north + south, full, rel_tol=1e-10)
+
+
+def test_full_sphere_band_matches_default():
+    """An explicit full-sphere band reproduces the default result."""
+    world = _world()
+    default = world.calc_3d_tides(
+        latitude_summed=True, longitude_summed=True, radial_summed=True,
+        latitude_nodes=32, latitude_analytic=False, **_STATE)["total"]
+    banded = _band_total(world, 0.0, np.pi)
+    assert math.isclose(default, banded, rel_tol=1e-13)
+
+
+def test_band_forces_quadrature_and_agrees_with_analytic_full_sphere():
+    """The full-sphere analytic total equals the sum of two complementary quadrature bands."""
+    world = _world()
+    analytic = world.calc_3d_tides(
+        latitude_summed=True, longitude_summed=True, radial_summed=True,
+        latitude_analytic=True, **_STATE)["total"]
+    split = np.pi / 3.0
+    band_sum = _band_total(world, 0.0, split) + _band_total(world, split, np.pi)
+    assert math.isclose(analytic, band_sum, rel_tol=1e-6)
+
+
+def test_equatorial_band_profile():
+    """A banded radial profile integrates to the band total."""
+    world = _world()
+    radii = np.linspace(0.05 * _R, _R, 60)
+    profile = world.calc_3d_tides(
+        radii=radii, latitude_summed=True, longitude_summed=True,
+        latitude_analytic=False, latitude_nodes=32,
+        colatitude_min=1.0, colatitude_max=np.pi - 1.0, **_STATE)["heating"]
+    integrated = trapezoid(profile, radii)
+    total = _band_total(world, 1.0, np.pi - 1.0)
+    assert math.isclose(integrated, total, rel_tol=2e-2)
+
+
+def test_band_ignored_when_latitude_not_summed():
+    world = _world()
+    radii = np.array([0.5 * _R])
+    colats = np.array([0.4, 1.2, 2.0])
+    lons = np.array([0.0])
+    no_band = world.calc_3d_tides(radii=radii, colatitudes=colats, longitudes=lons, **_STATE)
+    banded = world.calc_3d_tides(radii=radii, colatitudes=colats, longitudes=lons,
+                                 colatitude_min=1.0, colatitude_max=2.0, **_STATE)
+    np.testing.assert_allclose(banded["heating"], no_band["heating"], rtol=1e-14)
+
+
+@pytest.mark.parametrize("bad_min, bad_max", [(-0.1, 1.0), (1.0, 1.0), (2.0, 1.0), (0.0, 4.0)])
+def test_invalid_band_raises(bad_min, bad_max):
+    world = _world()
+    with pytest.raises(ValueError):
+        world.calc_3d_tides(latitude_summed=True, longitude_summed=True, radial_summed=True,
+                            colatitude_min=bad_min, colatitude_max=bad_max, **_STATE)

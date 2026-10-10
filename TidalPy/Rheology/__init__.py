@@ -1,0 +1,56 @@
+"""C++ rheology models and their name-based factory. Each returns a complex modulus (shear or bulk) [Pa]."""
+
+from TidalPy.Rheology.rheology import (
+    RheologyBase,
+    Elastic,
+    Viscous,
+    Voigt,
+    Maxwell,
+    Burgers,
+    Andrade,
+    Sundberg,
+    Zener,
+    SeismicQ,
+    make_rheology,
+    rheology_model_names,
+    canonical_rheology_name,
+    rheology_config_keys,
+    elastic,
+    viscous,
+    voigt,
+    maxwell,
+    burgers,
+    andrade,
+    sundberg,
+    zener,
+    seismic_q,
+)
+
+__all__ = [
+    # Model classes
+    "RheologyBase",
+    "Elastic",
+    "Viscous",
+    "Voigt",
+    "Maxwell",
+    "Burgers",
+    "Andrade",
+    "Sundberg",
+    "Zener",
+    "SeismicQ",
+    # Factory
+    "make_rheology",
+    "rheology_model_names",
+    "canonical_rheology_name",
+    "rheology_config_keys",
+    # Direct complex-modulus convenience functions (float or np.ndarray inputs)
+    "elastic",
+    "viscous",
+    "voigt",
+    "maxwell",
+    "burgers",
+    "andrade",
+    "sundberg",
+    "zener",
+    "seismic_q",
+]

@@ -1,0 +1,39 @@
+# Example-GasGiant: a fluid gas giant with an analytic tide model, showing keys example_world.toml does not: the
+# analytic models' per-degree lists, the long truncation spellings, and the ctl Love method. Its layers take
+# liquid-only materials (MatPack: simple_gas, h2_he_molecular, h_he_metallic).
+
+schema_version = "0.2.0"
+name = "Example-GasGiant"
+type = "gasgiant"
+radius_m = 7.0e7
+mass_kg = 1.9e27
+albedo = 0.5
+emissivity = 1.0
+obliquity_rad = 0.05
+spin_frequency_rad_s = 1.76e-4
+
+[tides]
+global_tidal_model = "ctl_q"        # constant time lag with Q: k_l (1 - i omega dt_l / Q_l)
+fixed_k = [0.5, 0.25]               # static k_l from l = 2 (up to l = 10)
+fixed_q = [1.0e5, 1.0e5]            # Q_l (cpl and ctl_q)
+fixed_dt_s = [1.0e-2, 1.0e-2]       # time lags [s] (ctl and ctl_q)
+min_degree_l = 2
+max_degree_l = 3                    # the lists must reach this degree, or the builder warns
+eccentricity_truncation = 10        # long spelling of eccentricity_trunc_lvl
+obliquity_truncation = "gen"        # long spelling of obliquity_trunc_lvl
+layer_tidal_heating = true
+love_method = "ctl"                 # static k times (1 - i omega dt)
+love_fixed_q = 1.0e5                # read by the cpl method only
+love_fixed_dt_s = 1.0e-2            # read by ctl; without it ctl falls back to the tide model's list
+
+[layers.envelope]
+layer_index = 0
+radius_fraction = 1.0               # one layer for the whole world
+use_tides = true
+tidal_scale = 1.0                   # share of an analytic model's heating (default: its volume fraction)
+temperature_k = 165.0
+
+# A liquid-only material, so the layer is liquid.
+[layers.envelope.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 1326.0    # the mean density, so the stated mass fits this radius

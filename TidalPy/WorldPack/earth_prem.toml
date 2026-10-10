@@ -1,0 +1,22 @@
+# Earth-PREM: PREM built from a radial data file (PREM.csv: radius, density, Vp, Vs; viscosities optional).
+# Columns are found by name. The profile is split into layers at each solid/liquid change (Vs = 0 is liquid) and
+# each discontinuity, named layer_0, layer_1, ... outward; each slice becomes a radius-tabulated material.
+# PREM.csv replaces PREM's 3 km ocean with upper crust: twelve layers (inner core, liquid outer core, and ten solid
+# mantle and crust layers). It has no viscosity, so the body is elastic and k2 is about 0.30, purely real.
+# To set a layer's rheology, cooling, radiogenics, or viscosity, add a [layers.<name>] table with a layer_index or
+# a radius_range_m (an outer radius given must match the detected boundary), for example:
+#   [layers.mantle]
+#   radius_range_m = [3480.0e3, 6371.0e3]
+#   [layers.mantle.shear_rheology]
+#   model = "maxwell"
+#   [layers.mantle.material.solid.shear_viscosity]
+#   model = "constant"
+#   reference_viscosity_pas = 1.0e21
+# See Documentation/Structures/config/toml_schema.md.
+schema_version = "0.2.0"
+name = "Earth-PREM"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"

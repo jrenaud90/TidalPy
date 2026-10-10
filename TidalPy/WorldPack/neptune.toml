@@ -1,11 +1,81 @@
+# Neptune: a rock core, a mantle of hot dense fluid ices (water, ammonia, methane), and a hydrogen-helium envelope,
+# all fluid. Radius 24622 km (1 bar volumetric mean) and mass 1.02409e26 kg (NASA Neptune fact sheet).
+# g = 11.2745 m/s2 vs 11.27 published. Boundaries at 0.20 and 0.70 of the radius; core held at 6000 kg/m3.
+# Fitted: mantle 4025.727 and envelope 367.2022 kg/m3, to the mass and to C/MR2 = 0.2400. Published values run
+# 0.23 to 0.24, inferred from J2 via Radau-Darwin rather than measured.
+# Resulting layer masses: core 0.503, mantle 14.119, envelope 2.526 Earth masses, within published interior models.
+# Solved k2 = 0.4267, not fitted, vs the 0.41 used below.
+# Caveat: one density per layer. The central pressure, 818 GPa, is close to published estimates, but use a better
+# interior for pressure or density profiles.
+# The inner layers are static liquids. A rigid rock core (shear modulus 1e11 Pa) would lower k2 by a relative 8e-4.
+# Tides: constant phase lag, k2 = 0.41 (Durda 1992) and Q = 9000, the low end of the 9e3 to 3.6e4 of Zhang and
+# Hamilton (2008). The dissipation is an upper bound: Wang et al. (2025) put Q/k2 above 8.2e4 from Triton's motion
+# (2.2e4 here). Higher degrees use the unmeasured default k_l ~ k_2 / (l - 1). None of it uses the interior.
+# Triton (a = 3.54759e8 m, circular) raises 9.09e11 W; its orbit is retrograde, so this decays it.
+# Spin is the 16.11 h sidereal period (Voyager 2). Add Neptune to a System to give it an orbit.
+schema_version = "0.2.0"
 name = "Neptune"
-type = "gas_giant"
-radius = 24622000.0
-mass = 1.02413e+26
-semi_major_axis = 30.07
-semi_major_axis_in_au = true
-eccentricity = 0.008678
-tides_on = true
+type = "gasgiant"
+radius_m = 24622000.0
+mass_kg = 1.02409e26
+spin_frequency_rad_s = 1.0833825e-04
+albedo = 0.290
+
+# Layer temperatures are prescribed, not solved: the rock and ice thermal constants do not describe hydrogen.
+[eos_solver]
+solve_temperature = false
 
 [tides]
-fixed_q = 9000.0
+global_tidal_model = "fixed_q"
+fixed_k = [0.41, 0.205, 0.1367, 0.1025, 0.082, 0.0683, 0.0586, 0.0513, 0.0456]
+fixed_q = [9000.0, 9000.0, 9000.0, 9000.0, 9000.0, 9000.0, 9000.0, 9000.0, 9000.0]
+
+[layers.core]
+layer_index = 0
+radius_outer_m = 4924400.0            # 0.20 of the radius
+use_tides = false
+temperature_k = 6000.0
+use_heating = true
+
+# Liquid-only material: the rock core is a static liquid.
+[layers.core.material.liquid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.core.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 6000.0      # rock, held fixed
+bulk_modulus_pa = 2.0e11
+thermal_expansion_1_k = 5.2e-5
+
+[layers.core.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
+[layers.mantle]
+layer_index = 1
+radius_outer_m = 17235400.0           # 0.70 of the radius
+use_tides = false
+temperature_k = 4000.0
+
+# Liquid-only material: hot dense fluid ices.
+[layers.mantle.material.liquid]
+thermal_conductivity_w_mk = 2.3
+heat_capacity_j_kgk = 2000.0
+
+[layers.mantle.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 4025.727    # fitted, with the envelope, to the mass and C/MR2
+bulk_modulus_pa = 1.4e10
+thermal_expansion_1_k = 4.0e-5
+
+[layers.envelope]
+layer_index = 2
+radius_fraction = 1.0
+use_tides = true
+tidal_scale = 1.0
+temperature_k = 1000.0
+use_heating = true
+
+[layers.envelope.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 367.2022    # fitted, with the mantle, to the mass and C/MR2

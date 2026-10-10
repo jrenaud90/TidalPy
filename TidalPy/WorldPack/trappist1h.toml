@@ -1,23 +1,100 @@
-# Radius: Delrez et al., (2018) corrected by Kane et al., (2018)
-# Masses: Grimm et al., (2018)
-# Gravity: g*mass/(R2)
-# Flux: Delrez et al., (2018) corrected by Kane et al., (2018)
-# Density (Jontof-Hutter et al., 2014): radii: Delrez et al., (2018) + masses: Grimm e al (2018) corrected by Kane et al., (2018)
-# Updated using the analysis done by Agol+2020 and references therein.
-
+# TRAPPIST-1h: a two-layer rocky planet. Mass and radius from Agol et al. (2021): 0.326 Earth masses, 0.755 Earth radii
+# (mean density 4176 kg/m3). Orbital period 18.772866 days, a = 0.06189 AU.
+# All seven planets share one recipe, a constant-density liquid iron core at Earth's mean core density (10900 kg/m3)
+# under a Birch-Murnaghan silicate mantle at earth_simple's reference density (3516.322 kg/m3).
+# Fitted: core radius 1478.7 km (0.3074 of the radius) to the mass. Core mass fraction 0.0758, 0.21 times Earth's
+# 0.354 by the same recipe: iron-depleted, as Agol et al. (2021) conclude. The recipe overstates Earth's (accepted
+# 0.325), so treat absolute core fractions with caution.
+# g = 5.6163 m/s2, central pressure 99 GPa. C/MR2 = 0.37140 is a model output; none is measured for TRAPPIST-1.
+# Temperatures and viscosities are nominal Earth-like values (core 4000 K; Andrade mantle 1600 K, 1e21 Pa s) with
+# nothing to constrain them. Set the mantle viscosity before trusting any dissipation number. The mantle shear
+# modulus, 6e10 Pa, is nominal too (earth_simple's mantle has 2.2e11 Pa), and k2 depends on it strongly.
+# The core is a static liquid, though at 4000 K and these pressures iron would likely be solid in the larger planets.
+# A solid Maxwell iron core (1e20 Pa s) also solves at every forcing frequency; it relaxes like a fluid below about
+# 1e-12 rad/s, where its k2 approaches the liquid core's.
+# k2 = 0.254, Q = 90 at the orbital period. With the temperature solved under its 157 K equilibrium surface,
+# the mantle's lower boundary layer reaches the core's 4000 K, its base melts, and Q = 21.
+# Spin is synchronous with the orbit. With e = 0.00365 (Agol et al. 2021) the mantle takes all of the tidal
+# heating. Add the planet and its star to a System to give it an orbit.
+schema_version = "0.2.0"
 name = "TRAPPIST-1h"
-type = "simple_tidal"
-radius = 4817000.0
-radius_error_pos = 91000.0
-radius_error_neg = 88000.0
-mass = 1.945e+24
-mass_error_pos = 1.22e+23
-mass_error_neg = 1.22e+23
-semi_major_axis = 9259000000.0
-semi_major_axis_error_pos = 79000000.0
-semi_major_axis_error_neg = 79000000.0
-semi_major_axis_in_au = false
-eccentricity = 0.001835
-eccentricity_error_pos = 0.001815
-eccentricity_error_neg = 0.001815
-force_spin_sync = true
+type = "terrestrial"
+radius_m = 4810111.0
+mass_kg = 1.9469367e+24
+spin_frequency_rad_s = 3.8737853e-06
+
+# Layer temperatures are prescribed, not solved: the fit holds at these values.
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+layer_index = 0
+radius_outer_m = 1478672.5           # fitted to the published mass
+use_tides = false
+temperature_k = 4000.0
+
+# Liquid-only material, so the core is a static fluid (see the header).
+[layers.core.material.liquid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
+[layers.core.material.liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 10900.0     # Earth's mean core density
+bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
+
+[layers.mantle]
+layer_index = 1
+radius_fraction = 1.0
+use_tides = true
+temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
+
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 3516.322    # the reference density of earth_simple
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
+
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"
+
+# Peridotite melting curves (Monteux et al. 2016) and Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"

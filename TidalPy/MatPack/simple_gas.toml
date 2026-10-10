@@ -1,0 +1,21 @@
+# simple_gas: uniform gas-giant envelope placeholder; liquid only (low confidence).
+# Constant density near Jupiter's mean (1326 kg m-3); order-of-magnitude bulk modulus (K = 2 P on an n = 1 polytrope, so
+# P of about 0.5 Mbar). Use h2_he_molecular and h_he_metallic for anything physical.
+# Heat capacity, conductivity, and viscosity: within the French et al. (2012) Jupiter-adiabat ranges. No thermal
+# expansion.
+schema_version = "0.2.0"
+description = "Uniform gas-giant envelope placeholder: constant density and bulk modulus; always fluid."
+category = "simplified"
+
+[liquid]
+thermal_conductivity_w_mk = 10.0
+heat_capacity_j_kgk = 1.4e4
+
+[liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 1300.0
+bulk_modulus_pa = 1.0e11
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e-3

@@ -1,0 +1,9 @@
+[submodule "Dependencies/xsf"]
+	path = Dependencies/xsf
+	url = https://github.com/scipy/xsf.git
+[submodule "Dependencies/eigen"]
+	path = Dependencies/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "Dependencies/spdlog"]
+	path = Dependencies/spdlog
+	url = https://github.com/gabime/spdlog.git
