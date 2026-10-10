@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-10-08_
+_Updated: 2026-10-09_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0 and the calls between them.
 
@@ -61,8 +61,8 @@ TidalPy 0.8.0 keeps its settings in `TidalPy_Configs.toml` in `<Documents>/Tidal
 | `[logging] console_error_level` | Removed. |
 | `[configs] use_cwd_for_world_dir`, `overwrite_configs` | Removed. The editable worlds are always in the data directory's `Worlds` folder. |
 | `[debug]` (`extensive_logging`, `extensive_checks`) and `[numba]` | Removed, with `TidalPy.extensive_logging` and `TidalPy.extensive_checks`. |
-| `[tides.modes] minimum_frequency`, `maximum_frequency` | `[numerical] minimum_frequency`, `maximum_frequency`. |
-| `[tides.modes] min_spin_orbital_diff` | Removed, with `TidalPy.constants.MIN_SPIN_ORBITAL_DIFF`; `minimum_frequency` is the only zero-frequency floor. |
+| `[tides.modes] minimum_frequency`, `maximum_frequency` | `[numerical] minimum_frequency` (now a smooth low-frequency continuation, not a cut), `maximum_frequency`. |
+| `[tides.modes] min_spin_orbital_diff` | Removed, with `TidalPy.constants.MIN_SPIN_ORBITAL_DIFF`; `minimum_frequency` continues the dissipation smoothly to zero instead. |
 | `[tides.models.*] eccentricity_truncation_lvl`, `max_tidal_order_l`, `obliquity_tides_on` | `[tides] eccentricity_trunc_lvl`, `max_degree_l`, `obliquity_trunc_lvl`. |
 | `[tides.models.global_approx] fixed_q`, `static_k2`, `fixed_dt`, `use_ctl` | `[tides] fixed_q`, `fixed_k`, `fixed_dt_s` (lists indexed from $l = 2$), and the model named in `[tides.default_model]`. |
 | `[layers.ice]`, `[layers.rock]`, `[layers.iron]` | Removed. Materials come from MatPack (see [Layers and Materials](#layers-and-materials)). `[layers]` holds only `material`, the MatPack material of a layer that names none (default `simple_rock`). |

@@ -266,7 +266,7 @@ Every Love solve raises `ValueError` for:
 
 - Degree below 2 in a tidal or free-surface solve (degree 1 is a translation of the body). A loading-only solve may use degree 1, in the reference frame `degree1_frame` (see [Degree-1 Load Love Numbers](../../RadialSolver/calculating_love_numbers.md#degree-1-load-love-numbers)).
 - A loading or free-surface solve with `homogeneous`, `cpl`, or `ctl`, which give tidal Love numbers only.
-- A frequency that is not finite and positive, or outside `[numerical]` `minimum_frequency` to `maximum_frequency`. The Love numbers at $-\omega$ are the complex conjugates of those at $\omega$.
+- A frequency that is not finite and positive, or outside `[numerical]` `minimum_frequency` to `maximum_frequency` (the tide paths instead solve a mode at $\sqrt{\omega^2 + \omega_c^2}$, with $\omega_c$ the world's continuation frequency, `calc_continuation_frequency()`, and scale its dissipation by $|\omega|$ over that; see [Numerical Settings](../../Overview/2_TidalPy_Configurations.md#numerical-settings)). The Love numbers at $-\omega$ are the complex conjugates of those at $\omega$.
 - `start_radius_tol` outside (0, 1), or a negative `starting_radius` or `max_step`.
 
 ## Global (1D) Tidal Dissipation

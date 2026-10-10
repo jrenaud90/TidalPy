@@ -124,7 +124,7 @@ A setting whose default is `None` reads the `[radial_solver]` or `[eos_solver]` 
 |---|---|---|
 | `eos_method_bylayer` | `None` | Only `"interpolate"` (what `None` selects); other names raise. |
 | `surface_pressure` | `0.0` | Surface pressure [Pa]. |
-| `eos_integration_method` | `None` (config) | As `integration_method`. LSODA can fail cleanly at the center at tight tolerances; DOP853, BDF, and Radau do not. |
+| `eos_integration_method` | `None` (config) | As `integration_method`. |
 | `eos_rtol`, `eos_atol` | `None` (config) | EOS integration tolerances. |
 | `eos_pressure_tol` | `None` (config) | Tolerance on the surface-pressure mismatch, relative to $(2/3) \pi G \rho^2 R^2$. Keep it above `eos_rtol`. |
 | `eos_max_iters` | `None` (config) | Ceiling on the secant iterations for the central pressure; reported in `eos_iterations`. |

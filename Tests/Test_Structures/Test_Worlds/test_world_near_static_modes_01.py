@@ -1,6 +1,6 @@
 """Near-static tidal modes in a viscously relaxed solid mantle (``[numerical] minimum_complex_rigidity``).
 
-A Maxwell solid forced just above ``minimum_frequency`` has a complex shear modulus near i omega eta, which in a hot
+A Maxwell solid forced near zero frequency has a complex shear modulus near i omega eta, which in a hot
 mantle is tens of pascals; the solid radial equations divide by it. A Love solve raises a solid zone's complex modulus
 to ``minimum_complex_rigidity`` times rho g R through its real part, keeping its imaginary (dissipative) part. The hot
 state below is earth_thermal 9 kyr into an evolution at 0.05 au from a Sun-like star (a hot upper mantle with 2.5

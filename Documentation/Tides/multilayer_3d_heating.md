@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-10-06_
+_Updated: 2026-10-09_
 
 `TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world, point by point: strain, stress, displacement, and volumetric heating. Use it for heating maps, radial profiles, per-layer budgets, and stress or displacement fields. For the total heating alone the [global (1D) path](global_tides.md) is enough; at zero obliquity the two agree.
 
@@ -201,7 +201,7 @@ where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm
 
 ### Truncation
 
-Eccentricity level $N$ keeps the potential through $e^N$ and, as in the 1D path, cuts every product of two eccentricity functions in the secular heating at $e^N$ ([Eccentricity Functions](Eccentricity.md)). Obliquity level $N$ does the same in $I$ ([Obliquity Functions](Obliquity.md)). So at zero obliquity the volume integral equals the 1D heating at any eccentricity and spin rate; with $e$ and $I$ both nonzero they differ by the cross terms of [Coherent Waves](#coherent-waves). The instantaneous fields are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-$m$ harmonics ($P_{21}$, ...). A mode with $|\omega|$ at or below `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is switched off, as in the 1D path.
+Eccentricity level $N$ keeps the potential through $e^N$ and, as in the 1D path, cuts every product of two eccentricity functions in the secular heating at $e^N$ ([Eccentricity Functions](Eccentricity.md)). Obliquity level $N$ does the same in $I$ ([Obliquity Functions](Obliquity.md)). So at zero obliquity the volume integral equals the 1D heating at any eccentricity and spin rate; with $e$ and $I$ both nonzero they differ by the cross terms of [Coherent Waves](#coherent-waves). The instantaneous fields are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-$m$ harmonics ($P_{21}$, ...). A mode of zero frequency is static and dropped. As in the 1D path, a mode of frequency $\omega$ near or below the world's continuation frequency $\omega_c$ (`world.calc_continuation_frequency()`, see [Numerical Settings](../Overview/2_TidalPy_Configurations.md#numerical-settings)) takes the radial solution at $\sqrt{\omega^2 + \omega_c^2}$ with its heating scaled by $|\omega|$ over that frequency, and its instantaneous power scales the strain rate the same way so that it averages to the secular heating.
 
 ### Displacement, Strain, and Stress
 
@@ -307,14 +307,13 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 The first two take one row of `tidal_potential_3d_modes` (a real row is a phasor with zero phase) and the radial functions and complex moduli at the point. To combine modes as the world methods do, conjugate the row of a mode with $\omega < 0$, sum the amplitudes of all modes at one $|\omega|$ before calling `volumetric_heating`, and add the frequencies. This rebuilds a point of `calc_3d_tides`:
 
 ```python
-from TidalPy.constants import min_frequency
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point, volumetric_heating
 
 radius = 0.9 * world.radius
 frequency_totals = dict()   # |omega| / n -> [|omega|, summed strain, summed stress]
 for degree_l, frequency, row in zip(degrees, freqs, pots):
     magnitude = abs(frequency)
-    if magnitude <= min_frequency:
+    if magnitude == 0.0:
         continue   # A static mode does not dissipate
 
     # Radial functions and moduli at this mode's degree and |omega|

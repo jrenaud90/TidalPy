@@ -97,7 +97,7 @@ def _helper_tensors(world, spin_ratio, obliquity, max_degree_l, obliquity_trunca
     for index in range(degrees.size):
         frequency = float(frequencies[index])
         magnitude = abs(frequency)
-        if magnitude <= tidalpy_constants.min_frequency:
+        if magnitude == 0.0:
             continue
         world.solve_love_numbers(frequency=magnitude, degree_l=int(degrees[index]))
         y = np.array([world.get_love_radial_y(radius, 0, y_index) for y_index in range(6)], dtype=np.complex128)

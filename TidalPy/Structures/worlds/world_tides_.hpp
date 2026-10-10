@@ -63,7 +63,10 @@ inline c_GlobalPotentialStorage c_world_global_potential(
         tcfg.max_degree_l,
         tcfg.obliquity_truncation,
         tcfg.eccentricity_truncation,
-        tcfg.eccentricity_exact_tolerance
+        tcfg.eccentricity_exact_tolerance,
+        state.spin_numerator,
+        state.spin_denominator,
+        state.spin_offset
     );
 
     if (potential.error_code != 0) {
@@ -202,6 +205,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
 
     // Model-independent per-mode terms, plus the unique-frequency maps.
     const c_GlobalPotentialStorage potential = c_world_global_potential(*this, state, outcome.tide_result);
+    const double continuation_frequency = this->calc_continuation_frequency();
 
     // Everything is gathered into the outcome; calc_tides commits it to the world.
     c_GlobalTideResult& tide_result = outcome.tide_result;
@@ -227,6 +231,8 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
         const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
+        // Without the heating integral only the surface solution is needed.
+        love_cfg.love_only = !retain_radial_solves;
         std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
         // The solve of each (degree_l, unique-frequency index) pair, indexed directly by
@@ -257,11 +263,12 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
             solve_by_mode.set(lmpq_key, solve_index);
         }
 
-        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate.
+        // The largest degree and smallest frequency solved bound every solve's dynamic-liquid error estimate.
         if (!quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
             this->warn_if_dynamic_liquid_unstable(
                 *std::max_element(solve_degree.begin(), solve_degree.end()),
-                *std::min_element(solve_frequency.begin(), solve_frequency.end()),
+                c_love_frequency(*std::min_element(solve_frequency.begin(), solve_frequency.end(),
+                    [](double a, double b) { return std::abs(a) < std::abs(b); }), continuation_frequency),
                 love_cfg.rtol);
         }
 
@@ -286,7 +293,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
                 if (!workspace_uptr) { workspace_uptr = std::make_unique<c_LoveWorkspace>(); }
                 c_LoveSolveConfig solve_cfg = love_cfg;
                 solve_cfg.degree_l  = solve_degree[solve_i];
-                solve_cfg.frequency = solve_frequency[solve_i];
+                solve_cfg.frequency = c_love_frequency(solve_frequency[solve_i], continuation_frequency);
                 this->solve_love_numbers(solve_cfg, &homogeneous_cache, *workspace_uptr);
                 if (!workspace_uptr->get_success()) {
                     throw std::runtime_error(
@@ -316,7 +323,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
             tide_love.set(mode_entry.first, world_love_by_solve[mode_entry.second]);
         }
 
-        tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love);
+        tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love, continuation_frequency);
 
         if (quasi_homogeneous) {
             // The collapse is linear in each mode's -Im[k], so the layers' own collapses sum to the total.
@@ -327,7 +334,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
                     part_love.set(mode_entry.first, layer_love_by_solve[mode_entry.second][part_i]);
                 }
                 layer_heating[part_layer_index[part_i]] =
-                    c_collapse_global_tides(potential, *this->p_tide, &part_love).tidal_heating;
+                    c_collapse_global_tides(potential, *this->p_tide, &part_love, continuation_frequency).tidal_heating;
             }
         } else if (tcfg.layer_tidal_heating) {
             this->calc_layer_tidal_heating_radial(
@@ -337,7 +344,7 @@ inline void c_BaseWorld::p_solve_tides(const c_TideSolveConfig& state, c_TideSol
         // The analytic models need no Love solve. They fix the whole body's heating, so each tidal layer takes the
         // fraction its tidal scale is of all the tidal layers' scales, and the layers sum to the total. With no
         // tidal layer the heating has nowhere to go and every layer reports NaN.
-        tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+        tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr, continuation_frequency);
         double scale_sum = 0.0;
         for (std::size_t i = 0; i < n_layers; ++i) {
             layer_heating[i] = this->p_layers[i]->calc_tidal_scale(planet_volume);
@@ -469,7 +476,8 @@ namespace tides3d {
 
 struct c_RadialGroup3D {
     int degree_l = 0;
-    double frequency = 0.0;   // |omega| [rad s-1]
+    double frequency = 0.0;        // |omega| [rad s-1]
+    double love_frequency = 0.0;   // where its radial solve runs (c_love_frequency) [rad s-1]
 };
 
 struct c_WaveSet3D {
@@ -484,8 +492,10 @@ struct c_WaveSet3D {
     std::vector<int> wave_angular_pair;           // per wave, index into angular_pairs
     std::vector<int> azimuthal_orders;            // unique signed azimuthal wavenumber mu = azimuthal_sign * m
     std::vector<int> wave_azimuthal_order;        // per wave, index into azimuthal_orders
-    // The frequency match tolerance the set was built with, which later matches of its frequencies use too.
+    // The frequency match tolerance the set was built with, which later matches of its frequencies use too, and the
+    // continuation frequency of its world's tides (c_dissipation_scale).
     double frequency_match_rtol = 0.0;
+    double continuation_frequency = 0.0;
     // A secular set's cut amplitude products (c_wave_pair_power_3d) of the ordered pairs of waves of one frequency,
     // which the secular heating takes in place of amplitude_a * conj(amplitude_b): frequency f's block starts at
     // pair_power_offset[f] and holds its waves' pairs row-major by wave_frequency_slot. Empty for an instantaneous
@@ -531,6 +541,7 @@ inline c_WaveSet3D c_build_wave_set_3d(
     c_WaveSet3D set;
     set.secular = secular;
     set.frequency_match_rtol = tolerance.match_rtol;
+    set.continuation_frequency = tolerance.continuation_frequency;
     set.waves = c_coherent_tidal_waves_3d(modes, tolerance);
     c_PairPowerRows3D pair_rows;
     std::vector<size_t> kept;   // per kept wave, its index before the filter
@@ -578,7 +589,8 @@ inline c_WaveSet3D c_build_wave_set_3d(
         std::ptrdiff_t radial_group = radial_index.find(wave.degree_l, wave.frequency);
         if (radial_group < 0) {
             radial_group = static_cast<std::ptrdiff_t>(radial_index.insert(wave.degree_l, wave.frequency));
-            set.radial_groups.push_back(c_RadialGroup3D{wave.degree_l, wave.frequency});
+            set.radial_groups.push_back(c_RadialGroup3D{
+                wave.degree_l, wave.frequency, c_love_frequency(wave.frequency, tolerance.continuation_frequency)});
         }
         set.wave_radial_group[w] = static_cast<int>(radial_group);
 
@@ -651,15 +663,19 @@ inline c_WaveSet3D c_world_wave_set_3d(
         tide_cfg.obliquity_truncation,
         tide_cfg.eccentricity_truncation,
         tide_cfg.eccentricity_exact_tolerance,
-        &engine_error);
+        &engine_error,
+        state.spin_numerator,
+        state.spin_denominator,
+        state.spin_offset);
     if (engine_error != 0) {
         throw std::runtime_error(
             std::string("TidalPy: tidal potential engine failed during ") + what + " (error "
             + std::to_string(engine_error) + "); check degree/truncation levels");
     }
-    // The floor below which a mode is inactive is the 1D path's (c_record_unique_frequencies), so both paths keep the
-    // same modes; a slow mode near a Maxwell peak otherwise went missing from the 3D heating alone.
-    return c_build_wave_set_3d(modes, c_read_frequency_tolerance(), state.eccentricity, state.obliquity, secular);
+    // Both paths drop only zero-frequency modes (c_is_static_frequency), so they keep the same modes.
+    c_FrequencyTolerance tolerance = c_read_frequency_tolerance();
+    tolerance.continuation_frequency = world.calc_continuation_frequency();
+    return c_build_wave_set_3d(modes, tolerance, state.eccentricity, state.obliquity, secular);
 }
 
 // Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives
@@ -671,7 +687,7 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
         const char* what,
         c_LoveWorkspace& workspace) {
     love_cfg.degree_l = group.degree_l;
-    love_cfg.frequency = group.frequency;
+    love_cfg.frequency = group.love_frequency;
     world.solve_love_numbers(love_cfg, nullptr, workspace);
     if (!workspace.get_success()) {
         throw std::runtime_error(
@@ -810,8 +826,8 @@ inline bool c_strain_coeffs_at_radius_3d(
     if (layer.layer_ptr != nullptr) {
         is_solid = !layer.layer_ptr->get_is_liquid();
         is_incompressible = layer.layer_ptr->get_is_incompressible();
-        shear = layer.layer_ptr->calc_complex_shear_modulus(radius, group.frequency);
-        bulk  = layer.layer_ptr->calc_complex_bulk_modulus(radius, group.frequency);
+        shear = layer.layer_ptr->calc_complex_shear_modulus(radius, group.love_frequency);
+        bulk  = layer.layer_ptr->calc_complex_bulk_modulus(radius, group.love_frequency);
         if (is_solid) { shear = c_floor_complex_shear(shear, shear_floor); }
     }
     out = tides::c_compute_strain_radial_coeffs(
@@ -1078,7 +1094,8 @@ inline double c_secular_density_3d(
                 group_heating += pair_heating;
             }
         }
-        heating += 0.5 * set.frequencies[group.frequency_group] * group_heating;
+        const double frequency = set.frequencies[group.frequency_group];
+        heating += 0.5 * frequency * c_dissipation_scale(frequency, set.continuation_frequency) * group_heating;
     }
     return heating;
 }
@@ -1287,7 +1304,8 @@ inline double c_secular_theta_integral_3d(
                     }
                     found = gram_cache.emplace(key, gram).first;
                 }
-                total += 0.5 * frequency * tides::c_theta_integrated_heating_pair(
+                total += 0.5 * frequency * c_dissipation_scale(frequency, set.continuation_frequency)
+                    * tides::c_theta_integrated_heating_pair(
                     radial_a,
                     radial_b,
                     wave_a.order_m,
@@ -1906,7 +1924,11 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         double eps_dot = 0.0;
                         for (size_t f = 0; f < num_frequencies; ++f) {
                             if (!amplitudes.active[f]) { continue; }
-                            const double omega = set.frequencies[f];
+                            // Near and below the continuation frequency the strain rate carries the dissipation's
+                            // scaling, so the power averages to the secular heating (its elastic swing scales with
+                            // it).
+                            const double omega = set.frequencies[f]
+                                * c_dissipation_scale(set.frequencies[f], set.continuation_frequency);
                             const double cos_wt = phase.cos_phase[f * nt + it];
                             const double sin_wt = phase.sin_phase[f * nt + it];
                             const std::complex<double>& sc = amplitudes.stress[f].c[k];

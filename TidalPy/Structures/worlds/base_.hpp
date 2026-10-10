@@ -65,6 +65,7 @@
 // record. It adds no includes this header does not already have and forward-declares c_BaseWorld, so the
 // dependency stays one-directional.
 #include "../../Tides/classes/tide_.hpp"
+#include "../../Tides/potential/potential_common_.hpp"      // c_min_frequency (low-frequency continuation)
 #include "../../Tides/potential/truncation_warnings_.hpp"   // c_warn_tide_truncations
 #include "../../Tides/love/love_method_.hpp"
 // Relative paths, not bare names, so every extension that includes base_.hpp resolves these without
@@ -89,6 +90,10 @@ struct c_WorldConfig {
 // Every EOS and Love-number solve starts from the [eos_solver] and [radial_solver] sections of the shared
 // config, and a caller overrides only the fields it passes. The member initializers of the two structs below
 // stand in only when the config has not been loaded, which does not happen after a normal import.
+// The share of a world's solid volume, softest first, whose viscosity sets its continuation frequency
+// (c_BaseWorld::calc_continuation_frequency).
+inline constexpr double d_CONTINUATION_VOLUME_FRACTION = 0.5;
+
 inline ODEMethod c_ode_method_from_config(int method_int, ODEMethod fallback) noexcept {
     if (method_int > static_cast<int>(ODEMethod::RK_BASE_METHOD)
         && method_int <= static_cast<int>(ODEMethod::RADAU)) {
@@ -920,6 +925,58 @@ public:
     // Per-layer results of the last solve (the solve_eos result reports each of them per layer): temperatures,
     // heat flows, boundary layers, and the Rayleigh and Nusselt numbers of a convecting layer.
     const std::vector<c_LayerThermal>& get_layer_thermal() const noexcept { return this->p_layer_thermal; }
+
+    // The frequency [rad s-1] below which this world's tidal modes are continued linearly to zero (c_love_frequency),
+    // [numerical] minimum_frequency, or higher where most of the world's solid would be near-fluid. A solid of
+    // viscosity eta forced at omega well below its Maxwell rate has |mu(omega)| near omega eta, and once that falls
+    // under the liquid threshold (minimum_solid_rigidity times rho g R, c_liquid_shear_threshold) throughout most of
+    // the solid, the Love solve is slow and its result solver noise. The continuation starts no lower than that
+    // threshold over the viscosity below which the softest d_CONTINUATION_VOLUME_FRACTION of the solid volume lies, so
+    // a world made mostly of a warm ice shell (Charon) raises it while a world with a weak band or layer (Io's
+    // asthenosphere, a partially molten mantle) does not. The continuation is a numerical regularization below that
+    // frequency: exact for a Maxwell body below its slowest relaxation, approximate otherwise (Andrade's transient
+    // creep keeps rising as omega^-alpha). From the last solve, cached until the next; the minimum_frequency alone
+    // before a solve and for an analytic tide model, which has no Love solve.
+    double calc_continuation_frequency() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        const double floor = c_min_frequency();
+        const c_EOSSolution* solution = this->p_eos_solution.get();
+        if (!this->p_eos_solved || (solution == nullptr) || !(this->p_tide && this->p_tide->needs_radial_solve())) {
+            return floor;
+        }
+        if (this->p_continuation_floor == floor) { return this->p_continuation_frequency; }
+        const double liquid_shear = solution->liquid_shear_threshold;
+        const std::size_t num_points = std::min({solution->complex_shear_array_vec.size(),
+            solution->shear_viscosity_array_vec.size(), solution->radius_array_vec.size()});
+        // Each solid point's viscosity and the shell volume it stands for (4 pi r^2 dr, dr from its neighbors).
+        std::vector<std::pair<double, double>> solid;
+        double solid_volume = 0.0;
+        for (std::size_t i = 0; i < num_points; ++i) {
+            const double viscosity = solution->shear_viscosity_array_vec[i];
+            if (!((solution->complex_shear_array_vec[i].real() > liquid_shear) && (viscosity > 0.0))) { continue; }
+            const double r_lower = solution->radius_array_vec[(i > 0) ? i - 1 : i];
+            const double r_upper = solution->radius_array_vec[(i + 1 < num_points) ? i + 1 : i];
+            const double radius = solution->radius_array_vec[i];
+            const double volume = radius * radius * 0.5 * (r_upper - r_lower);
+            solid.emplace_back(viscosity, volume);
+            solid_volume += volume;
+        }
+        double frequency = floor;
+        if ((liquid_shear > 0.0) && (solid_volume > 0.0)) {
+            std::sort(solid.begin(), solid.end());
+            double softest = 0.0;
+            for (const auto& [viscosity, volume] : solid) {
+                softest += volume;
+                if (softest >= d_CONTINUATION_VOLUME_FRACTION * solid_volume) {
+                    frequency = std::max(floor, liquid_shear / viscosity);
+                    break;
+                }
+            }
+        }
+        this->p_continuation_floor     = floor;
+        this->p_continuation_frequency = frequency;
+        return frequency;
+    }
     size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
 
@@ -1602,6 +1659,7 @@ public:
     // radial-solver setup included: a re-solve changes the structure and moduli even when the grid size does
     // not. solve_eos calls this before it replaces the structure, so nothing can be read against the new one.
     void mark_structure_dirty() noexcept {
+        this->p_continuation_floor = TidalPyConstants::d_NAN;
         this->p_love.invalidate();
         this->p_tides_solved          = false;
         this->p_tide_solver_love.clear();
@@ -2033,7 +2091,8 @@ public:
                 throw std::invalid_argument(
                     "TidalPy: the forcing frequency " + std::to_string(cfg.frequency) + " rad s-1 is outside the "
                     "range set by [numerical] minimum_frequency and maximum_frequency in the TidalPy configuration "
-                    "(is it in rad s-1?).");
+                    "(is it in rad s-1?). Below minimum_frequency a Love solve is unreliable; the tide paths continue "
+                    "the dissipation linearly there.");
             }
         }
         if (!(cfg.start_radius_tol > 0.0) || !(cfg.start_radius_tol < 1.0)) {
@@ -3395,10 +3454,12 @@ protected:
     static constexpr double near_synchronous_warn_fraction = 1.0e-3;
 
     // Warns, once per world, when the spin is within near_synchronous_warn_fraction of the orbital mean motion but
-    // not equal to it: the slow forcing term at (spin - n) then adds heating that can differ from the synchronous
-    // value by orders of magnitude, which is rarely what was meant.
+    // not equal to it: the slow forcing term at (spin - n) then adds heating that can differ markedly from the
+    // synchronous value where the world dissipates strongly at that slow frequency, which is rarely what was meant. A
+    // spin given exactly as a commensurability plus an offset (an evolution near a lock) is deliberate and not warned.
     void p_warn_if_near_synchronous(const c_TideSolveConfig& state) const {
-        if (this->p_near_synchronous_warned || !(std::abs(state.orbital_frequency) > TidalPyConstants::d_EPS)) {
+        if (this->p_near_synchronous_warned || !(std::abs(state.orbital_frequency) > TidalPyConstants::d_EPS)
+                || std::isfinite(state.spin_offset)) {
             return;
         }
         const double spin_offset = std::abs(state.spin_frequency / state.orbital_frequency - 1.0);
@@ -3407,7 +3468,8 @@ protected:
         TIDALPY_LOG_WARN(
             "TidalPy: world '{}' spins at {:.6e} rad s-1, a fraction {:.2e} away from its orbital mean motion of "
             "{:.6e} rad s-1. A slightly non-synchronous spin adds a slow forcing term that can change the tidal "
-            "heating by orders of magnitude. A synchronous world should spin at exactly its orbital frequency "
+            "heating markedly where the world dissipates strongly at that slow frequency. A synchronous world should "
+            "spin at exactly its orbital frequency "
             "(System.set_synchronous_rotation, or spin_frequency = orbital_frequency). Shown once per world.",
             this->get_name(), state.spin_frequency, spin_offset, state.orbital_frequency);
     }
@@ -3454,6 +3516,9 @@ protected:
     mutable std::vector<double> p_layer_thermal_capacity;
     mutable std::vector<double> p_layer_latent_capacity;
     mutable bool                p_capacities_current = false;
+    // calc_continuation_frequency's cache: the minimum_frequency it was found with (NaN: none since the last solve).
+    mutable double              p_continuation_floor     = std::numeric_limits<double>::quiet_NaN();
+    mutable double              p_continuation_frequency = std::numeric_limits<double>::quiet_NaN();
     // The mass each layer holding its mass holds on to [kg]; NaN for a layer that holds its volume instead.
     std::vector<double> p_reference_mass;
     size_t p_thermal_passes    = 0;

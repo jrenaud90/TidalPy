@@ -27,12 +27,15 @@
 
 // Collapse the per-mode global potential terms with the tide model's dissipation
 // multiplier. `solver_love_by_lmpq` supplies the radial-solver Love numbers (k, h, l) per
-// mode for the rheology model; pass nullptr for the analytic (CPL/CTL/CTL_Q) models.
+// mode for the rheology model; pass nullptr for the analytic (CPL/CTL/CTL_Q) models. A mode below
+// `continuation_frequency` (negative: [numerical] minimum_frequency) is continued smoothly to zero (c_love_frequency).
 inline c_GlobalTideResult c_collapse_global_tides(
         const c_GlobalPotentialStorage& potential,
         const tidalpy::c_TideBase& tide_model,
-        const c_IntMap<c_Key4, tidalpy::c_LoveNumbers>* solver_love_by_lmpq = nullptr)
+        const c_IntMap<c_Key4, tidalpy::c_LoveNumbers>* solver_love_by_lmpq = nullptr,
+        double continuation_frequency = -1.0)
 {
+    const double floor = (continuation_frequency < 0.0) ? c_min_frequency() : continuation_frequency;
     c_GlobalTideResult result;
     result.error_code = potential.error_code;
     if (potential.error_code != 0) {
@@ -52,7 +55,9 @@ inline c_GlobalTideResult c_collapse_global_tides(
             solver_love = solver_love_by_lmpq->get(love_found, lmpq_key);
         }
 
-        const double neg_imk = tide_model.calc_neg_imk(degree_l, frequency, solver_love);
+        // Below the low-frequency continuation the mode's dissipation falls linearly to zero (c_dissipation_scale).
+        const double neg_imk = tide_model.calc_neg_imk(degree_l, c_love_frequency(frequency, floor), solver_love)
+            * c_dissipation_scale(frequency, floor);
 
         result.tidal_heating  += terms.E_dot * neg_imk;
         result.dU_dM          += terms.dU_dM * neg_imk;

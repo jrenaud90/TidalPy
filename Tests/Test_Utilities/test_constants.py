@@ -15,7 +15,7 @@ import scipy.constants
         ("ppm", 1.e-6),
         ("ppb", 1.e-9),
         # Config-loaded values: these hold only for an unmodified default config.
-        ("min_frequency", 1.0e-14),
+        ("min_frequency", 1.0e-16),
         ("max_frequency", 1.0e8),
         ("G", scipy.constants.G),
         ("R", scipy.constants.R),

@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-10-08_
+_Updated: 2026-10-09_
 
 Schema version `0.2.0`.
 
@@ -371,6 +371,8 @@ A system file has a top-level `schema_version` and `name`, then one `[worlds.<ke
 
 A system has at least one world and at most one star, and no system-wide host.
 
+An optional top-level `[evolution]` table sets `System.evolve` defaults for this system. It takes any key of the `[evolution]` configuration section (see [Evolution](../../Overview/2_TidalPy_Configurations.md#evolution)), wins over that section, and loses to an argument passed to `evolve`. An unknown key or an unusable value (a method that is not implicit, a tolerance that is not finite and positive) is refused when the file is read.
+
 ```toml
 schema_version = "0.2.0"
 name = "Sol System"
@@ -384,6 +386,10 @@ world = "earth_simple"
 tidal_host = "sun"
 semi_major_axis_m = 1.495978707e11
 eccentricity = 0.0167  # the host is the star, so no stellar orbit is needed
+
+[evolution]            # optional System.evolve settings for this system
+method = "Radau"
+spin_rtol = 1.0e-4
 ```
 
 [System](../system/system.md#building-a-system-from-toml-build_system) covers `build_system` and the system API.

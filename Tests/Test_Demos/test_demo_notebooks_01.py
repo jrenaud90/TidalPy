@@ -30,7 +30,7 @@ CELL_TIMEOUT = 900  # [s]
 # command-line filter and the skip shows in the report.
 TOO_SLOW = {
     "S02_thermal_orbital_evolution.ipynb": "integrates 5 Gyr of a coupled thermal-orbital system with System.evolve, "
-                                           "about three minutes, longer than the rest of the suite together",
+                                           "about four minutes, longer than the rest of the suite together",
 }
 
 SETUP_TEMPLATE = """\

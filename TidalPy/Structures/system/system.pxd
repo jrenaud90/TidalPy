@@ -136,29 +136,24 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_energy_residual(const c_WorldEvolution& evolution) except +
 
 
-# The pair evolution driver (evolution_.hpp): System.evolve and the spin-root tools its tests drive with synthetic
-# balances.
+# The pair evolution driver (evolution_.hpp): System.evolve.
 cdef extern from "evolution_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_PairEvolveSettings:
         cpp_bool evolve_thermal
-        double   orbit_rtol
-        double   thermal_rtol
+        string   method
+        double   semi_major_axis_rtol
+        double   eccentricity_rtol
+        double   eccentricity_atol
         double   spin_rtol
-        double   atol
-        double   capture_band
-        double   capture_margin
-        double   root_tolerance
-        double   resolution
+        double   thermal_rtol
+        double   radial_rtol
+        double   radial_atol
         double   max_wall_time
 
     cdef cppclass c_BodySegment:
-        int    mode
-        double spin_ratio
-        double root
-        double window_lower
-        double window_upper
-        double target
-        string reason
+        double   reference_ratio
+        cpp_bool rigid
+        cpp_bool armed
 
     cdef cppclass c_PairSegment:
         double                time
@@ -176,7 +171,6 @@ cdef extern from "evolution_.hpp" namespace "tidalpy" nogil:
         vector[double]        da_dt
         vector[double]        de_dt
         vector[double]        dspin_dt
-        vector[unsigned char] tracked
         vector[double]        temperature
         size_t                num_tide_solves
         size_t                num_eos_solves
@@ -190,6 +184,8 @@ cdef extern from "evolution_.hpp" namespace "tidalpy" nogil:
         vector[double]                dn_dt
         vector[c_BodyEvolutionRecord] bodies
         vector[c_PairSegment]         segments
+        size_t                        num_rhs_calls
+        size_t                        num_jacobians
         cpp_bool                      success
         string                        message
         double                        elapsed
@@ -201,36 +197,6 @@ cdef extern from "evolution_.hpp" namespace "tidalpy" nogil:
         double t_end,
         const c_PairEvolveSettings& settings) except +
     shared_ptr[c_PairEvolutionRecord] c_new_pair_evolution_record() except +
-
-    cdef cppclass c_SpinRootResult:
-        cpp_bool found
-        double   lower
-        double   upper
-        double   spin_ratio
-        double   balance
-        double   noise
-        size_t   num_probes
-
-    ctypedef double (*c_SpinBalanceFunction)(void*, double) noexcept
-
-    vector[double] c_spin_search_points(double start, double center, cpp_bool moving_up, double finest) except +
-    c_SpinRootResult c_locate_callback_root(
-        c_SpinBalanceFunction function,
-        void* context,
-        double spin_ratio,
-        double tolerance,
-        double finest) except +
-    c_SpinRootResult c_refine_callback_root(
-        c_SpinBalanceFunction function,
-        void* context,
-        double lower,
-        double upper,
-        double tolerance) except +
-    c_SpinRootResult c_build_callback_window(
-        c_SpinBalanceFunction function,
-        void* context,
-        double root_ratio,
-        double resolution) except +
 
 cdef class System(TidalPyBaseClass):
     cdef unique_ptr[c_System] _system

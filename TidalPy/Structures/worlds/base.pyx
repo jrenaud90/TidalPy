@@ -2853,6 +2853,25 @@ cdef class BaseWorld(StructureBase):
         cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
         return self._world_ptr.get().calc_layer_temperature_rate(layer_index)
 
+    def calc_continuation_frequency(self) -> float:
+        """The frequency [rad s-1] below which this world's tidal modes are continued linearly to zero.
+
+        A mode of frequency omega takes the Love number at hypot(omega, omega_c), omega_c this frequency, with its
+        dissipation scaled by |omega| over that, so the tidal torque passes smoothly through a spin-orbit lock. It is
+        ``[numerical] minimum_frequency``, or higher where most of the world's solid would be near-fluid. A solid of
+        viscosity eta forced well below its Maxwell rate has a complex modulus near omega eta, and once that falls under
+        the liquid threshold (``minimum_solid_rigidity`` times rho g R) its Love solve is slow and its result solver
+        noise. The viscosity used is the one below which the softer half of the solid volume lies, so a warm ice shell
+        raises it and a thin partially molten band does not.
+
+        Returns
+        -------
+        float
+            The continuation frequency [rad s-1] of the last :meth:`solve_eos`; ``minimum_frequency`` before one and for
+            an analytic tide model (``fixed_q``, ``fixed_dt``, ...), which has no Love solve.
+        """
+        return self._world_ptr.get().calc_continuation_frequency()
+
     def calc_layer_thermal_capacity(self, layer) -> float:
         """The heat a layer's profile stores per kelvin of its temperature [J K-1], from the last :meth:`solve_eos`.
 

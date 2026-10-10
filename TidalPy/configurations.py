@@ -269,6 +269,10 @@ def warn_unknown_config_keys(overrides: dict, packaged: dict, source: str) -> li
     return unknown
 
 
+# System.evolve's implicit methods (the [evolution] method).
+_EVOLUTION_METHODS = ("lsoda", "bdf", "radau")
+
+
 def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
     """The values of a ``TidalPy_Configs.toml`` (or an override dict) that TidalPy cannot use.
 
@@ -276,9 +280,10 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
     second type :data:`TidalPy.schema.CONFIG_ALTERNATE_TYPES` allows. The values read while TidalPy is imported are
     also checked for range: the log levels (a name of :data:`TidalPy.schema.LOG_LEVELS` or an integer 0 to 6), the
     ``[eos_solver]`` and ``[radial_solver]`` values (the bounds a world file's pinned settings meet, and the method
-    names of :data:`TidalPy.schema.SOLVER_KEY_NAMES`), and the
-    ``[numerical]`` values (finite and positive). Keys nothing reads are left to :func:`find_unknown_config_keys`. A
-    per-type ``[tides.<type>]`` or ``[worlds.<type>]`` table is checked as its parent table.
+    names of :data:`TidalPy.schema.SOLVER_KEY_NAMES`), the ``[numerical]`` values (finite and positive), and the
+    ``[evolution]`` values (an implicit method, positive tolerances, and a wall-time cap of at least zero). Keys
+    nothing reads are left to :func:`find_unknown_config_keys`. A per-type ``[tides.<type>]`` or ``[worlds.<type>]``
+    table is checked as its parent table.
 
     Parameters
     ----------
@@ -318,6 +323,15 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
                 return "must not be negative"
             if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
                 return "must be positive"
+        elif section == "evolution":
+            if key == "method":
+                if str(value).lower() not in _EVOLUTION_METHODS:
+                    return "must be 'LSODA', 'BDF', or 'Radau' (any case)"
+            elif key == "max_wall_time":
+                if not (value >= 0.0):
+                    return "must not be negative"
+            elif key.endswith(("_rtol", "_atol")) and not (math.isfinite(value) and (value > 0.0)):
+                return "must be finite and positive"
         elif path in LOG_LEVEL_CONFIG_KEYS:
             low, high = LOG_LEVEL_RANGE
             if isinstance(value, str) and (value.lower() not in LOG_LEVELS):

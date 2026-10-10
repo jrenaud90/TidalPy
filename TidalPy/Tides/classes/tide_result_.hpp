@@ -52,6 +52,11 @@ struct c_TideSolveConfig {
     double obliquity         = 0.0;   // axial tilt                     [radians]
     double semi_major_axis   = 0.0;   // orbital semi-major axis        [m]
     double host_mass         = 0.0;   // mass of the tidal host         [kg]
+    // Optional exact form of the spin, spin_frequency = (spin_numerator / spin_denominator) n + spin_offset, for a spin
+    // within rounding of a commensurability (c_mode_frequency); a NaN offset uses spin_frequency as it is.
+    int    spin_numerator    = 0;
+    int    spin_denominator  = 1;
+    double spin_offset       = std::numeric_limits<double>::quiet_NaN();   // [rad s-1]
 };
 
 // c_TideStateProvider: where a world that belongs to a system finds the orbital state its tides are raised in.

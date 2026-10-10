@@ -24,7 +24,8 @@ import numpy as np
 
 import TidalPy
 # Shared with the material and system loaders, re-exported: this loader is where callers look for them.
-from TidalPy.configurations import merge_configs, validate_schema_version, warning_enabled
+from TidalPy.configurations import (
+    find_invalid_config_values, get_packaged_config, merge_configs, validate_schema_version, warning_enabled)
 from TidalPy.database import WORLD_PACK
 from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Utilities.data_pack import TOML_DECODE_ERRORS, parse_toml
@@ -650,7 +651,7 @@ SYSTEM_WORLD_KEYS = (
 )
 
 # Everything else must live inside a ``[worlds.<name>]`` table.
-_SYSTEM_STRUCTURAL_KEYS = ("name", "schema_version", "worlds")
+_SYSTEM_STRUCTURAL_KEYS = ("name", "schema_version", "worlds", "evolution")
 
 
 def validate_system_config(config: dict) -> None:
@@ -659,13 +660,15 @@ def validate_system_config(config: dict) -> None:
     Checks that the ``worlds`` table is present and well formed, that each member names a ``world``
     source, that no unknown keys appear at either the system or per-world level, that every
     ``tidal_host`` names another world of the system, that a world stating an orbit about its tidal host
-    names that host, and that at most one world is flagged as the star.
+    names that host, that at most one world is flagged as the star, and that an ``[evolution]`` table names only
+    keys of the ``[evolution]`` configuration section.
 
     Parameters
     ----------
     config : dict
         The system configuration dictionary. The recognized shape is a top-level ``name`` /
-        ``schema_version`` plus a ``[worlds.<name>]`` table per member world.
+        ``schema_version`` plus a ``[worlds.<name>]`` table per member world, and an optional ``[evolution]`` table of
+        System.evolve settings for this system.
 
     Raises
     ------
@@ -692,6 +695,20 @@ def validate_system_config(config: dict) -> None:
             raise ValueError(
                 f"Unexpected system-level key '{key}'{did_you_mean(key, _SYSTEM_STRUCTURAL_KEYS)}. "
                 f"Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
+
+    evolution = config.get("evolution", {})
+    if not isinstance(evolution, dict):
+        raise ValueError("The system's 'evolution' entry must be a table of System.evolve settings.")
+    evolution_keys = tuple(TidalPy.config["evolution"])
+    for key in evolution:
+        if key not in evolution_keys:
+            raise ValueError(
+                f"Unexpected key '{key}'{did_you_mean(key, evolution_keys)} in the system's [evolution] table. "
+                f"Allowed: {sorted(evolution_keys)}.")
+    invalid = find_invalid_config_values({"evolution": evolution}, get_packaged_config())
+    if invalid:
+        raise ValueError("The system's [evolution] table has unusable values: "
+                         + "; ".join(f"{key} {reason}" for key, reason in invalid) + ".")
 
     star_count = 0
     for world_key, world_cfg in worlds.items():

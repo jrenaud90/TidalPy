@@ -18,7 +18,7 @@ dependencies = [
     # Progress bars for long calculations
     "tqdm>=4.64",
     # Install CyRK requirements
-    "cyrk>=0.19.3,<0.20.0"
+    "cyrk>=0.19.5,<0.20.0"
 ]
 license = "Apache-2.0"
 license-files = ["LICEN[CS]E*"]
@@ -117,7 +117,7 @@ requires = [
     "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.19.3,<0.20.0"
+    "cyrk>=0.19.5,<0.20.0"
 ]
 build-backend = "setuptools.build_meta"
 

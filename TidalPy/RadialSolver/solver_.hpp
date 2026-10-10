@@ -87,8 +87,10 @@ inline void c_validate_and_prep_radial_inputs(
     if (!std::isfinite(frequency) || !(frequency > 0.0))
         throw std::invalid_argument("Forcing frequency must be finite and positive [rad s-1].");
     if (frequency < tidalpy_config_ptr->d_MIN_FREQUENCY)
-        throw std::invalid_argument("Forcing frequency is too small (are you sure you are in rad s-1?).");
-    else if (frequency > tidalpy_config_ptr->d_MAX_FREQUENCY)
+        throw std::invalid_argument(
+            "Forcing frequency is below [numerical] minimum_frequency, where a Love solve is unreliable (tides "
+            "continue linearly below it; are you sure you are in rad s-1?).");
+    if (frequency > tidalpy_config_ptr->d_MAX_FREQUENCY)
         throw std::invalid_argument("Forcing frequency is too large (are you sure you are in rad s-1?).");
 
     if (use_prop_matrix)

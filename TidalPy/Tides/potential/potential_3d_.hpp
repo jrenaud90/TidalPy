@@ -127,7 +127,10 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
         int obliquity_truncation,
         int eccentricity_truncation,
         double eccentricity_exact_tolerance,
-        int* error_code)
+        int* error_code,
+        int spin_numerator = 0,
+        int spin_denominator = 1,
+        double spin_offset = TidalPyConstants::d_NAN)
 {
     error_code[0] = 0;
     std::vector<c_TidalPotential3DModeCoeff> coeffs;
@@ -168,9 +171,9 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
                     const double G_lpq = eccentricity_values.value(p, q);
                     if (G_lpq == 0.0) { continue; }
 
-                    const double mode =
-                        static_cast<double>(degree_l - 2 * p + q) * orbital_frequency
-                        - static_cast<double>(order_m) * spin_frequency;
+                    const double mode = c_mode_frequency(
+                        degree_l - 2 * p + q, -order_m, orbital_frequency, spin_frequency, spin_numerator,
+                        spin_denominator, spin_offset);
 
                     c_TidalPotential3DModeCoeff out;
                     out.degree_l = degree_l;
@@ -340,7 +343,7 @@ inline c_WaveFrequencyIndex c_wave_frequency_index(double match_rtol) {
     return c_WaveFrequencyIndex(match_rtol, c_IsCloseMatch{match_rtol});
 }
 
-// Drops modes at or below the tolerance's min_frequency, which dissipate nothing, and waves whose merged amplitude
+// Drops modes of zero frequency, which dissipate nothing, and waves whose merged amplitude
 // cancels. A mode merges into the first wave of its (l, m, azimuthal sign) whose frequency it matches.
 inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
         const std::vector<c_TidalPotential3DModeCoeff>& modes,
@@ -351,7 +354,7 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
     c_WaveFrequencyIndex wave_index = c_wave_frequency_index(tolerance.match_rtol);
     for (const c_TidalPotential3DModeCoeff& mode : modes)
     {
-        if (c_is_static_frequency(mode.mode_frequency, tolerance)) {
+        if (c_is_static_frequency(mode.mode_frequency)) {
             continue;
         }
         const double frequency = std::abs(mode.mode_frequency);

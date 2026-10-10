@@ -5,7 +5,8 @@ user-editable; the packaged defaults are parsed on every load and the user's fil
 ``[pathing]``, ``[logging]``, and ``[configs]`` set up the package when it is imported. ``[numerical]``,
 ``[eos_solver]``, and ``[radial_solver]`` feed the C++ config singleton through
 ``TidalPy.constants.update_constants``. ``[tides]``, ``[worlds]``, and ``[layers]`` supply the world builder's
-defaults, between the user's own configuration and the C++ or Cython constructor default. ``[radiogenics]`` holds
+defaults, between the user's own configuration and the C++ or Cython constructor default. ``[evolution]`` holds the
+defaults of ``System.evolve``. ``[radiogenics]`` holds
 the isotope dataset an isotope model takes by default and user-defined isotope datasets.
 """
 
@@ -50,8 +51,13 @@ schema_version = "{SCHEMA_VERSION}"
 # Numerical settings (read by the C++ config singleton)
 # =====================================================================================================================
 [numerical]
-    # Forcing frequencies with |w| <= minimum_frequency are treated as zero.
-    minimum_frequency = 1.0e-14
+    # The lowest continuation frequency [rad s-1]. Below a world's continuation frequency (this, or higher where most of
+    # its solid is near-fluid; BaseWorld.calc_continuation_frequency) w_c, a tidal mode of frequency w takes the Love
+    # number at hypot(w, w_c) with -Im(k) scaled by |w| over that, so its dissipation falls linearly to zero and the
+    # torque passes smoothly through a spin-orbit lock. No Love solve runs at a frequency so low its result is solver
+    # noise (the bundled worlds' solves are well conditioned down to about 1e-16 and degrade below it).
+    minimum_frequency = 1.0e-16
+    # Largest forcing frequency a Love solve accepts [rad s-1]; a larger one is probably not in rad s-1.
     maximum_frequency = 1.0e8
     # A modulus below this is treated as zero.
     minimum_modulus = 1.0e-3
@@ -200,6 +206,38 @@ schema_version = "{SCHEMA_VERSION}"
     [tides.star]
         fixed_k = [0.0289, 0.0074, 0.00282, 0.00131, 0.000694, 0.000401, 0.000248, 0.000162, 0.00011]
         fixed_q = [1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4]
+
+
+# =====================================================================================================================
+# System.evolve defaults. A system file's own [evolution] table wins for that system, and an evolve() argument wins
+# over both.
+# =====================================================================================================================
+[evolution]
+    # Evolve the layer temperatures of each world with layers (a thermal run takes its surface temperature from the
+    # system's star).
+    evolve_thermal = true
+    # CyRK's implicit integrator: "Radau", "BDF", or "LSODA". The spins are stiff near a lock, and Radau holds a lock
+    # with the longest steps.
+    method = "Radau"
+    # Relative tolerance on the change in the semi-major axis, a / a0 - 1 (absolute 1e-12 in a / a0), and the
+    # tolerances on the change in e since its reference (its initial value; when e falls to a tenth of it the run
+    # restarts with e as the new reference, so a circularizing orbit stays accurate relative to e).
+    semi_major_axis_rtol = 1.0e-5
+    eccentricity_rtol = 1.0e-4
+    eccentricity_atol = 1.0e-8
+    # Relative tolerance on each spin's offset from its commensurability; the absolute one is a tenth of the offset
+    # at which the slowest resonant mode reaches the world's continuation frequency. An offset held at a lock is small,
+    # so a tighter relative tolerance only shortens the steps there (capture times and end states do not move).
+    spin_rtol = 1.0e-3
+    # Relative tolerance on the layer temperatures.
+    thermal_rtol = 1.0e-5
+    # Love-solve tolerances during a run: the rates must be smooth at the scale of the integrator's difference
+    # steps, which the default [radial_solver] tolerances are not near a lock. A tighter atol makes a solve of a
+    # near-fluid solid at low frequency far slower.
+    radial_rtol = 1.0e-10
+    radial_atol = 1.0e-10
+    # Wall-clock cap [s]; inf for none.
+    max_wall_time = inf
 
 
 # =====================================================================================================================

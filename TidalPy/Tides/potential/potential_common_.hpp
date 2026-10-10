@@ -68,27 +68,74 @@ inline double c_frequency_match_rtol() noexcept
     return d_FREQUENCY_MATCH_RTOL_FALLBACK;
 }
 
+
+// A mode's frequency n_coeff n + o_coeff spin [rad s-1]. When `spin_offset` is finite the spin is given exactly as
+// (spin_numerator / spin_denominator) n + spin_offset, and the frequency is formed as
+// ((n_coeff spin_denominator + o_coeff spin_numerator) / spin_denominator) n + o_coeff spin_offset, so a mode near a
+// spin-orbit commensurability keeps an offset far below the rounding of n (an evolution's spin near a lock).
+inline double c_mode_frequency(
+        int n_coeff,
+        int o_coeff,
+        double orbital_frequency,
+        double spin_frequency,
+        int spin_numerator,
+        int spin_denominator,
+        double spin_offset) noexcept
+{
+    if (!std::isfinite(spin_offset))
+    {
+        return static_cast<double>(n_coeff) * orbital_frequency + static_cast<double>(o_coeff) * spin_frequency;
+    }
+    const long long whole = static_cast<long long>(n_coeff) * spin_denominator
+        + static_cast<long long>(o_coeff) * spin_numerator;
+    return (static_cast<double>(whole) / static_cast<double>(spin_denominator)) * orbital_frequency
+        + static_cast<double>(o_coeff) * spin_offset;
+}
+
+// The low-frequency continuation. A mode of frequency omega takes its Love number at omega' = hypot(omega, omega_c)
+// (c_love_frequency), with its dissipation scaled by |omega| / omega' (c_dissipation_scale), omega_c the continuation
+// frequency. Far below omega_c the dissipation falls linearly to zero (the low-frequency limit of a viscoelastic body,
+// and a smooth regularization of a constant-Q lag's step at zero frequency); far above it the mode is solved at its own
+// frequency; and the torque is smooth in the spin between the two, which an implicit integrator holding a lock there
+// needs (a cut at omega_c leaves a kink in the torque's slope where the body's Im k is not linear in omega). The
+// continuation frequency is [numerical] minimum_frequency (zero before the config is loaded), or a world's own higher
+// one (c_BaseWorld::calc_continuation_frequency), since a Love solve far below it is slow and gives solver noise.
+inline double c_min_frequency() noexcept
+{
+    const double floor = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0;
+    return (floor > 0.0) ? floor : 0.0;
+}
+
+inline double c_love_frequency(double frequency, double continuation_frequency) noexcept
+{
+    return (continuation_frequency > 0.0) ? std::hypot(frequency, continuation_frequency) : std::abs(frequency);
+}
+
+inline double c_dissipation_scale(double frequency, double continuation_frequency) noexcept
+{
+    return (continuation_frequency > 0.0) ? std::abs(frequency) / std::hypot(frequency, continuation_frequency) : 1.0;
+}
+
 // The frequency tolerances of one engine call, read from the config once: modes whose frequencies agree to match_rtol
-// share a frequency, and min_frequency is the floor at which a mode counts as static (zero before the config is
-// loaded).
+// share a frequency, and modes are continued to zero below continuation_frequency (c_love_frequency).
 struct c_FrequencyTolerance
 {
     double match_rtol;
-    double min_frequency;
+    double continuation_frequency;
 };
 
 inline c_FrequencyTolerance c_read_frequency_tolerance() noexcept
 {
-    return c_FrequencyTolerance{
-        c_frequency_match_rtol(),
-        (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0};
+    return c_FrequencyTolerance{c_frequency_match_rtol(), c_min_frequency()};
 }
 
-// A mode at or below the tolerance's min_frequency is a static deformation: it dissipates nothing, so the 1D and the 3D
-// paths both drop it. A NaN frequency is kept, so a bad orbital state shows as NaN heating rather than none.
-inline bool c_is_static_frequency(double frequency, const c_FrequencyTolerance& tolerance) noexcept
+// Only a mode of exactly zero frequency is a static deformation, which dissipates nothing, so the 1D and the 3D paths
+// both drop it. A viscoelastic Love number's imaginary part falls to zero with the frequency, so the dissipation of a
+// mode near zero frequency (a spin near a lock) is small and continuous through zero (c_dissipation_scale). A NaN
+// frequency is kept, so a bad orbital state shows as NaN heating rather than none.
+inline bool c_is_static_frequency(double frequency) noexcept
 {
-    return std::abs(frequency) <= tolerance.min_frequency;
+    return frequency == 0.0;
 }
 
 // Whether two frequencies agree to a relative tolerance, NaN-safe (c_isclose with no absolute floor). Integer
@@ -126,7 +173,7 @@ inline std::ptrdiff_t c_record_unique_frequencies(
         c_UniqueFreqIndexMap& frequency_index_map,
         c_UniqueFreqMap& frequency_map)
 {
-    if (c_is_static_frequency(frequency, tracker.tolerance))
+    if (c_is_static_frequency(frequency))
     {
         return -1;
     }

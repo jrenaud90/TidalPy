@@ -110,7 +110,7 @@ def _mode_amplitudes(
         degree = int(degrees[index])
         frequency = float(frequencies[index])
         magnitude = abs(frequency)
-        if magnitude <= tidalpy_constants.min_frequency:
+        if magnitude == 0.0:
             # The world drops static modes: they neither dissipate nor move.
             continue
         world.solve_love_numbers(frequency=magnitude, degree_l=degree)

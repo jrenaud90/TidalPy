@@ -21,15 +21,21 @@ def packaged():
     {"radial_solver": {"rtol": -1.0}},
     {"eos_solver": {"max_iters": 2.5}},
     {"eos_solver": {"solve_temperature": 1}},
-    {"numerical": {"minimum_frequency": 0.0}},
+    {"numerical": {"maximum_frequency": 0.0}},
     {"numerical": {"love_solve_threads": -1}},
     {"worlds": {"star": {"albedo": "bright"}}},
     {"tides": {"fixed_q": 100.0}},
     {"radial_solver": {"starting_method": "bessel"}},
     {"eos_solver": {"integration_method": "euler"}},
+    {"numerical": {"minimum_frequency": 0.0}},
+    {"evolution": {"method": "RK45"}},
+    {"evolution": {"spin_rtol": -1.0}},
+    {"evolution": {"max_wall_time": -1.0}},
+    {"evolution": {"evolve_thermal": "false"}},
 ], ids=["level_name", "level_number", "level_bool", "negative_rtol", "float_iterations", "int_for_bool",
-        "zero_frequency_floor", "negative_threads", "per_type_world_string", "scalar_for_list", "starting_method_name",
-        "integration_method_name"])
+        "zero_frequency_ceiling", "negative_threads", "per_type_world_string", "scalar_for_list",
+        "starting_method_name", "integration_method_name", "zero_frequency_floor", "explicit_evolution_method",
+        "negative_evolution_rtol", "negative_wall_time", "string_for_evolve_thermal"])
 def test_unusable_values_are_found(packaged, override):
     assert len(find_invalid_config_values(override, packaged)) == 1
 

@@ -1,6 +1,6 @@
 # Constants (`TidalPy.constants`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-09_
 
 TidalPy's constants come in three kinds. Mathematical and floating-point limits are fixed at compile time. Physical constants are read from SciPy (mostly) when the package initializes, so TidalPy agrees with its dependencies. Numerical floors and ceilings, which keep a solver from dividing by a vanishing modulus or evaluating a mode at zero frequency, come from the configuration file and can be changed. A value set from Python reaches every compiled module.
 
@@ -16,7 +16,7 @@ constants.radius_earth      # [m]    also R_earth
 constants.luminosity_solar  # [W]    also L_sol
 constants.year              # [s]    Julian year
 constants.seconds_per_myr   # [s]    one Julian mega-year, exact
-constants.min_frequency     # [rad s-1] configurable floor
+constants.min_frequency     # [rad s-1] configurable low-frequency continuation
 ```
 
 Most constants also have a short alias (`M_sol` for `mass_solar`, `Au` for `au`, `SBC` for `sbc`, `k` for `k_boltzmann`) with the same value.

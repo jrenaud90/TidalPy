@@ -880,11 +880,16 @@ protected:
     // tidal host (the dissipator's own, or the companion's when the companion is the hosted one). Unsolved when that
     // orbit has no usable semi-major axis. A body with no tide model is rigid and contributes nothing: its result is
     // solved with zero outputs and has_tide_model false. This primitive does not warn; its callers decide when a rigid
-    // body is a problem.
+    // body is a problem. A finite `spin_offset_ratio` gives the dissipator's spin exactly as
+    // (spin_numerator / spin_denominator + spin_offset_ratio) n in place of its spin_frequency (c_mode_frequency), for
+    // a spin within rounding of a commensurability.
     c_TidalDissipation p_dissipation(
             std::size_t dissipator_index,
             std::size_t companion_index,
-            std::size_t orbit_index) {
+            std::size_t orbit_index,
+            int spin_numerator = 0,
+            int spin_denominator = 1,
+            double spin_offset_ratio = TidalPyConstants::d_NAN) {
         c_TidalDissipation out;
         out.world_index     = dissipator_index;
         out.companion_index = companion_index;
@@ -904,7 +909,11 @@ protected:
         out.orbital_frequency = orbital_frequency;
         out.semi_major_axis   = orbit.semi_major_axis;
         out.eccentricity      = orbit.eccentricity;
-        out.spin_frequency    = world_ptr->get_spin_frequency();
+        const bool exact_spin = std::isfinite(spin_offset_ratio);
+        out.spin_frequency    = exact_spin
+            ? (static_cast<double>(spin_numerator) / static_cast<double>(spin_denominator) + spin_offset_ratio)
+              * orbital_frequency
+            : world_ptr->get_spin_frequency();
         out.obliquity         = world_ptr->get_obliquity();
         out.companion_mass    = this->p_worlds[companion_index]->get_mass();
         out.target_mass       = world_ptr->get_mass();
@@ -923,6 +932,11 @@ protected:
         state.obliquity         = out.obliquity;
         state.semi_major_axis   = out.semi_major_axis;
         state.host_mass         = out.companion_mass;
+        if (exact_spin) {
+            state.spin_numerator   = spin_numerator;
+            state.spin_denominator = spin_denominator;
+            state.spin_offset      = spin_offset_ratio * orbital_frequency;
+        }
         world_ptr->calc_tides(state);
 
         // calc_tides throws on failure, so the tide result is populated here, and the call lock keeps it this solve's.

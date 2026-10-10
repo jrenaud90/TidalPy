@@ -198,8 +198,9 @@ const FLOWS = {
     name: 'System evolution', color: 'var(--flow-system)',
     text: 'A System holds worlds with their orbital elements. calc_world_evolution builds the tidal state for one ' +
       'world, runs its calc_tides, and converts the potential derivatives into da/dt, de/dt, dn/dt, and dspin/dt ' +
-      'with an energy-balance check. System.evolve integrates them in time with CyRK, the world spin tracking ' +
-      'its spin-orbit equilibria, and with the thermal state evolved re-solves the world EOS at every state.',
+      'with an energy-balance check. System.evolve integrates a pair in time in C++ with CyRK (Radau by default), ' +
+      'each spin as its offset from the nearest commensurability, and with the thermal state evolved re-solves each ' +
+      'EOS when its temperatures or the time change.',
   },
 };
 
@@ -500,12 +501,12 @@ const NODES = [
       'System.evolve integrates them.',
     inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
   { id: 'evolve', lane: 'system', kind: 'py', shape: 'func', star: true,
-    label: 'System.evolve(world, span)', sub: 'evolution.py: evolve_pair', file: 'Structures/system/evolution.py',
-    purpose: 'Integrates a world and its tidal host with CyRK LSODA in segments: the spin free between spin-orbit ' +
-      'equilibria, tracked on one (a root search of the spin balance at every state, the Filippov combination of ' +
-      'its two sides), with captures, recenterings, and releases as events.',
-    inputs: 'world, time span, tolerances, capture settings',
-    outputs: 'EvolutionResult: a, e, spins, layer temperatures, heating, segments' },
+    label: 'System.evolve(world, span)', sub: 'evolution_.hpp: c_PairEvolver', file: 'Structures/system/evolution_.hpp',
+    purpose: 'Integrates a world and its tidal host in C++ with CyRK (Radau by default, or BDF or LSODA): a, e, ' +
+      'each spin as its exact offset from the nearest commensurability (a lock is a stiff stable equilibrium), and ' +
+      'the layer temperatures. Events restart it where a spin crosses its commensurability or moves to the next.',
+    inputs: 'world, time span, [evolution] settings',
+    outputs: 'PairedEvolutionResult: a, e, spins, layer temperatures, heating, segments, counts' },
   { id: 'c_System', lane: 'system', kind: 'cpp', shape: 'class',
     label: 'c_System', sub: 'system_.hpp', file: 'Structures/system/system_.hpp',
     purpose: 'shared_ptr worlds, parallel orbital elements, a tidal host index per world, the star index, and a ' +
@@ -764,17 +765,17 @@ const EDGES = [
 
   // System evolution.
   { from: 'evolve', to: 'calc_world_evolution', flow: 'system', type: 'call',
-    purpose: 'calc_pair_evolution at each probed spin ratio of the current state: the rates, the spin balance, and ' +
-      'the heating the root search and the integration read.',
-    inputs: 'spin ratio of the probe', outputs: 'pair rates as a dict' },
+    purpose: 'Each body\'s tides and rates at every right-hand-side state (the System\'s per-body dissipation, with ' +
+      'the spin as its exact commensurability plus offset), summed into the pair rates the integration reads.',
+    inputs: 'a, e, each spin offset, layer temperatures', outputs: 'pair rates and heating' },
   { from: 'evolve', to: 'solve_eos', flow: 'system', type: 'call',
     purpose: 'With the thermal state evolved, the EOS with its temperature profile at every new state, its surface ' +
       'at the insolation temperature and its heat sources at the integration time.',
     inputs: 'layer temperatures, surface temperature, time', outputs: 'the solved structure and heat flows' },
   { from: 'evolve', to: 'cyrk', flow: 'system', type: 'call',
-    purpose: 'pysolve_ivp LSODA per segment, with terminal events for the capture bands, the approach to an ' +
-      'equilibrium, and a tracked window edges.',
-    inputs: 'right-hand side, events, tolerances', outputs: 'steps, event termination' },
+    purpose: 'baseline_cysolve_ivp_noreturn (Radau by default) per segment, with a user Jacobian and terminal ' +
+      'events on each spin offset (crossing its commensurability, moving to the next).',
+    inputs: 'right-hand side, Jacobian, events, tolerances', outputs: 'steps, event termination' },
   { from: 'calc_world_evolution', to: 'c_calc_world_evolution', flow: 'system', type: 'call',
     purpose: 'Rates for world i (calc_pair_evolution sums two worlds, one hosting the other; calc_system_evolution ' +
       'runs every world).',

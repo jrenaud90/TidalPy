@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-09_
 
 TidalPy reads its settings from one file, `TidalPy_Configs.toml`, when the package is first imported. The file sits in the TidalPy data directory inside your documents directory:
 
@@ -135,10 +135,11 @@ Limits: a dynamic liquid layer at a long forcing period is ill-conditioned at an
 
 `[numerical]` holds the floors and tolerances the C++ code reads. `TidalPy.constants.update_constants()` pushes an edited value to C++ without a restart (see [Constants](../Utilities/constants.md)).
 
-- `minimum_frequency = 1.0e-14`, `maximum_frequency = 1.0e8`: the frequency extremes; a forcing frequency at or below the minimum counts as zero (a static mode).
+- `minimum_frequency = 1.0e-16` \[rad s$^{-1}$\] is the lowest continuation frequency. A tidal mode of frequency $\omega$ takes the Love number at $\omega' = \sqrt{\omega^2 + \omega_c^2}$, with $\omega_c$ its world's continuation frequency, and its $-\mathrm{Im}(k)$ is scaled by $|\omega| / \omega'$. Well below $\omega_c$ its dissipation falls linearly to zero, well above it the mode is solved at its own frequency, and the tidal torque is smooth in the spin through a spin-orbit lock and across $\omega_c$. $\omega_c$ is `minimum_frequency`, or higher where most of the world's solid would be near-fluid, since a Love solve there is slow and returns solver noise. That higher value is the frequency at which $\omega \eta$ falls to the liquid threshold (`minimum_solid_rigidity` times $\bar{\rho} g R$), with $\eta$ the viscosity below which the softer half of the solid volume lies. `BaseWorld.calc_continuation_frequency()` returns $\omega_c$ from the last EOS solve, and a world with an analytic tide model (`fixed_q`, `fixed_dt`, ...) always uses `minimum_frequency`. The continuation is a numerical regularization, exact for a Maxwell body below its slowest relaxation and approximate otherwise (Andrade's transient creep keeps rising as $\omega^{-\alpha}$). Only a mode of exactly zero frequency is dropped, and a direct Love solve below `minimum_frequency` raises `ValueError`.
+- `maximum_frequency = 1.0e8` is the largest forcing frequency a Love solve accepts, to catch a frequency not given in rad s$^{-1}$.
 - `minimum_modulus = 1.0e-3`: a modulus below this is treated as zero.
 - `minimum_solid_rigidity = 1.0e-6`: the post-melt rigidity $\mu / (\bar{\rho} g R)$, with the world's stated bulk density, surface gravity, and radius, at or below which a layer that can change state is liquid. The EOS solve splits the layer into solid and liquid zones there, the radial solver takes each liquid zone as a liquid, and a convecting interior that is liquid there takes the magma-ocean scaling (see [Worlds](../Structures/worlds/worlds.md#pieces-and-zones)).
-- `minimum_complex_rigidity = 1.0e-9`: the floor of a solid zone's complex rigidity $|\mu(\omega)| / (\bar{\rho} g R)$ at the forcing frequency in a world's Love solve, reached by raising the real (elastic) part and keeping the imaginary (dissipative) part. A viscously relaxed solid forced near `minimum_frequency` has $\mu(\omega) \approx i \omega \eta$, and the solid equations, which divide by it, fail or slow down without the floor, while the zone's dissipation still vanishes with the frequency. 0 turns it off. The standalone `radial_solver` and `solve_love_numbers_supplied` take their moduli as given.
+- `minimum_complex_rigidity = 1.0e-9`: the floor of a solid zone's complex rigidity $|\mu(\omega)| / (\bar{\rho} g R)$ at the forcing frequency in a world's Love solve, reached by raising the real (elastic) part and keeping the imaginary (dissipative) part. A viscously relaxed solid forced near zero frequency has $\mu(\omega) \approx i \omega \eta$, and the solid equations, which divide by it, fail or slow down without the floor, while the zone's dissipation still vanishes with the frequency. 0 turns it off. The standalone `radial_solver` and `solve_love_numbers_supplied` take their moduli as given.
 - `minimum_zone_fraction = 1.0e-7`: the thinnest solid or liquid zone, as a fraction of the world radius, kept as its own layer; a thinner one takes its thicker neighbor's state.
 - `minimum_layer_thickness = 0.1`: the geometry floor; a thinner layer is ignored.
 - `numerical_floor = 1.0e-100`: the smallest magnitude of a guarded denominator; in practice it only replaces a true zero.
@@ -173,6 +174,21 @@ Three keys have no packaged default but are read when a world's `[tides]` table 
 ## Worlds
 
 `[worlds]` holds the default world properties: `albedo = 0.3`, `emissivity = 1.0`, `obliquity_rad = 0.0`, `spin_frequency_rad_s = 0.0`, and `moment_of_inertia_factor = 0.4` (the spin model's $C/(M R^2)$, used until the EOS is solved). `[worlds.star]` adds `effective_temperature_k = 5772.0` and `luminosity_w = 0.0` (zero derives the luminosity from the effective temperature) and sets `albedo = 0.0` and `moment_of_inertia_factor = 0.0754` (an $n = 3$ polytrope). A world's own table wins over these, and they win over the class default. A world built by hand (`TerrestrialWorld(name, radius, mass)` and the other classes) takes the same defaults.
+
+## Evolution
+
+`[evolution]` holds the defaults of `System.evolve` (see [Evolving a World About Its Host](../Structures/system/system.md#evolving-a-world-about-its-host)). An argument to `evolve` wins, then the system file's own `[evolution]` table, then this section.
+
+- `evolve_thermal = true`: evolve the layer temperatures of each world with layers. A thermal run takes its surface temperature from the system's star.
+- `method = "Radau"`: CyRK's implicit integrator, `"Radau"`, `"BDF"`, or `"LSODA"` (any case). Radau holds a spin-orbit lock with the longest steps.
+- `semi_major_axis_rtol = 1.0e-5`: relative tolerance on the change $a/a_0 - 1$ (its absolute tolerance is $10^{-12}$).
+- `eccentricity_rtol = 1.0e-4`, `eccentricity_atol = 1.0e-8`: tolerances on the change in $e$ since its reference value.
+- `spin_rtol = 1.0e-3`: relative tolerance on each spin's offset from its commensurability. The absolute tolerance is a tenth of the offset at which the slowest resonant mode reaches the world's continuation frequency.
+- `thermal_rtol = 1.0e-5`: relative tolerance on the layer temperatures.
+- `radial_rtol = 1.0e-10`, `radial_atol = 1.0e-10`: the Love-solve tolerances during a run. The rates must be smooth at the scale of the integrator's difference steps, which the `[radial_solver]` defaults are not near a lock. A tighter `radial_atol` makes a solve of a near-fluid solid at low frequency far slower.
+- `max_wall_time = inf`: a wall-clock cap \[s\]; a run that reaches it returns with `success` False.
+
+TidalPy checks that the method is implicit, the tolerances are finite and positive, and the wall time is at least zero. A bad value in your configuration file falls back to its default with a warning, and `TidalPy.reinit` refuses one. A system file's `[evolution]` table is checked when the file is read, and an unknown key there is refused.
 
 ## Radiogenic Isotope Datasets
 

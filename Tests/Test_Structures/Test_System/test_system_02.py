@@ -130,19 +130,22 @@ def test_world_evolution_matches_standalone_engines():
     """The system's orbital and spin rates match the standalone engines fed the same tidal solve."""
     ev = _system(spin_factor=1.5).calc_world_evolution("moon")
 
+    # The same state as the system's, exactly: a spin at 3:2 leaves a resonant mode near zero frequency, whose
+    # (continued) dissipation follows the rounding of 3 n - 2 spin.
     moon = _moon(spin_factor=1.5)
     moon.calc_tides(
-        orbital_frequency=_N,
-        spin_frequency=1.5 * _N,
+        orbital_frequency=ev["orbital_frequency"],
+        spin_frequency=ev["spin_frequency"],
         eccentricity=_ECC,
         obliquity=0.0,
         semi_major_axis=_SMA,
         host_mass=_HOST)
     dU_dM, dU_dw, _ = moon.get_tidal_potential_derivatives().values()
     orbit = OrbitSolver()
-    da_ref = orbit.calc_da_dt(_N, _SMA, _ECC, _MASS, _HOST, dU_dM)
-    de_ref = orbit.calc_de_dt(_N, _SMA, _ECC, _MASS, _HOST, dU_dM, dU_dw)
-    dn_ref = orbit.calc_dn_dt(_N, _SMA, da_ref)
+    n = ev["orbital_frequency"]
+    da_ref = orbit.calc_da_dt(n, _SMA, _ECC, _MASS, _HOST, dU_dM)
+    de_ref = orbit.calc_de_dt(n, _SMA, _ECC, _MASS, _HOST, dU_dM, dU_dw)
+    dn_ref = orbit.calc_dn_dt(n, _SMA, da_ref)
     dspin_ref = moon.calc_spin_derivative(_HOST)
 
     assert math.isclose(ev["da_dt"], da_ref, rel_tol=1e-9)

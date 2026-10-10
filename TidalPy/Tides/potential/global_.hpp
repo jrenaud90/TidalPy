@@ -67,7 +67,10 @@ inline c_GlobalPotentialStorage c_global_potential(
         int max_degree_l,
         int obliquity_truncation,
         int eccentricity_truncation,
-        double eccentricity_exact_tolerance
+        double eccentricity_exact_tolerance,
+        int spin_numerator = 0,
+        int spin_denominator = 1,
+        double spin_offset = TidalPyConstants::d_NAN
     )
 {
     c_GlobalPotentialStorage result;
@@ -203,9 +206,9 @@ inline c_GlobalPotentialStorage c_global_potential(
                     const int o_coeff = -lmpq_key.b;
                     const double d_n_coeff = static_cast<double>(n_coeff);
                     const double d_o_coeff = static_cast<double>(o_coeff);
-                    const double mode =
-                        d_n_coeff * orbital_frequency +
-                        d_o_coeff * spin_frequency;
+                    const double mode = c_mode_frequency(
+                        n_coeff, o_coeff, orbital_frequency, spin_frequency, spin_numerator, spin_denominator,
+                        spin_offset);
                     double mode_sign = 1.0;
                     if (mode < 0.0)
                     {

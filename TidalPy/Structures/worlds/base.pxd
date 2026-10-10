@@ -266,6 +266,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_bool get_thermal_converged()
         double calc_layer_temperature_rate(size_t layer_index) except +
         double calc_layer_thermal_capacity(size_t layer_index) except +
+        double calc_continuation_frequency() except +
         double calc_layer_latent_capacity(size_t layer_index) except +
         const vector[c_LayerThermal]& get_layer_thermal()
         double get_density(double radius) const
