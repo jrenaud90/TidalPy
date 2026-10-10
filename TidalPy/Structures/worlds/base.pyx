@@ -1686,9 +1686,9 @@ cdef class BaseWorld(StructureBase):
             Gravitational constant [m^3 kg^-1 s^-2]. ``None`` (default) uses the TidalPy configuration's value.
         integration_method : str, optional
             CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, ``'Tsit5'``, ``'Vern7'``, ``'Vern8'``,
-            or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at the planet's center, where
-            LSODA's startup can fail to take its first step (a clean unsuccessful result) while BDF and Radau
-            handle the singular start.
+            or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at
+            the planet's center, where LSODA's startup can fail to take its first step (a clean unsuccessful
+            result) while BDF and Radau handle the singular start.
         rtol, atol : float, optional
             Relative and absolute integration tolerances.
         pressure_tol : float, optional

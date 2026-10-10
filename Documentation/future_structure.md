@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-10-09_
+_Updated: 2026-10-10_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0 and the calls between them.
 
@@ -74,7 +74,7 @@ TidalPy 0.8.0 keeps its settings in `TidalPy_Configs.toml` in `<Documents>/Tidal
 The configuration functions also changed:
 
 - `TidalPy.reinit(provided_config_file)` is now `TidalPy.reinit(provided_config)`, which takes a file path, a dict, or `"default"` and merges it over the loaded configuration.
-- `TidalPy.save_config(path)` is new. It saves the configuration in effect, which together with a world or system file reproduces a result.
+- `TidalPy.save_config(path)` is new. It saves the configuration that is currently being used, which together with a world or system file hopefully reproduces a result.
 - `TidalPy.world_config_dir` is replaced by `TidalPy.paths.get_worlds_dir()`.
 - TidalPy warns about any key it does not read, which flags keys carried over from 0.7.X.
 
@@ -91,10 +91,11 @@ TidalPy.reinit(provided_config="default")                                   # Ba
 0.7.X logged through Python's `logging` module (`TidalPy.logger.get_logger`). 0.8.0 logs through one C++ logger (spdlog), which Python code reaches through `TidalPy.Utilities.logging`:
 
 ```python
-from TidalPy.Utilities.logging import log_info, set_console_level
+from TidalPy.Utilities.logging import log_info, log_warning, set_console_level
 
-set_console_level("debug")                            # Show debug messages in the console for this session
-log_info("Starting the Io run")                       # Written to the same console and file as TidalPy's messages
+set_console_level("debug")                   # Show debug messages in the console for this session
+log_info("Starting the Io run")              # Written to the same console and file as TidalPy's messages
+log_warning("You shouldn't eat that...")
 ```
 
 Handlers attached to Python's `logging` (including pytest's `caplog`) do not see these messages. The log file keeps its name, `TidalPy_<YYYYMMDD-HHMMSS>.log`, and is written only when `[logging] write_log_to_disk` is set.
@@ -159,7 +160,7 @@ modified = build_world(config)
 
 ## Layers and Materials
 
-0.7.X built a layer's interior from a material `type` (`rock`, `ice`, `iron`) whose defaults lived in the configuration file, optionally through BurnMan. 0.8.0 has one layer class, `Layer` (`TidalPy.Structures.layers`), and gives each layer a material: a MatPack name, a MatPack preset with overrides, or a full material table of phases and melting laws (see [Materials](Material/index.md) and [Layer](Structures/layers/layer.md)). The layer's physics switches (`use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, and `use_tides`) say how much of the material it uses; each is off by default except `use_tides`.
+0.7.X built a layer's interior from a material `type` (`rock`, `ice`, `iron`) whose defaults lived in the configuration file, optionally through BurnMan. 0.8.0 has one layer class, `Layer` (`TidalPy.Structures.layers`), and gives each layer a material: a MatPack name, a MatPack preset with overrides, or a full material table of phases and melting laws (see [Materials](Material/index.md) and [Layer](Structures/layers/layer.md)). The layer's physics switches (`use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density`, `use_heating`, and `use_tides`) say which features of a material it uses. All of these switches are off by default except `use_tides`.
 
 | 0.7.X layer key | 0.8.0 |
 |---|---|
@@ -182,7 +183,7 @@ from TidalPy.Material import available_materials, load_material
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 
-print(available_materials("rocky"))   # The MatPack names in one category
+print(available_materials("rocky"))   # The "rocky" materials in MatPack
 
 # A world from a dict, matches the format of the toml files
 io_like = build_world({
@@ -195,7 +196,7 @@ io_like = build_world({
         "core": {
             "radius_fraction": 0.45,
             "material": "simple_iron_core",   # A MatPack name
-            "use_tides": False,               # Was is_tidal
+            "use_tides": False,
             "temperature_k": 1800.0},
         "mantle": {
             "radius_fraction": 1.0,
@@ -212,9 +213,9 @@ io_like.solve_eos(
 
 # The same mantle built in Python
 mantle = Layer(
-    "mantle",
-    1,
-    8.2e5,
+    "mantle",  # Layer name
+    1,         # Layer index (innermost is 0)
+    8.2e5, 
     1.8215e6,
     material=load_material(
         "peridotite",
@@ -459,8 +460,8 @@ A world attaches these models to its layers from its TOML file or dict, so most 
 
 - The eccentricity functions are unsquared: `TidalPy.Tides.eccentricity_func(eccentricity, degree_l, truncation)`, with `TidalPy.Tides.eccentricity.eccentricity_squared_func` for the squares. 0.7.X tabulated the squared functions per degree and level (`eccentricity_funcs_l2_trunc10` and so on).
 - As in 0.7.X, truncation level $N$ keeps every product of two eccentricity functions, and so every heating term, through $e^N$. Levels 2 to 10 and 20 keep the same terms in both versions.
-- 0.8.0 tabulates levels 2, 4, 6, 8, 10, 20, and 50, plus `"exact"`. A configured level of 12 to 18 or 22 is promoted to the next tabulated level with a warning, and the direct functions raise `NotImplementedError` for it. The default level is now 10 (it was 6). `TidalPy.Tides.eccentricity.recommend_eccentricity_truncation` picks a level for a given eccentricity.
-- Obliquity was on or off in 0.7.X. 0.8.0 offers `"off"`, levels 2 and 4, and the general functions `"gen"`.
+- 0.8.0 tabulates levels 2, 4, 6, 8, 10, 20, and 50, plus `"exact"`. A requested truncation of, _e.g._, 12 or 22 is promoted to the next tabulated level with a warning, and the direct functions raise `NotImplementedError` for it. The default level is now 10 (it was 6). `TidalPy.Tides.eccentricity.recommend_eccentricity_truncation` picks a level for a given eccentricity.
+- Obliquity could be turned on or off in 0.7.X. 0.8.0 now offers `"off"`, truncation levels $I^2$ and $I^4$, and the general functions `"gen"`.
 - Degrees 2 to 10 are supported (2 to 7 in 0.7.X).
 - Tidal modes are keyed by $(l, m, p, q)$ instead of names such as `'2o-n'`: `world.get_tidal_love_k(l, m, p, q)`.
 - The grid potential functions (`tidal_potential_nsr`, `tidal_potential_obliquity_nsr`, and the others, with their `use_static` switch) and the multilayer mode collapse are replaced by `BaseWorld.calc_3d_tides` and `calc_3d_displacements` (see [3D Tidal Stress, Strain, and Heating](Tides/multilayer_3d_heating.md)). `calculate_displacements` is replaced by `TidalPy.Tides.displacement_point` and `calc_3d_displacements`.
@@ -470,12 +471,12 @@ A world attaches these models to its layers from its TOML file or dict, so most 
 from TidalPy.Tides.love import calc_effective_rigidity, calc_homogeneous_love_numbers
 
 effective_rigidity = calc_effective_rigidity(
-    6.0e10,                                           # Shear modulus [Pa]
-    3500.0,                                           # Density [kg m-3]
-    1.8,                                              # Surface gravity [m s-2]
-    1.82e6)                                           # Radius [m]
+    6.0e10,                                   # Shear modulus [Pa]
+    3500.0,                                   # Density [kg m-3]
+    1.8,                                      # Surface gravity [m s-2]
+    1.82e6)                                   # Radius [m]
 love = calc_homogeneous_love_numbers(
-    6.0e10 + 1.0e8j,                                  # Complex shear modulus [Pa]
+    6.0e10 + 1.0e8j,                          # Complex shear modulus [Pa]
     3500.0,
     1.8,
     1.82e6)
@@ -488,7 +489,7 @@ print(effective_rigidity, love.k)
 |---|---|
 | `TidalPy.constants.PI_DBL`, `NAN_DBL`, `DBL_MANT_DIG` | `TidalPy.constants.pi`, `nan`, `dbl_mant_digits` (C++: `d_PI`, `d_NAN`, `d_DBL_MANT_DIGITS`) |
 | `TidalPy.constants.MIN_VISCOSITY`, `MIN_SPIN_ORBITAL_DIFF` | Removed |
-| `sec2myr`, `myr2sec` with 3.154e13 s per Myr | The same functions with the exact Julian value, `TidalPy.constants.seconds_per_myr` = 3.15576e13 s (a 0.06% difference) |
+| `sec2myr`, `myr2sec` with 3.154e13 s per Myr | The same functions with the exact Julian value, `TidalPy.constants.seconds_per_myr` = 3.15576e13 s (0.06% difference) |
 | `orbital_motion2semi_a`, `semi_a2orbital_motion` | Unchanged names; invalid inputs raise `ValueError` |
 | `build_nondimensional_scales(frequency, mean_radius, bulk_density)` | `build_nondimensional_scales(mean_radius, bulk_density)` |
 | `utilities.graphics.multilayer.yplot` | `TidalPy.Utilities.graphics.plot_ys`: `plot_tobie` and `plot_roberts` become `benchmarks=("tobie2005", "roberts_nimmo2008")`, `plot_imags` becomes `plot_imaginary`, `other_xlimits` and `other_ylimits` become `x_limits` and `y_limits` |
@@ -512,9 +513,9 @@ print(effective_rigidity, love.k)
 
 ## Performance
 
-Timings of TidalPy 0.7.6 against 0.8.0 on one machine; treat the ratios as rough magnitudes and measure your own workload.
+Timings of TidalPy 0.7.6 against 0.8.0 on one machine. Treat the ratios as rough estimates and measure your own scripts and examples.
 
-| Task | 0.7.X | 0.8.0 | Change |
+| Task | 0.7.6 | 0.8.0 | Change |
 |---|---|---|---|
 | Build a planet with its interior (Io, 3 layers) | 187 ms | 0.84 ms | 220x faster |
 | Orbit-averaged 3D heating map (50 x 16 x 32), 1 thread | 13.4 ms | 2.14 ms | 6.3x faster |

@@ -95,7 +95,9 @@ struct c_WorldConfig {
 inline constexpr double d_CONTINUATION_VOLUME_FRACTION = 0.5;
 
 // The config's method as the enum, or `fallback` when the value names no integration method the solvers run (unset,
-// or one of CyRK's base-class placeholders).
+// or one of CyRK's base-class placeholders). A new method is added here and in four other places:
+// ODE_METHOD_NAMES (constants.pyx), SOLVER_KEY_NAMES (schema.py), c_parse_ode_method (RadialSolver/solver_.hpp),
+// and c_dense_values_per_y (RadialSolver/shooting_.hpp).
 inline ODEMethod c_ode_method_from_config(int method_int, ODEMethod fallback) noexcept {
     switch (static_cast<ODEMethod>(method_int))
     {

@@ -234,7 +234,7 @@ def test_degree_3_references_are_its_commensurabilities():
         assert min(abs(reference * order - round(reference * order)) for order in (1, 2, 3)) < 1.0e-12
 
 
-@pytest.mark.parametrize("method", ["BDF", "LSODA"])
+@pytest.mark.parametrize("method", ["BDF", "Radau"])
 def test_every_method_holds_the_same_equilibrium(captured, method):
     _, _, pair = captured
     system, planet = build_pair(2.53)

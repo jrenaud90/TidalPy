@@ -224,9 +224,9 @@ schema_version = "{SCHEMA_VERSION}"
     # Evolve the layer temperatures of each world with layers (a thermal run takes its surface temperature from the
     # system's star).
     evolve_thermal = true
-    # CyRK's implicit integrator: "Radau", "BDF", or "LSODA". The spins are stiff near a lock, and Radau holds a lock
-    # with the longest steps.
-    method = "Radau"
+    # CyRK's implicit integrator: "LSODA", "Radau", or "BDF". The spins are stiff near a lock. LSODA was the fastest
+    # and never failed over the evolve benchmarks; Radau takes the fewest steps on a long cold lock.
+    method = "LSODA"
     # Relative tolerance on the change in the semi-major axis, a / a0 - 1 (absolute 1e-12 in a / a0), and the
     # tolerances on the change in e since its reference (its initial value; when e falls to a tenth of it the run
     # restarts with e as the new reference, so a circularizing orbit stays accurate relative to e).

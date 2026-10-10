@@ -1221,7 +1221,7 @@ cdef class System:
         evolve_thermal : bool, optional
             Evolve the layer temperatures of each world with layers.
         method : str, optional
-            CyRK's implicit integrator: ``"Radau"`` (the packaged default), ``"BDF"``, or ``"LSODA"``.
+            CyRK's implicit integrator: ``"LSODA"`` (the packaged default), ``"Radau"``, or ``"BDF"``.
         semi_major_axis_rtol, eccentricity_rtol, eccentricity_atol : float, optional
             Tolerances on a / a0 and e.
         spin_rtol : float, optional

@@ -124,7 +124,7 @@ The other `[radial_solver]` keys:
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same for every planet. The defaults come from a convergence study over the bundled worlds and synthetic models:
 
-- DOP853 gave the most accuracy per millisecond on both solves. RK45 needs a few times tighter `rtol` for the same Love-number error; the implicit methods are slower and no more accurate.
+- DOP853 gave the most accuracy per millisecond on both solves. RK45 needs a few times tighter `rtol` for the same Love-number error; the implicit methods are slower and no more accurate. The study covered DOP853, RK45, and the implicit methods. Tsit5, Vern7, and Vern8 can need a much tighter `rtol` on a profile with kinks, such as the thermal boundary layers of `earth_thermal`.
 - The EOS tolerances converge mass, moment of inertia, and surface gravity to about 1e-8, at almost no cost.
 - At `rtol = atol = 3e-8`, the bundled worlds' Love numbers are within about 3e-7 of an `rtol = 1e-12` reference (90 percent within 7e-8), and PREM's load $l'$ within 4e-6. An imaginary part far smaller than the real part carries about the same absolute error, so `earth_thermal`'s $\mathrm{Im}\,k_2$ and $\mathrm{Im}\,h_2$ are good to 1.4e-5 and 2.6e-5 of their own size. A Love solve takes a fraction of a millisecond on a cached world.
 - To tighten, lower `rtol` and `atol` together; a small `atol` alone costs steps without improving the Love numbers. Below about 1e-7, neighboring tolerances can differ in error by a factor of a few.
@@ -181,7 +181,7 @@ Three keys have no packaged default but are read when a world's `[tides]` table 
 `[evolution]` holds the defaults of `System.evolve` (see [Evolving a World About Its Host](../Structures/system/system.md#evolving-a-world-about-its-host)). An argument to `evolve` wins, then the system file's own `[evolution]` table, then this section.
 
 - `evolve_thermal = true`: evolve the layer temperatures of each world with layers. A thermal run takes its surface temperature from the system's star.
-- `method = "Radau"`: CyRK's implicit integrator, `"Radau"`, `"BDF"`, or `"LSODA"` (any case). Radau holds a spin-orbit lock with the longest steps.
+- `method = "LSODA"`: CyRK's implicit integrator, `"LSODA"`, `"Radau"`, or `"BDF"` (any case). LSODA was the fastest and never failed over the evolve benchmarks; Radau takes the fewest steps on a long cold lock.
 - `semi_major_axis_rtol = 1.0e-5`: relative tolerance on the change $a/a_0 - 1$ (its absolute tolerance is $10^{-12}$).
 - `eccentricity_rtol = 1.0e-4`, `eccentricity_atol = 1.0e-8`: tolerances on the change in $e$ since its reference value.
 - `spin_rtol = 1.0e-3`: relative tolerance on each spin's offset from its commensurability. The absolute tolerance is a tenth of the offset at which the slowest resonant mode reaches the world's continuation frequency.

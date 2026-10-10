@@ -162,7 +162,7 @@ public:
 // The settings of a pair evolution ([evolution] in the TidalPy configuration; System.evolve documents each).
 struct c_PairEvolveSettings {
     bool        evolve_thermal       = true;
-    std::string method               = "Radau";
+    std::string method               = "LSODA";
     double      semi_major_axis_rtol = 1.0e-5;   // on the change a / a0 - 1
     double      eccentricity_rtol    = 1.0e-4;
     double      eccentricity_atol    = 1.0e-8;
@@ -994,7 +994,7 @@ private:
 
     c_System*              p_system_ptr = nullptr;
     c_PairEvolveSettings   p_settings;
-    ODEMethod              p_method = ODEMethod::RADAU;
+    ODEMethod              p_method = ODEMethod::LSODA;
     std::size_t            p_orbit_index = 0;
     double                 p_semi_major_axis0   = TidalPyConstants::d_NAN;
     double                 p_orbital_frequency0 = TidalPyConstants::d_NAN;

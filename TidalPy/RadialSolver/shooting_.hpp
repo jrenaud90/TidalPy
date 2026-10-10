@@ -45,7 +45,9 @@ constexpr size_t C_STRATIFICATION_SAMPLES = 9;
 constexpr size_t C_KEPT_SEGMENT_OVERHEAD_BYTES = 3072;
 
 
-/// Values each dense interpolant keeps per y: y itself and the method's interpolation coefficients (CySolverDense).
+/// Values each dense interpolant keeps per y: y itself and the method's interpolation data (CySolverDense), which is
+/// polynomial coefficients for RK23, RK45, and DOP853, step history for the implicit methods, and barycentric node
+/// values for Tsit5, Vern7, and Vern8.
 inline size_t c_dense_values_per_y(ODEMethod method) noexcept
 {
     switch (method)
