@@ -121,7 +121,7 @@ The series refuses to start, naming the closed-form starts, when:
 - a solution grows from its first terms by more than $1/\sqrt{\epsilon}$: the start is deep in an exponential regime, such as a dynamic liquid at long periods (see [Dynamic Liquid Layers at Long Forcing Periods](dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods));
 - in a solid, the larger wavenumber times the starting radius exceeds $\tfrac{1}{2} \ln(1/\sqrt{\epsilon}) \approx 9$, since the slower wavenumber solution's roundoff error grows as $\epsilon e^{2 |k| r}$. This is the weak solid starting layer.
 
-The closed forms carry that growth analytically and apply in all four cases. Where the series starts, its solutions match Takeuchi and Saito's one by one to better than $10^{-6}$ in solids with $|\mu|$ down to $10^{-6} \rho g R$ (degrees 2 to 10); below that an accepted static start can differ by up to $10^{-5}$. At degree 1 a static solid has a rigid-translation solution, so single solutions are not defined there.
+The closed forms carry that growth analytically and apply in all four cases. Where the series starts, its solutions span the same space as Takeuchi and Saito's to better than $10^{-10}$ in solids with $|\mu|$ down to $10^{-8} \rho g R$ (degrees 2 to 10, starts at 0.002 to 0.2 of the radius). Weaker solids, which melt-weakened layers can reach, start only deep in the body: there the series agrees to about $10^{-8}$ at $10^{-10} \rho g R$ and to $2 \times 10^{-5}$ at $10^{-12}$ to $10^{-14} \rho g R$, and it refuses a start whose solutions grow too steeply, from about $10^{-6} \rho g R$ at a fifth of the radius. At degree 1 a static solid has a rigid-translation solution, so single solutions are not defined there.
 
 ### Unity
 
