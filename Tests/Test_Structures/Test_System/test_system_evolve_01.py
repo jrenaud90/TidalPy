@@ -466,6 +466,42 @@ def test_a_wall_time_cap_returns_what_was_integrated():
     assert "max_wall_time" in pair.message
 
 
+def test_a_progress_bar_leaves_the_run_unchanged(capsys):
+    """progress=True shows a bar over the simulated time and integrates exactly as without it."""
+    plain = build_pair(3.2)[0].evolve("Planet", (0.0, 1.0e-3 * MYR), evolve_thermal=False)
+    shown = build_pair(3.2)[0].evolve("Planet", (0.0, 1.0e-3 * MYR), evolve_thermal=False, progress=True)
+    assert shown.success, shown.message
+    np.testing.assert_array_equal(shown.time, plain.time)
+    np.testing.assert_array_equal(shown["Planet"].spin_ratio, plain["Planet"].spin_ratio)
+    assert "System.evolve" in capsys.readouterr().err
+
+
+def test_an_interrupt_during_progress_returns_what_was_integrated(monkeypatch):
+    """A keyboard interrupt raised while the bar updates stops the run, which keeps the steps it stored."""
+    import tqdm.auto
+
+    class InterruptingBar:
+        def __init__(self, *args, **kwargs):
+            self.n = 0.0
+            self.calls = 0
+
+        def update(self, amount):
+            self.calls += 1
+            self.n += amount
+            if self.calls == 2:
+                raise KeyboardInterrupt
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(tqdm.auto, "tqdm", InterruptingBar)
+    system, planet = build_pair(3.25)
+    pair = system.evolve(planet, (0.0, 1.0 * MYR), evolve_thermal=False, progress=True)
+    assert not pair.success
+    assert "interrupted" in pair.message
+    assert pair.time.size >= 1 and pair.time[-1] < 1.0 * MYR
+
+
 @pytest.mark.parametrize("kwargs, message", [
     (dict(time_span=(1.0, 1.0)), "time span"),
     (dict(time_span=(0.0, 1.0), spin_rtol=0.0), "spin_rtol"),

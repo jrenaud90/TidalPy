@@ -517,13 +517,13 @@ Timings of TidalPy 0.7.6 against 0.8.0 on one machine. Treat the ratios as rough
 
 | Task | 0.7.6 | 0.8.0 | Change |
 |---|---|---|---|
-| Build a planet with its interior (Io, 3 layers) | 187 ms | 0.84 ms | 220x faster |
-| Orbit-averaged 3D heating map (50 x 16 x 32), 1 thread | 13.4 ms | 2.14 ms | 6.3x faster |
-| Global tidal heating, degrees 2 to 4, e^10 | 0.051 ms | 0.0135 ms | 3.8x faster |
+| Build a planet with its interior (Io, 3 layers) | 187 ms | 0.87 ms | 220x faster |
+| Orbit-averaged 3D heating map (50 x 16 x 32), 1 thread | 13.3 ms | 2.27 ms | 5.9x faster |
+| Global tidal heating, degrees 2 to 4, e^10 | 0.051 ms | 0.0163 ms | 3.1x faster |
 | Rheology, 10k complex moduli | 0.176 ms | 0.057 ms | 3.1x faster |
-| `radial_solver`, 1 layer, 200 slices | 0.46 ms | 0.53 ms | 1.1x slower |
-| Convective cooling, one evaluation | 0.17 us | 1.50 us | 9x slower |
-| First call of a tidal heating calculation | 1.1 to 7.0 s (numba compile or cache load) | 0.08 ms | |
+| `radial_solver`, 1 layer, 200 slices | 0.46 ms | 0.45 ms | about the same |
+| Convective cooling, one evaluation | 0.17 us | 1.52 us | 9x slower |
+| First call of a tidal heating calculation | 1.2 to 7.5 s (numba compile or cache load) | 0.09 ms | |
 
 The largest gains are where 0.7.X called BurnMan or compiled numba kernels; 0.8.0 has nothing to compile on first call. The standalone `radial_solver` is about as fast as in 0.7.X, because it builds a temporary world and runs a more accurate EOS solve.
 

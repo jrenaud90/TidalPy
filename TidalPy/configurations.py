@@ -534,15 +534,22 @@ def check_config_version(
 
     return compatible
 
+# The packaged defaults parsed once per session (they never change in one), since parsing them costs milliseconds.
+_PACKAGED_CONFIG = None
+
+
 def get_packaged_config() -> dict:
     """ Return the packaged defaults from :mod:`TidalPy.defaultc`, parsed into a dict.
 
     Returns
     -------
     dict
-        The packaged configuration defaults.
+        The packaged configuration defaults, a fresh copy the caller may change.
     """
-    return toml.loads(default_config_str)
+    global _PACKAGED_CONFIG
+    if _PACKAGED_CONFIG is None:
+        _PACKAGED_CONFIG = toml.loads(default_config_str)
+    return copy.deepcopy(_PACKAGED_CONFIG)
 
 
 def get_default_config() -> dict:

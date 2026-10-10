@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from numbers import Integral
 
 import TidalPy
+from TidalPy.constants import seconds_per_myr
 
 import numpy as np
 
@@ -662,6 +663,21 @@ def system_from_bytes(bytes record, dict configs=None):
     return system
 
 
+cdef cpp_bool p_evolve_progress(void* context, double time) noexcept nogil:
+    """System.evolve's progress report: moves its bar to the time reached [s]. A keyboard interrupt while it runs
+    asks the driver to stop (False)."""
+    with gil:
+        reporter = <list>context
+        try:
+            bar = reporter[0]
+            bar.update((time - reporter[1]) / seconds_per_myr - bar.n)
+        except KeyboardInterrupt:
+            return False
+        except Exception:
+            pass   # A display failure never stops the run
+        return True
+
+
 cdef class System:
     """A gravitationally bound set of worlds, each with its own tidal host.
 
@@ -1184,7 +1200,8 @@ cdef class System:
             thermal_rtol=None,
             radial_rtol=None,
             radial_atol=None,
-            max_wall_time=None):
+            max_wall_time=None,
+            progress=False):
         """Evolve a world and its tidal host together over a time span.
 
         The pair is ``world`` and its tidal host (usually each the other's), and the two are treated alike. Integrates
@@ -1234,6 +1251,9 @@ cdef class System:
             difference steps. Each world's own settings come back afterwards.
         max_wall_time : float, optional
             Wall-clock cap [s]; a run that reaches it returns with ``success`` False. Infinite: no cap.
+        progress : bool, default False
+            Show a progress bar (``tqdm``) of the simulated time [Myr] while the run integrates. A keyboard
+            interrupt then stops the run and returns what was integrated, with ``success`` False.
 
         Returns
         -------
@@ -1282,9 +1302,22 @@ cdef class System:
         settings.radial_atol          = <double>options["radial_atol"]
         cdef double wall_cap = <double>float(options["max_wall_time"])
         settings.max_wall_time        = wall_cap if isfinite(wall_cap) else NAN
+        # The bar and the start [s] for p_evolve_progress.
+        cdef list reporter = None
+        if progress:
+            from tqdm.auto import tqdm
+            reporter = [tqdm(total=(t_end - t_start) / seconds_per_myr, desc="System.evolve",
+                             bar_format="{l_bar}{bar}| {n:.4g}/{total:.4g} Myr [{elapsed}<{remaining}]"),
+                        t_start]
+            settings.progress = p_evolve_progress
+            settings.progress_context = <void*>reporter
         cdef shared_ptr[c_PairEvolutionRecord] record
-        with nogil:
-            record = c_evolve_pair(self._system.get(), index, t_start, t_end, settings)
+        try:
+            with nogil:
+                record = c_evolve_pair(self._system.get(), index, t_start, t_end, settings)
+        finally:
+            if reporter is not None:
+                reporter[0].close()
         cdef size_t b
         cdef tuple world_names = tuple(
             cy_world_name(self._system.get(), record.get().bodies[b].world_index)

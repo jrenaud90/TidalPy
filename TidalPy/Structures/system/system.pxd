@@ -149,6 +149,8 @@ cdef extern from "evolution_.hpp" namespace "tidalpy" nogil:
         double   radial_rtol
         double   radial_atol
         double   max_wall_time
+        cpp_bool (*progress)(void*, double) noexcept nogil
+        void*    progress_context
 
     cdef cppclass c_BodySegment:
         double   reference_ratio

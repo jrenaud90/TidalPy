@@ -276,7 +276,7 @@ print(system)                                    # System('Sol System', worlds=[
 * `ValueError`: a semi-major axis that is not positive or an eccentricity outside $[0, 1)$ (from `add_world`, a setter, or a file); a duplicate world name or object; a mutual pair whose members disagree on an element (from any method reading the orbit); a system file stating `semi_major_axis_m`, `eccentricity`, or `synchronous` with no `tidal_host`, or a world as its own host.
 * `RuntimeError`: an evolution method on a `rheology` world whose EOS is not solved; insolation with no star set.
 * `evolve` raises `ValueError` for a world with no tidal host or no prograde spin, a time span that does not increase, with `evolve_thermal` a layer temperature that is not finite and positive, a tolerance that is not positive, or a method that is not implicit.
-* `evolve` stops with `success` False on a tide or EOS solve failing at a reached state, on `max_wall_time`, or after five segments in a row end on failed evaluations or ten end where they began.
+* `evolve` stops with `success` False on a tide or EOS solve failing at a reached state, on `max_wall_time`, on a keyboard interrupt while `progress=True` shows its bar (`tqdm`, over the simulated time), or after five segments in a row end on failed evaluations or ten end where they began. It returns what was integrated.
 * `load_system` raises `IOError` naming what a non-system file holds. `load_binary` raises `IOError` for a corrupt record (a bad host or star index, two worlds with one name, an unbound orbit, trailing data) and leaves the system unchanged.
 
 ## C++ API

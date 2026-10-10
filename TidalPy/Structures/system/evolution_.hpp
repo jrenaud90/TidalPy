@@ -106,6 +106,8 @@ inline constexpr double d_EVOLVE_SEMI_MAJOR_AXIS_ATOL = 1.0e-12;
 inline constexpr double d_EVOLVE_THERMAL_ATOL_FACTOR = 1.0e-3;
 inline constexpr std::size_t C_EVOLVE_EXPECTED_STEPS = 256;
 inline constexpr std::size_t C_EVOLVE_MAX_RAM_MB     = 2000;
+// The least wall time [s] between two progress reports (c_PairEvolveSettings::progress).
+inline constexpr double d_EVOLVE_PROGRESS_INTERVAL = 0.2;
 
 // The spin-orbit commensurability j / m (1 <= m <= max_order) nearest a spin ratio, in lowest terms (a tie goes to the
 // smaller m, so a fraction that reduces is never chosen over its reduced form).
@@ -171,6 +173,11 @@ struct c_PairEvolveSettings {
     double      radial_rtol          = 1.0e-10;   // each body's Love solves during the run
     double      radial_atol          = 1.0e-10;
     double      max_wall_time        = TidalPyConstants::d_NAN;   // [s]; not finite: no cap
+    // An optional progress report, called with the time reached [s] as the integration advances, at most every
+    // d_EVOLVE_PROGRESS_INTERVAL of wall time, and once at the end. It must not throw; returning false stops the run
+    // as max_wall_time does, with what was integrated.
+    bool  (*progress)(void* context, double time) = nullptr;
+    void* progress_context = nullptr;
 };
 
 // One body at the start of a segment: its reference commensurability j / m and whether its crossing event is armed.
@@ -311,6 +318,9 @@ public:
                 "TidalPy: System.evolve needs a finite time span (t_start, t_end) with t_end > t_start [s].");
         }
         const auto started = std::chrono::steady_clock::now();
+        this->p_next_progress = started;
+        this->p_progress_time = -TidalPyConstants::d_INF;
+        this->p_stopped = false;
         this->p_has_deadline = std::isfinite(this->p_settings.max_wall_time);
         if (this->p_has_deadline) {
             this->p_deadline = started + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -345,6 +355,7 @@ public:
         // Leave the system at the final state: the last stored step, or the start when none was.
         if (!this->p_last_y.empty()) {
             this->p_has_deadline = false;
+            this->p_stopped = false;
             try {
                 std::vector<double> scratch(this->p_num_y + C_RECORD_SIZE);
                 this->p_e_reference = this->p_last_e_reference;
@@ -366,6 +377,7 @@ public:
             this->p_record.bodies[b].num_tide_solves = this->p_bodies[b].num_tide_solves;
             this->p_record.bodies[b].num_eos_solves  = this->p_bodies[b].num_eos_solves;
         }
+        if (!this->p_last_y.empty()) { this->p_report_progress(this->p_last_time * d_EVOLVE_TIME_UNIT, true); }
         this->p_record.elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
         TIDALPY_LOG_INFO(
             "TidalPy: System.evolve: {} {} steps, {} segments, {} right-hand sides, {} Jacobians, {} and {} tide "
@@ -458,6 +470,7 @@ private:
     }
 
     void p_check_deadline() const {
+        if (this->p_stopped) { throw c_EvolveTimeout("TidalPy: System.evolve was interrupted."); }
         if (this->p_has_deadline && (std::chrono::steady_clock::now() > this->p_deadline)) {
             throw c_EvolveTimeout("TidalPy: System.evolve reached its max_wall_time.");
         }
@@ -610,6 +623,8 @@ private:
     // extra outputs).
     void p_evaluate(double time, const double* y, double* dy) {
         ++this->p_record.num_rhs_calls;
+        // The integrator stores a segment's steps only when the segment ends, so progress follows its evaluations.
+        this->p_report_progress(time * d_EVOLVE_TIME_UNIT, false);
         this->p_set_state(time, y);
         const std::vector<double>* rates[2] = {&this->p_body_rates(0), &this->p_body_rates(1)};
         const double da_dt = (*rates[0])[0] + (*rates[1])[0];
@@ -962,6 +977,22 @@ private:
         }
     }
 
+    // Reports the furthest time reached [s] to the settings' progress callback, at most every
+    // d_EVOLVE_PROGRESS_INTERVAL of wall time unless `force`; a false return stops the run at the next right-hand side
+    // (p_check_deadline).
+    void p_report_progress(double time, bool force) {
+        if (this->p_settings.progress == nullptr) { return; }
+        if (!force) {
+            if (!(time > this->p_progress_time)) { return; }
+            this->p_progress_time = time;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (!force && (now < this->p_next_progress)) { return; }
+        this->p_next_progress = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(d_EVOLVE_PROGRESS_INTERVAL));
+        if (!this->p_settings.progress(this->p_settings.progress_context, time)) { this->p_stopped = true; }
+    }
+
     // Appends a stored step from its state `y` and its step quantities `record`.
     void p_append_step(double time, const double* y, const double* record) {
         c_PairEvolutionRecord& out = this->p_record;
@@ -1018,6 +1049,9 @@ private:
 
     bool                                  p_has_deadline = false;
     std::chrono::steady_clock::time_point p_deadline;
+    std::chrono::steady_clock::time_point p_next_progress;
+    double                                p_progress_time = -TidalPyConstants::d_INF;   // furthest time reported [s]
+    bool                                  p_stopped = false;   // the progress report asked to stop
     c_PairEvolutionRecord  p_record;
     double                 p_last_time = TidalPyConstants::d_NAN;
     std::vector<double>    p_last_y;

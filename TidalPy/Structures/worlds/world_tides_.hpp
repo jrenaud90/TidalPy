@@ -1835,6 +1835,13 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     // Re[. e^{i |omega| t}] with the phase factors tabulated once, and the real fields summed.
     const tides3d::c_PhaseTable3D phase =
         tides3d::c_phase_table_3d(set.frequencies, grids.t_grid.data(), instantaneous ? nt : 0);
+    // Each frequency's strain-rate factor: near and below the continuation frequency the strain rate carries the
+    // dissipation's scaling, so the power averages to the secular heating (its elastic swing scales with it).
+    std::vector<double> strain_rate_frequency(num_frequencies);
+    for (size_t f = 0; f < num_frequencies; ++f) {
+        strain_rate_frequency[f] =
+            set.frequencies[f] * c_dissipation_scale(set.frequencies[f], set.continuation_frequency);
+    }
 
     tides3d::c_parallel_tasks_3d(nth, cfg.num_threads, [&](size_t ith) {
         double* values = out_values;
@@ -1904,11 +1911,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         double eps_dot = 0.0;
                         for (size_t f = 0; f < num_frequencies; ++f) {
                             if (!amplitudes.active[f]) { continue; }
-                            // Near and below the continuation frequency the strain rate carries the dissipation's
-                            // scaling, so the power averages to the secular heating (its elastic swing scales with
-                            // it).
-                            const double omega = set.frequencies[f]
-                                * c_dissipation_scale(set.frequencies[f], set.continuation_frequency);
+                            const double omega = strain_rate_frequency[f];
                             const double cos_wt = phase.cos_phase[f * nt + it];
                             const double sin_wt = phase.sin_phase[f * nt + it];
                             const std::complex<double>& sc = amplitudes.stress[f].c[k];
