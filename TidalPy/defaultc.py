@@ -81,8 +81,13 @@ schema_version = "{SCHEMA_VERSION}"
     # here and a larger supplied one is rejected.
     max_start_radius_fraction = 0.90
     # Smallest reciprocal condition number of the surface boundary-condition system before the solve fails.
-    # Singular systems measure 1e-16 to 2e-15, healthy 1e-3 to 1e-1; none measured below 1e-11 was accurate to 1e-4.
+    # Singular systems measure 1e-16 to 2e-15; with re-orthonormalization healthy solves measure 4e-5 to 1.
     minimum_surface_rcond = 1.0e-12
+    # The shooting method integrates a layer's independent solutions together and re-orthonormalizes them (QR) where
+    # the integration has driven their normalized Gram determinant (1 orthogonal, 0 dependent) down by this factor.
+    # At least 0 and below 1; 0 turns it off. Long-period dynamic liquids and near-static solids need it to keep the
+    # surface solve accurate.
+    minimum_solution_independence = 1.0e-4
     # Relative tolerance for two mode frequencies to share a radial solve, and for a frequency to count as zero.
     frequency_match_rtol = 1.0e-9
     # Floor on the convection model's Nusselt number; Nu = 1 is conduction across the layer.
@@ -143,8 +148,10 @@ schema_version = "{SCHEMA_VERSION}"
 # call's arguments win over these, and a world file's own [radial_solver] table wins for that world.
 # =====================================================================================================================
 [radial_solver]
-    # "DOP853", "RK45", "RK23", or implicit "BDF", "LSODA", "Radau". These settings keep the bundled and synthetic
-    # worlds' Love numbers within about 4e-6 of an rtol 1e-11 reference; RK45 needs 100x tighter rtol to match.
+    # "DOP853", "RK45", "RK23", or implicit "BDF", "LSODA", "Radau". These settings keep the bundled worlds' Love
+    # numbers within about 3e-7 of an rtol 1e-12 reference (PREM's load l' 4e-6). A small imaginary part keeps that
+    # absolute error, so earth_thermal's Im(k2) and Im(h2) are good to 1.4e-5 and 2.6e-5 of their own size. RK45
+    # needs a few times tighter rtol to match.
     integration_method = "DOP853"
     rtol = 3.0e-8
     atol = 3.0e-8

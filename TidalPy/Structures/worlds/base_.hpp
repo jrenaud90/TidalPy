@@ -2044,9 +2044,6 @@ public:
     // The world's own solve: its results are what the Love getters report and release_radial_storage hands out.
     void solve_love_numbers(const c_LoveSolveConfig& cfg) {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        if (cfg.warnings && c_love_method_uses_radial_solver(c_love_method_from_int(cfg.love_method))) {
-            this->warn_if_dynamic_liquid_unstable(cfg.degree_l, cfg.frequency, cfg.rtol);
-        }
         this->solve_love_numbers(cfg, nullptr, this->p_love);
     }
 
@@ -2105,106 +2102,12 @@ public:
         }
     }
 
-    // Relative error above which a dynamic liquid layer's Love solve is flagged (warn_if_dynamic_liquid_unstable).
-    static constexpr double dynamic_liquid_warn_error = 1.0e-2;
-
-    // Largest estimated relative error that this world's dynamic liquid layers bring to a radial Love solve at
-    // (degree_l, frequency, rtol), with the layer it comes from (npos when there is none) and its growth exponent.
-    // The dynamic liquid equations carry no density-gradient term, so a liquid whose density does not follow its
-    // bulk modulus (d rho / dr = -rho^2 g / K; a constant-density liquid is the common case) is stratified,
-    // N^2 = -g (rho g / K + (d rho / dr) / rho), and where N^2 < 0 its solutions grow as exp(E), with
-    // E = sqrt(l (l + 1)) / omega * integral of sqrt(-N^2) / r dr, amplifying the integration error: the estimate is
-    // rtol exp(E). An incompressible liquid has no K term in N^2. Against static-liquid solves of the bundled worlds
-    // and of neutral and constant-density test bodies it flagged every breakdown measured and no neutral liquid.
-    double estimate_dynamic_liquid_error(
-            int degree_l,
-            double frequency,
-            double rtol,
-            std::size_t& worst_layer,
-            double& worst_growth) const {
-        worst_layer  = static_cast<std::size_t>(-1);
-        worst_growth = 0.0;
-        if (!this->p_eos_solved || !this->p_eos_solution || !(frequency > 0.0) || (degree_l < 1)) { return 0.0; }
-        const double degree_l_dbl = static_cast<double>(degree_l);
-        const double sqrt_llp1    = std::sqrt(degree_l_dbl * (degree_l_dbl + 1.0));
-        constexpr std::size_t num_samples = 256;
-        std::vector<double> radius(num_samples), density(num_samples), gravity(num_samples), bulk(num_samples);
-        double state[C_EOS_DY_VALUES];
-        double worst_error = 0.0;
-        // Every liquid the radial solver integrates with the dynamic equations: a liquid layer, or a liquid zone of a
-        // layer that melted.
-        for (const c_EOSZone& zone : this->get_radial_zones()) {
-            const std::size_t layer_i = zone.layer_index;
-            const c_Layer* phys = this->p_layers[layer_i].get();
-            if (!zone.liquid || phys->get_is_static()) { continue; }
-            const bool incompressible = phys->get_is_incompressible();
-            // Short of the centre, where 1 / r is singular.
-            const double radius_outer = zone.radius_outer;
-            const double radius_lower = std::max(zone.radius_inner, 1.0e-3 * radius_outer);
-            if (!(radius_outer > radius_lower)) { continue; }
-            for (std::size_t i = 0; i < num_samples; ++i) {
-                radius[i] = radius_lower
-                    + (radius_outer - radius_lower) * static_cast<double>(i) / static_cast<double>(num_samples - 1);
-                this->p_eos_solution->call_si(layer_i, radius[i], state, c_ZoneState::Liquid);
-                density[i] = state[C_EOS_DENSITY_INDEX];
-                gravity[i] = state[C_EOS_GRAVITY_INDEX];
-                bulk[i]    = state[C_EOS_BULK_MODULUS_INDEX];
-            }
-            double integral = 0.0;
-            double previous = 0.0;
-            for (std::size_t i = 0; i < num_samples; ++i) {
-                const std::size_t below = (i == 0) ? 0 : i - 1;
-                const std::size_t above = (i + 1 == num_samples) ? i : i + 1;
-                const double density_slope = (density[above] - density[below]) / (radius[above] - radius[below]);
-                double minus_n2 = 0.0;
-                if ((gravity[i] > 0.0) && (density[i] > 0.0)) {
-                    minus_n2 = gravity[i] * density_slope / density[i];
-                    if (!incompressible && (bulk[i] > 0.0)) {
-                        minus_n2 += density[i] * gravity[i] * gravity[i] / bulk[i];
-                    }
-                }
-                const double integrand = (std::isfinite(minus_n2) && (minus_n2 > 0.0))
-                    ? std::sqrt(minus_n2) / radius[i] : 0.0;
-                if (i > 0) { integral += 0.5 * (integrand + previous) * (radius[i] - radius[i - 1]); }
-                previous = integrand;
-            }
-            const double growth = sqrt_llp1 * integral / frequency;
-            const double error  = rtol * std::exp(std::min(growth, 700.0));
-            if (error > worst_error) {
-                worst_error  = error;
-                worst_layer  = layer_i;
-                worst_growth = growth;
-            }
-        }
-        return worst_error;
-    }
-
     // True the first time it is called on this world: the heating integrals log the radial nodes they leave out below
     // the radial solver's starting radius once per world, not once per call of a sweep or an evolution.
     bool claim_center_nodes_warning() const noexcept {
         if (this->p_center_nodes_warned) { return false; }
         this->p_center_nodes_warned = true;
         return true;
-    }
-
-    // Warns, once per world, when estimate_dynamic_liquid_error passes dynamic_liquid_warn_error. The callers pass
-    // the solve's degree and frequency, or for a set of solves the largest degree and smallest frequency among them,
-    // which bounds every solve in the set. Runs on the calling thread, before any Love-solve workers start.
-    void warn_if_dynamic_liquid_unstable(int degree_l, double frequency, double rtol) const {
-        if (this->p_dynamic_liquid_warned) { return; }
-        std::size_t layer_i = 0;
-        double growth       = 0.0;
-        const double error = this->estimate_dynamic_liquid_error(degree_l, frequency, rtol, layer_i, growth);
-        if (!(error > dynamic_liquid_warn_error) || (layer_i >= this->p_layers.size())) { return; }
-        this->p_dynamic_liquid_warned = true;
-        TIDALPY_LOG_WARN(
-            "TidalPy: world '{}' solves a liquid in layer '{}' with the dynamic equations at a forcing period of "
-            "{:.3g} days (degree {}), where its solutions grow by about exp({:.1f}): the estimated relative error is "
-            "{:.1e} at rtol {:.0e}. A dynamic liquid whose density does not follow its bulk modulus, such as a "
-            "constant-density one, grows unstable at long periods: make the layer incompressible, give it a "
-            "pressure-dependent EOS, or treat it as static. Shown once per world.",
-            this->get_name(), this->p_layers[layer_i]->get_name(),
-            2.0 * TidalPyConstants::d_PI / frequency / 86400.0, degree_l, growth, error, rtol);
     }
 
     // Composite Simpson intervals per tidal layer for the quasi-homogeneous averages; even, so 129 nodes.
@@ -2349,7 +2252,13 @@ public:
                 bulk_out = c_interp_complex(
                     radius_si, layer_radius_ptr, bulk_copy.data() + in_first, in_count, guess);
                 // Supplied moduli carry no separate unrelaxed value, so the real part stands in, and the
-                // profile said nothing about viscosity: it gave the response directly.
+                // profile said nothing about viscosity: it gave the response directly. The buoyancy frequency is
+                // measured against the bulk modulus beside it, N^2 = -g (rho' / rho + rho g / K), so it moves to the
+                // supplied one with it (no K term for a modulus that is not positive, as the radial solver reads it).
+                const auto inverse_positive = [](double modulus) { return (modulus > 0.0) ? 1.0 / modulus : 0.0; };
+                const double gravity = state_out[C_EOS_GRAVITY_INDEX];
+                state_out[C_EOS_BUOYANCY_INDEX] -= state_out[C_EOS_DENSITY_INDEX] * gravity * gravity
+                    * (inverse_positive(bulk_out.real()) - inverse_positive(state_out[C_EOS_BULK_MODULUS_INDEX]));
                 state_out[C_EOS_SHEAR_MODULUS_INDEX]   = shear_out.real();
                 state_out[C_EOS_BULK_MODULUS_INDEX]    = bulk_out.real();
                 state_out[C_EOS_SHEAR_VISCOSITY_INDEX] = TidalPyConstants::d_NAN;
@@ -3528,8 +3437,6 @@ protected:
     // the layer assumptions change, or the quasi-homogeneous results. Not serialized. The call lock that guards it
     // is c_BaseWorld::p_call_mutex.
     c_LoveWorkspace p_love;
-    // Set by warn_if_dynamic_liquid_unstable, which only the calling thread runs.
-    mutable bool p_dynamic_liquid_warned = false;
     // Set by claim_center_nodes_warning, under the call lock.
     mutable bool p_center_nodes_warned = false;
     // Set only inside calc_layer_tidal_heating_radial, under the call lock (get_retained_radial_solves).

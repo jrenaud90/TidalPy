@@ -21,8 +21,8 @@ from TidalPy.exceptions import ConfigurationException, InitializationError
 from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir, write_file_atomically
 from TidalPy.defaultc import default_config_str
 from TidalPy.schema import (
-    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_CONFIG_KEYS, LOG_LEVEL_RANGE, LOG_LEVELS,
-    SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES, SOLVER_KEY_NAMES)
+    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_BELOW_ONE, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_CONFIG_KEYS,
+    LOG_LEVEL_RANGE, LOG_LEVELS, SCHEMA_VERSION, SOLVER_TABLES, WORLD_TYPES, _SOLVER_KEY_RULES, SOLVER_KEY_NAMES)
 
 
 def warning_enabled(name: str) -> bool:
@@ -319,6 +319,8 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
         elif (section == "numerical") and isinstance(value, (int, float)):
             if not math.isfinite(value):
                 return "must be finite"
+            if (key in CONFIG_NUMERICAL_BELOW_ONE) and not (0 <= value < 1):
+                return "must be at least 0 and below 1"
             if (key in CONFIG_NUMERICAL_NONNEGATIVE) and (value < 0):
                 return "must not be negative"
             if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):

@@ -62,7 +62,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
             const double* radius_in,
             size_t n_in) except +
         unique_ptr[c_RadialSolutionStorage] release_radial_storage()
-        void warn_if_dynamic_liquid_unstable(int degree_l, double frequency, double rtol) const
 
 
 cdef extern from "profile_world_.hpp" namespace "tidalpy":

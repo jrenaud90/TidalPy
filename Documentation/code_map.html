@@ -366,12 +366,14 @@ const NODES = [
   { id: 'c_EOSSolution', lane: 'eos', kind: 'cpp', shape: 'class',
     label: 'c_EOSSolution', sub: 'eos_solution_.hpp', file: 'Material/eos/eos_solution_.hpp',
     purpose: 'The structure solution: the retained CyRK integrators per segment and the layer EOS functions. ' +
-      'call and call_si evaluate the twelve frequency-independent outputs at any radius from the dense output; ' +
-      'call_material is the radial solver read (gravity, density, complex moduli). The solution a Love solve ' +
-      'holds stores no structure of its own and answers through a state provider the world installs.',
+      'call and call_si evaluate the thirteen frequency-independent outputs at any radius from the dense output; ' +
+      'call_material is the radial solver read (gravity, density, buoyancy frequency, density gradient, complex ' +
+      'moduli). The ' +
+      'solution a Love solve holds stores no structure of its own and answers through a state provider the world ' +
+      'installs.',
     inputs: 'layer index, radius',
     outputs: 'gravity, pressure, mass, moment of inertia, density, static moduli, viscosities, temperature, ' +
-      'heat flow, melt fraction' },
+      'heat flow, melt fraction, buoyancy frequency squared, density gradient' },
   { id: 'cyrk', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'CyRK baseline_cysolve_ivp', sub: 'external: CyRK cysolve.hpp', file: 'CyRK (dependency), cysolve.hpp',
     purpose: 'The ODE integrator (DOP853 by default; RK23, RK45, BDF, LSODA, Radau available) compiled into each ' +
@@ -413,10 +415,12 @@ const NODES = [
   { id: 'c_shooting_solver', lane: 'radial', kind: 'cpp', shape: 'func',
     label: 'c_shooting_solver', sub: 'shooting_.hpp', file: 'RadialSolver/shooting_.hpp',
     purpose: 'Layer by layer: starting conditions (starting_method: Takeuchi and Saito, Kamata, power series, ' +
-      'or unity), independent solutions ' +
-      'integrated with dense output, interface conditions to the next layer, then the surface boundary condition ' +
+      'or unity), the layer\'s independent solutions integrated as one system with dense output (a dynamic liquid ' +
+      'in P = y2 - rho g y1 + rho y5) and re-orthonormalized (orthonormalize_.hpp) where an event finds them nearly ' +
+      'dependent, interface conditions to the next layer, then the surface boundary condition ' +
       '(Eigen LU; at degree 1 for loading the frame row y5 = 1 replaces the last condition) and the collapse ' +
-      'constants from the top down. Records the surface amplification, rcond, and degree-1 frame residual.',
+      'constants from the top down through each segment\'s basis change. Records the surface amplification, rcond, ' +
+      'and degree-1 frame residual.',
     inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants and constants on the storage' },
   { id: 'c_RadialSolutionStorage', lane: 'radial', kind: 'cpp', shape: 'class',
     label: 'c_RadialSolutionStorage', sub: 'rs_solution_.hpp', file: 'RadialSolver/rs_solution_.hpp',
@@ -622,9 +626,10 @@ const EDGES = [
   { from: 'c_solve_eos', to: 'material', flow: 'eos', type: 'call',
     purpose: 'c_preeval_material asks the layer\'s material for the density at (P, T, r) on every right-hand side ' +
       '(the thermal properties too in a thermal solve), for the rigidity margin at each step of a layer that can ' +
-      'change state, and for the whole state when the finished solution is read.',
+      'change state, and for the whole state when the finished solution is read, with the buoyancy frequency and ' +
+      'density gradient along the structure from the density\'s own partial derivatives.',
     inputs: 'pressure, temperature, radius (SI), switches',
-    outputs: 'density; thermal properties; rigidity margin; moduli, viscosities, melt fraction' },
+    outputs: 'density; thermal properties; rigidity margin; moduli, viscosities, melt fraction, N^2, d rho / dr' },
   { from: 'c_solve_eos_world', to: 'thermal_layout', flow: 'eos', type: 'call',
     purpose: 'After each thermal pass: rebuild the layer profiles and balance the network against the structure ' +
       'the pass produced; the solve stops when the interface temperatures and heat flows settle.',
@@ -668,17 +673,22 @@ const EDGES = [
       'afterwards.',
     inputs: 'the solve', outputs: 'storage ready for the solve' },
   { from: 'c_shooting_solver', to: 'cyrk', flow: 'love', type: 'call',
-    purpose: 'Integrate each independent solution of each layer from the starting radius to the layer top with ' +
-      'dense output (3 solutions for a solid layer, 2 for a dynamic liquid, 1 for a static liquid).',
-    inputs: 'the layer ODE from odes_.hpp, initial y, rtol, atol', outputs: 'CySolverResult per solution' },
+    purpose: 'Integrate each layer\'s solutions together (3 for a solid layer, 2 for a dynamic liquid, 1 for a ' +
+      'static liquid) from the starting radius to the layer top with dense output, in segments that a terminal ' +
+      'event on their independence ends.',
+    inputs: 'the layer ODE system from odes_.hpp, initial y, rtol, atol, independence event',
+    outputs: 'CySolverResult per segment' },
   { from: 'c_shooting_solver', to: 'c_EOSSolution', flow: 'love', type: 'call',
     purpose: 'Every right-hand side reads gravity, density, and the complex moduli at the integration radius ' +
-      'through call_material: one provider call, one dense read of the world EOS, inside the calling layer.',
-    inputs: 'layer index, radius', outputs: 'gravity, density, complex shear and bulk moduli' },
+      'through call_material, once for all of the layer\'s solutions: one provider call, one dense read of the ' +
+      'world EOS, inside the calling layer. A dynamic liquid also reads the buoyancy frequency, static bulk ' +
+      'modulus, and density gradient.',
+    inputs: 'layer index, radius',
+    outputs: 'gravity, density, N^2, static bulk modulus, density gradient, complex shear and bulk moduli' },
   { from: 'c_shooting_solver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
-    purpose: 'Keep the dense interpolants and the per-layer collapse constants from the surface boundary condition; ' +
-      'record the surface amplification diagnostic.',
-    inputs: 'CySolverResults, constants', outputs: 'storage that can evaluate y(r)' },
+    purpose: 'Keep each layer\'s segments (dense interpolants and basis changes) and their collapse constants from ' +
+      'the surface boundary condition; record the surface amplification diagnostic.',
+    inputs: 'CySolverResults, basis changes, constants', outputs: 'storage that can evaluate y(r)' },
   { from: 'c_RadialSolutionStorage', to: 'c_find_love', flow: 'love', type: 'call',
     purpose: 'find_love evaluates the collapsed surface solution and forms the Love numbers per boundary condition.',
     inputs: 'surface y1..y6, surface gravity', outputs: 'c_LoveNumbers (k, h, l)' },

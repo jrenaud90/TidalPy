@@ -22,6 +22,23 @@
 #include "../Utilities/dimensions/nondimensional_.hpp"
 
 
+/// One integration of a shooting-method layer: all of the layer's solutions together over [radius_lower,
+/// radius_upper]. A layer is one segment unless its solutions were re-orthonormalized (orthonormalize_.hpp), which
+/// starts the next segment from an orthonormal basis of their span. A dynamic liquid's segments hold P in y2's slot
+/// (derivatives/odes_.hpp).
+struct c_ShootingSegment
+{
+    // Dense output, [solution * 2 * num_ys + real/imag pair]; null for a Love-only solve.
+    std::unique_ptr<CySolverResult> result;
+    double radius_lower = 0.0;   // solve units
+    double radius_upper = 0.0;
+    // The solutions the segment continues (the layer's starting solutions, for its first) are this segment's times
+    // this change of basis, so their constants are its inverse times this segment's: R of a re-orthonormalization, a
+    // dynamic liquid's split of its starting solutions for its first segment, or the identity.
+    c_BasisChange basis_change = c_identity_basis_change();
+};
+
+
 // Error Codes:
 // -1 : Equation of State storage (c_EOSSolution) could not be initialized.
 // -2 : (set by python wrapper) Unknown / Unsupported boundary condition provided.
@@ -87,6 +104,8 @@ public:
 
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
+    // Re-orthonormalizations of each layer's solutions in the last shooting solve (orthonormalize_.hpp).
+    std::vector<size_t> shooting_method_orthonormalizations_vec = std::vector<size_t>();
 
     // Worst-case error amplification of the surface boundary-condition solve across ytypes; shooting method
     // only, and 0 for the matrix method. See c_estimate_surface_amplification in boundaries_.hpp.
@@ -115,8 +134,8 @@ public:
     bool p_uses_interpolants = false;
 
     // A shooting solve run for its Love numbers alone (love_only) keeps no dense interpolants, only each surface-layer
-    // solution's y at the surface, [solution * C_MAX_NUM_Y + y] (solve units), which find_love collapses. Its radial
-    // functions anywhere below the surface are unavailable.
+    // solution's y at the surface as integrated (a dynamic liquid's P in y2's slot), [solution * C_MAX_NUM_Y + y]
+    // (solve units), which find_love collapses. Its radial functions anywhere below the surface are unavailable.
     bool p_love_only = false;
     std::vector<std::complex<double>> p_surface_top_y = std::vector<std::complex<double>>();
 
@@ -172,11 +191,11 @@ public:
         bulk_out  = material_state.bulk_modulus * pascal_scale;
     }
 
-    // Dense CyRK results [layer][solution]; owns the force-retained integrators.
-    std::vector<std::vector<std::unique_ptr<CySolverResult>>> p_interp_by_layer_sol;
+    // Each layer's integration segments [layer][segment], ascending; own their dense results.
+    std::vector<std::vector<c_ShootingSegment>> p_segments_by_layer;
 
-    // Collapse constants [ytype][layer][solution], at most 3 solutions per layer.
-    std::vector<std::vector<std::array<std::complex<double>, 3>>> p_constants_by_ytype_layer;
+    // Collapse constants [ytype][layer][segment], at most 3 solutions per layer.
+    std::vector<std::vector<std::vector<std::array<std::complex<double>, 3>>>> p_constants_by_ytype_layer;
 
     // Per-layer metadata for the collapse. char rather than bool for a stable data().
     std::vector<int>    p_layer_types        = std::vector<int>();
@@ -187,6 +206,7 @@ public:
     size_t p_start_layer_i          = 0;
     double p_starting_radius_solve  = 0.0;   // radii below this return NaN
     double p_frequency_solve        = 0.0;   // forcing frequency (solve units) for y3 reconstruction
+    double p_pressure_unit          = 1.0;   // a dynamic liquid's stored P per stress (c_pressure_unit)
 
     // radius_solve = r_si / p_length_conv, and the scales re-dimensionalize a solve-unit y to SI. Identity
     // when the solve ran in SI. Set once per solve by set_dimensional_context.
@@ -222,6 +242,7 @@ public:
 
         // Up to 3 solutions per layer, zero until a shooting solve counts them.
         this->shooting_method_steps_taken_vec.resize(3 * this->num_layers);
+        this->shooting_method_orthonormalizations_vec.resize(this->num_layers);
 
         if (this->eos_solution_uptr.get())
         {
@@ -387,7 +408,7 @@ public:
         this->p_uses_interpolants = false;
         this->p_love_only         = false;
         this->p_surface_top_y.clear();
-        this->p_interp_by_layer_sol.clear();
+        this->p_segments_by_layer.clear();
         this->p_constants_by_ytype_layer.clear();
         this->p_layer_types.clear();
         this->p_layer_is_static.clear();
@@ -396,6 +417,7 @@ public:
         this->p_start_layer_i         = 0;
         this->p_starting_radius_solve = 0.0;
         this->p_frequency_solve       = 0.0;
+        this->p_pressure_unit         = 1.0;
         this->p_static_surface_y2.clear();
         this->p_matrix_shell_coeffs.clear();
         this->p_matrix_constants.clear();
@@ -434,12 +456,15 @@ public:
     struct c_RadialBasis
     {
         size_t layer_i    = 0;
+        size_t segment_i  = 0;
         size_t num_sols   = 0;
         int    layer_type = 0;
         bool   is_static  = false;
-        // [solution][y], in the layer's own y storage order; CyRK writes two reals per complex y.
+        // [solution][y], in the layer's own y storage order (TS72's y2 for a dynamic liquid).
         std::complex<double> ysol[3][C_MAX_NUM_Y];
-        // Material at the radius, read only for a dynamic liquid's y3 reconstruction.
+        // A dynamic liquid's P of each solution, the y3 reconstruction's input.
+        std::complex<double> pressure_variable[3];
+        // Material at the radius, read only for a dynamic liquid.
         double gravity = TidalPyConstants::d_NAN;
         double density = TidalPyConstants::d_NAN;
     };
@@ -481,25 +506,40 @@ public:
         if (basis.num_sols == 0 || basis.num_sols > 3) return false;
 
         const size_t num_ys = 2 * basis.num_sols;
+        const std::vector<c_ShootingSegment>& segments = this->p_segments_by_layer[target_layer_i];
+        if (segments.empty()) return false;
         if (this->p_love_only)
         {
-            // Only the surface values were kept.
+            // Only the surface values were kept, which belong to the surface layer's last segment.
             const double surface = this->p_upper_radii_solve.back();
             if ((target_layer_i + 1 != this->num_layers)
                 || !(std::fabs(radius_solve - surface) <= interface_rtol * surface + 1.0e-300)
                 || (this->p_surface_top_y.size() < basis.num_sols * C_MAX_NUM_Y)) return false;
+            basis.segment_i = segments.size() - 1;
             for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
                 for (size_t y_i = 0; y_i < num_ys; ++y_i)
                     basis.ysol[sol_i][y_i] = this->p_surface_top_y[sol_i * C_MAX_NUM_Y + y_i];
         }
-        double real_out[2 * C_MAX_NUM_Y] = {};
-        for (size_t sol_i = 0; (sol_i < basis.num_sols) && !this->p_love_only; ++sol_i)
+        else
         {
+            // The segment holding the radius: the first whose top reaches it, so a restart radius belongs to the
+            // segment below it, as an interface belongs to the layer below.
+            basis.segment_i = segments.size() - 1;
+            for (size_t segment_i = 0; segment_i + 1 < segments.size(); ++segment_i)
+            {
+                if (radius_solve <= segments[segment_i].radius_upper) { basis.segment_i = segment_i; break; }
+            }
             // CySolverResult::call is non-const, so get() is used to escape this method's constness.
-            CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
-            if (!c_call_dense_checked(interp, radius_solve, real_out, 2 * num_ys)) return false;
-            for (size_t y_i = 0; y_i < num_ys; ++y_i)
-                basis.ysol[sol_i][y_i] = std::complex<double>(real_out[2 * y_i], real_out[2 * y_i + 1]);
+            double real_out[2 * C_MAX_NUM_SOL * C_MAX_NUM_Y] = {};
+            if (!c_call_dense_checked(
+                    segments[basis.segment_i].result.get(), radius_solve, real_out, 2 * num_ys * basis.num_sols))
+            {
+                return false;
+            }
+            for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+                for (size_t y_i = 0; y_i < num_ys; ++y_i)
+                    basis.ysol[sol_i][y_i] = std::complex<double>(
+                        real_out[2 * (num_ys * sol_i + y_i)], real_out[2 * (num_ys * sol_i + y_i) + 1]);
         }
 
         if ((basis.layer_type != 0) && (!basis.is_static))
@@ -512,6 +552,14 @@ public:
             this->eos_solution_uptr->call_material(target_layer_i, radius_solve, material_state);
             basis.gravity = material_state.gravity;
             basis.density = material_state.density;
+            // The liquid was integrated in P (derivatives/odes_.hpp); its slot holds TS72's y2 from here on.
+            for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+            {
+                std::complex<double>* ysol = basis.ysol[sol_i];
+                basis.pressure_variable[sol_i] = ysol[1];
+                ysol[1] = c_y2_from_pressure_variable(
+                    ysol[0], ysol[1], ysol[2], basis.gravity, basis.density, this->p_pressure_unit);
+            }
         }
         return true;
     }
@@ -546,7 +594,7 @@ public:
         if (!basis_found || (ytype_i >= this->num_ytypes)) return false;
 
         const std::array<std::complex<double>, 3>& constants =
-            this->p_constants_by_ytype_layer[ytype_i][basis.layer_i];
+            this->p_constants_by_ytype_layer[ytype_i][basis.layer_i][basis.segment_i];
 
         // out6[y] = sum_sol const[sol] * ysol[sol][slot of y], for each y the layer kind stores (c_layer_layout); a
         // dynamic liquid's y3 is reconstructed below, and the ys a kind does not store stay NaN.
@@ -582,10 +630,13 @@ public:
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. The translation cancels in it, so it gains c here.
+            // y3 = -P / (rho w^2 r) in solve units, from the collapsed P itself rather than y1 g - y2 / rho - y5, whose
+            // terms cancel as the period grows. The translation leaves P unchanged, so y3 gains c here.
             const double w = this->p_frequency_solve;
-            out6[2] = (1.0 / (w * w * radius_solve))
-                * (out6[0] * basis.gravity - out6[1] / basis.density - out6[4]);
+            std::complex<double> pressure_variable(0.0, 0.0);
+            for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+                pressure_variable += constants[sol_i] * basis.pressure_variable[sol_i];
+            out6[2] = -pressure_variable * (this->p_pressure_unit / (w * w)) / (basis.density * radius_solve);
             if (shifted) { out6[2] += shift; }
         }
         else if ((basis.layer_type != 0) && basis.is_static && (basis.layer_i + 1 == this->num_layers) &&

@@ -9,17 +9,22 @@
  *
  * Evaluation layout, what c_EOSSolution::call hands back at a radius: the four structure variables, then
  * [4] density, [5] static shear modulus, [6] static (adiabatic) bulk modulus, [7] shear viscosity, [8] bulk
- * viscosity, [9] temperature, [10] heat flow, [11] melt fraction.
+ * viscosity, [9] temperature, [10] heat flow, [11] melt fraction, [12] buoyancy frequency squared N^2, [13] density
+ * gradient d rho / dr.
  *
  * Every value here is frequency independent and real; the moduli are the material's unrelaxed values after
- * melting (c_Material::calc_state with the layer's switches).
+ * melting (c_Material::calc_state with the layer's switches). N^2 = -g (rho' / rho + rho g / K_S), with rho' the
+ * derivative of the reported density along the solved structure (dP/dr = -rho g and the solve's dT/dr) and K_S the
+ * reported bulk modulus, is what the radial solver's compressible dynamic liquids read. It is positive where the
+ * material is stably stratified and exactly 0 where its density follows its bulk modulus. An incompressible dynamic
+ * liquid reads rho' itself, exactly 0 for a constant density.
  */
 
 #include <cstddef>
 
 static const std::size_t C_EOS_Y_VALUES         = 4;
 static const std::size_t C_EOS_THERMAL_Y_VALUES = 6;
-static const std::size_t C_EOS_DY_VALUES        = 12;
+static const std::size_t C_EOS_DY_VALUES        = 14;
 static const std::size_t C_EOS_GRAVITY_INDEX         = 0;
 static const std::size_t C_EOS_PRESSURE_INDEX        = 1;
 static const std::size_t C_EOS_MASS_INDEX            = 2;
@@ -32,3 +37,5 @@ static const std::size_t C_EOS_BULK_VISCOSITY_INDEX  = 8;
 static const std::size_t C_EOS_TEMPERATURE_INDEX     = 9;
 static const std::size_t C_EOS_HEAT_FLOW_INDEX       = 10;
 static const std::size_t C_EOS_MELT_FRACTION_INDEX   = 11;
+static const std::size_t C_EOS_BUOYANCY_INDEX        = 12;
+static const std::size_t C_EOS_DENSITY_GRADIENT_INDEX = 13;

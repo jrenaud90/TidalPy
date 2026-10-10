@@ -1,6 +1,6 @@
 # The Solution Class
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-09_
 
 Every radial solve returns a `RadialSolverSolution` (from `TidalPy.RadialSolver.rs_solution`), holding the solve status, the equation-of-state result, the radial functions, and the Love numbers. `radial_solver`, `homogeneous_love_numbers`, and a world's released radial storage all return it.
 
@@ -21,9 +21,10 @@ Check `success` before trusting anything else. A failed solve returns normally u
 | `error_code` | int | `0` when there was no error. |
 | `message` | str | Status text; read it first after a failure. See the troubleshooting section of [Calculating Love Numbers](calculating_love_numbers.md). |
 | `surface_solve_amplification` | float | Worst-case error amplification of the surface boundary-condition solve (shooting method). Near one is healthy; large values mean the solution constants cancel, and the achievable accuracy is roughly this number times machine epsilon. It measures cancellation only, so it misses other semi-failures (like singular matrices). |
-| `surface_solve_rcond` | float | Reciprocal condition number of the surface system (shooting method; NaN for the propagation matrix or a solve that stopped early), independent of units and of the starting normalization. At most one; healthy is about `1e-3` to `1e-1`. The constants carry the integration error divided by roughly this value: below the integration `rtol` is logged as poorly conditioned, below `[numerical] minimum_surface_rcond` (default `1e-12`) fails the solve (error code `-13`). Degree-1 loading measures the system with its frame row (y5 in place of y6). |
+| `surface_solve_rcond` | float | Reciprocal condition number of the surface system (shooting method; NaN for the propagation matrix or a solve that stopped early), independent of units and of the starting normalization. At most one; healthy solves measure about `4e-5` to `1`, and a near-fluid layer stayed accurate at `3e-8`. Below the integration `rtol` is logged as poorly conditioned, below `[numerical] minimum_surface_rcond` (default `1e-12`) fails the solve (error code `-13`). Degree-1 loading measures the system with its frame row (y5 in place of y6). |
 | `surface_frame_residual` | float | Degree-1 loading only (NaN otherwise): how far the surface condition replaced by the frame row is from met, relative to the y6 condition, worst over the boundary conditions. About roundoff when every layer is static, about $\omega^2 R / g$ with mixed static and dynamic layers; warned above `1e-2`. See [Degree-1 Load Love Numbers](calculating_love_numbers.md#degree-1-load-love-numbers). |
-| `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer per independent solution (three in a solid, two in a dynamic liquid, one in a static liquid; unused entries are zero). A few hundred is normal, a few thousand tolerable, ten thousand or more likely unstable. |
+| `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer, repeated for each of its independent solutions (three in a solid, two in a dynamic liquid, one in a static liquid; unused entries are zero), since a layer's solutions are integrated together. Tens to a few hundred per layer is normal; tens of thousands mean the solutions change on a scale far shorter than the layer, as in a strongly stratified dynamic liquid at a long period. |
+| `orthonormalizations` | int array `(num_layers,)` | How many times the shooting method replaced each layer's solutions with an orthonormal basis of their span because they had become nearly dependent (see [Dense Radial Solutions](dense_radial_solution.md#shooting-method)). Zero is typical at short periods. Near-static solids take tens (a solid TRAPPIST-1b core took 81 at $10^{-16}$ rad/s), and a strongly stratified dynamic liquid takes more the longer the period (Earth-Simple's constant-density core made dynamic took 184, 1857, and 18,582 at 10, 100, and 1000 days). |
 | `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | A readable summary of the solve, printed, logged, or both. |
 
 ## The Interior
@@ -45,13 +46,13 @@ The solution keeps the equation-of-state result behind the moduli the solve used
 | `moi_factor` | Moment of inertia factor $C/(MR^2)$, with $C$ = `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, smaller the more mass sits near the center. |
 | `moi_sphere_ratio` | $C/(0.4\, MR^2)$, the moment of inertia against a uniform sphere of equal mass and radius: 1 when uniform, below 1 when centrally condensed (2.5 times `moi_factor`). |
 | `central_pressure`, `surface_pressure`, `surface_gravity` | Boundary values. |
-| `eos_call(radius)` | Every field of the interior at an SI radius [m] (float or array) as a dict: `gravity`, `pressure`, `mass`, `moi`, `density`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, `temperature`, `heat_flow`, `melt_fraction`, and the `complex_shear_modulus` and `complex_bulk_modulus` used at `love_frequency`. NaN outside the body. See [Dense Radial Solutions](dense_radial_solution.md). |
+| `eos_call(radius)` | Every field of the interior at an SI radius [m] (float or array) as a dict: `gravity`, `pressure`, `mass`, `moi`, `density`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, `temperature`, `heat_flow`, `melt_fraction`, `buoyancy_frequency_squared` ($N^2 = -g\,(\rho'/\rho + \rho g / K)$ [s-2] along the solved structure, with $K$ the reported `bulk_modulus`, which the dynamic liquid equations read; positive where stably stratified and exactly 0 where the density follows the bulk modulus), `density_gradient` (d rho / dr [kg m-4] along the solved structure, which an incompressible dynamic liquid reads), and the `complex_shear_modulus` and `complex_bulk_modulus` used at `love_frequency`. NaN outside the body. See [Dense Radial Solutions](dense_radial_solution.md). |
 
 ## Radial Functions
 
 `result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions (Takeuchi and Saito 1972 convention) of the first boundary condition, then the next six, and so on. With more than one, index by name.
 
-Liquid layers do not define all six; undefined entries are NaN, which keeps the shape uniform. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. At the free surface of a static liquid top layer, y2 is the surface boundary condition and $y_2 = \rho (g y_1 - y_5)$, so y1 and y2 are defined and h is finite (for a tidal solve h = 1 + k), while y3, and with it l, stays NaN.
+Liquid layers do not define all six; undefined entries are NaN, which keeps the shape uniform. A dynamic liquid layer has no y4 (its y3 is rebuilt from its pressure variable, $y_3 = -P / (\rho \omega^2 r)$ with $P = y_2 - \rho g y_1 + \rho y_5$). A static liquid layer defines only y5; the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. At the free surface of a static liquid top layer, y2 is the surface boundary condition and $y_2 = \rho (g y_1 - y_5)$, so y1 and y2 are defined and h is finite (for a tidal solve h = 1 + k), while y3, and with it l, stays NaN.
 
 ```python
 solution.result                            # (num_ytypes * 6, num_slices)

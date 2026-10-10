@@ -8,7 +8,7 @@
 # Solved k2 = 0.5344, not fitted, vs 0.565 +/- 0.006 from Juno (Durante et al. 2020); jupiter_simple gives 1.5.
 # Caveat: one density per layer. The central pressure, 9580 GPa, is over twice the ~4000 GPa of published models;
 # use a better interior for pressure or density profiles.
-# The inner layers are static liquids. A rigid core would also fail numerically (shear modulus << rho g R).
+# The inner layers are static liquids. A rigid rock core (shear modulus 1e11 Pa) would lower k2 by a relative 7e-5.
 # Tides: constant phase lag, k2 = 0.590 (hydrostatic) and Q = 53500, from k2/Q = (1.102 +/- 0.203)e-5
 # (Lainey et al. 2009). Higher degrees use the unmeasured default k_l ~ k_2 / (l - 1). None of it uses the interior.
 # Spin is the 9.925 h System III period. Add Jupiter to a System to give it an orbit.

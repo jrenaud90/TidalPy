@@ -96,6 +96,7 @@ numerical_floor = d_NAN
 layer_continuity_rtol = d_NAN
 max_start_radius_fraction = d_NAN
 minimum_surface_rcond = d_NAN
+minimum_solution_independence = d_NAN
 frequency_match_rtol = d_NAN
 minimum_nusselt = d_NAN
 maximum_eos_mass_ratio = d_NAN
@@ -264,7 +265,7 @@ def update_constants():
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
     global maximum_eos_mass_ratio
     global eos_invert_rtol, eos_invert_max_iters, minimum_solid_rigidity, minimum_zone_fraction, minimum_surface_rcond
-    global minimum_complex_rigidity
+    global minimum_complex_rigidity, minimum_solution_independence
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
     global tides_3d_min_radii_per_thread, love_solve_threads, love_solve_min_parallel
 
@@ -281,6 +282,12 @@ def update_constants():
     tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL = numerical['layer_continuity_rtol']
     tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC = numerical['max_start_radius_fraction']
     tidalpy_config_ptr.d_MIN_SURFACE_RCOND = numerical['minimum_surface_rcond']
+    # A fraction of the solutions' independence: 1 or more would end every integration segment where it starts.
+    if not (0.0 <= numerical['minimum_solution_independence'] < 1.0):
+        raise ValueError(
+            "TidalPy: [numerical] minimum_solution_independence must be at least 0 and below 1; got "
+            f"{numerical['minimum_solution_independence']!r}.")
+    tidalpy_config_ptr.d_MIN_SOLUTION_INDEPENDENCE = numerical['minimum_solution_independence']
     tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL = numerical['frequency_match_rtol']
     tidalpy_config_ptr.d_MIN_NUSSELT = numerical['minimum_nusselt']
     tidalpy_config_ptr.d_MAX_EOS_MASS_RATIO = numerical['maximum_eos_mass_ratio']
@@ -335,6 +342,7 @@ def update_constants():
     layer_continuity_rtol = tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL
     max_start_radius_fraction = tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC
     minimum_surface_rcond = tidalpy_config_ptr.d_MIN_SURFACE_RCOND
+    minimum_solution_independence = tidalpy_config_ptr.d_MIN_SOLUTION_INDEPENDENCE
     frequency_match_rtol = tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL
     minimum_nusselt = tidalpy_config_ptr.d_MIN_NUSSELT
     maximum_eos_mass_ratio = tidalpy_config_ptr.d_MAX_EOS_MASS_RATIO

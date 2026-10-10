@@ -7,8 +7,8 @@ import pytest
 from TidalPy.RadialSolver.solver import radial_solver
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-# The dynamic-liquid case uses a short forcing period: at long periods that formulation is ill-conditioned and both
-# solvers diverge.
+# The dynamic-liquid case uses a short forcing period, where the frozen 0.7.X references hold; at long periods their
+# formulation was ill-conditioned.
 _CONFIGS = ('1layer', '2solid', '3layer_dynliq')
 
 

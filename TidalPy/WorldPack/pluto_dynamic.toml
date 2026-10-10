@@ -2,8 +2,8 @@
 # The ocean's density follows its bulk modulus (MatPack water, 1027.5 to 1083.6 kg/m3), which keeps the dynamic solve
 # neutrally stratified (see Demos/Physics/P12_dynamic_liquids.ipynb). Structure, mass, and C/MR2 are pluto.toml's.
 # k2 = 0.3203, Q = 4.26 at the 6.3872 day mutual period; pluto.toml's static ocean is within 2.4e-4.
-# A dynamic liquid between solids is ill-conditioned at long periods, so the Love solve fails at forcing frequencies of
-# 1e-8 rad/s and below, where pluto.toml's static ocean solves down to 1e-16 rad/s.
+# Its k2 at the default tolerances agrees with an rtol 1e-12 solve to 1e-12 down to a forcing frequency of 1e-16 rad/s,
+# where it is pluto.toml's static ocean's.
 # Temperatures, viscosities, and spin are as in pluto.toml.
 schema_version = "0.2.0"
 name = "Pluto-Dynamic"

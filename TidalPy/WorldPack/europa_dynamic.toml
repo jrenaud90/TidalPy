@@ -1,7 +1,7 @@
 # Europa-Dynamic: europa.toml with its 140 km water layer split into a 115 km dynamic, compressible ocean under a
 # 25 km ice shell (a representative thickness; estimates run from a few km to about 30 km).
 # The 140 km water layer matches the 138.7 +/- 7.7 km of Gomez Casajus et al. (2021, Icarus 358, 114187).
-# The ocean's density must follow its bulk modulus or the dynamic solve is unstably stratified and fails
+# The ocean's density follows its bulk modulus, which keeps the dynamic solve neutrally stratified
 # (see Demos/Physics/P12_dynamic_liquids.ipynb); it runs from 1015 to 1082 kg/m3.
 # The mantle reference density, 3497.9758 kg/m3, is fitted to the mass (g = 1.3147 m/s2; central pressure 4.79 GPa).
 # C/MR2 = 0.3457, within 0.346 +/- 0.005 (Anderson et al. 1998) and below 0.3547 +/- 0.0024 (Gomez Casajus et al. 2021).

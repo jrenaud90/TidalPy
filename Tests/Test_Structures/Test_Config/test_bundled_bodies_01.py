@@ -549,7 +549,7 @@ def test_gas_giant_interior_reproduces_its_mass_and_moment_of_inertia(name):
 
 @pytest.mark.parametrize("name", sorted(_GAS_GIANTS))
 def test_gas_giant_layers_are_all_fluid(name):
-    """A rigid rock core would also fail numerically: its shear modulus is negligible against rho g R."""
+    """The interior is fluid throughout; a rigid rock core would change k2 by under 1e-3."""
     world = build_world(name)
     assert [layer.name for layer in world if not layer.is_liquid] == []
     assert all(layer.is_static for layer in world)

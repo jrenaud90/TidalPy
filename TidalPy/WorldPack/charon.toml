@@ -11,8 +11,8 @@
 # k2 = 0.00113, Q = 2500 at the 6.3872 day mutual period, nearly all of the heating in the ice. Andrade creep keeps the
 # cold ice dissipating; the layer at 200 K gives Q = 78 and at 240 K Q = 12.
 # With the temperature solved under a 41 K surface the base of the shell warms to 187 K, no ocean forms, and Q = 660.
-# A warm, convecting hydrosphere (above about 165 K) is nearly fluid at forcing frequencies near 1e-16 rad/s, where the
-# Love solve then fails at rtol = 1e-10.
+# A warm, convecting hydrosphere (above about 165 K) is nearly fluid at forcing frequencies near 1e-16 rad/s, where k2
+# approaches 0.48.
 # Its cooling models are those of pluto.toml, so a long thermal System.evolve run behaves similarly (see there).
 # Core viscosity, rheology, and spin are as in pluto.toml.
 schema_version = "0.2.0"

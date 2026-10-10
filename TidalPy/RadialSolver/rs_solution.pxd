@@ -37,6 +37,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         vector[c_LoveNumbers] complex_love_vec
         vector[int] p_bc_models
         vector[size_t] shooting_method_steps_taken_vec
+        vector[size_t] shooting_method_orthonormalizations_vec
         double surface_amplification
         double surface_rcond
         double surface_frame_residual

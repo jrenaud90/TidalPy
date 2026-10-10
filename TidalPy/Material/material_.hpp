@@ -66,6 +66,10 @@ struct c_PhaseState {
     double shear_modulus          = 0.0;                       // static [Pa]; 0 for a phase with no shear law
     double shear_viscosity        = TidalPyConstants::d_NAN;   // [Pa s]; NaN for a phase with no viscosity law
     double bulk_viscosity         = TidalPyConstants::d_NAN;   // [Pa s]
+    // Partial derivatives of the density in pressure [kg m-3 Pa-1], temperature [kg m-3 K-1], and radius [kg m-4].
+    double density_pressure_slope    = TidalPyConstants::d_NAN;
+    double density_temperature_slope = TidalPyConstants::d_NAN;
+    double density_radius_slope      = TidalPyConstants::d_NAN;
 };
 
 // A material's properties at a point: what every consumer reads.
@@ -89,6 +93,11 @@ struct c_MaterialState {
     double melt_fraction          = 0.0;                       // [m3 m-3]; NaN without a finite temperature
     double solidus                = TidalPyConstants::d_NAN;   // at the point [K]; NaN for a material that cannot melt
     double liquidus               = TidalPyConstants::d_NAN;   // [K]
+    // Partial derivatives of the density in pressure [kg m-3 Pa-1], temperature [kg m-3 K-1], and radius [kg m-4],
+    // the melt fraction's change included where the melt density is mixed in.
+    double density_pressure_slope    = TidalPyConstants::d_NAN;
+    double density_temperature_slope = TidalPyConstants::d_NAN;
+    double density_radius_slope      = TidalPyConstants::d_NAN;
 };
 
 // =====================================================================================================================
@@ -186,7 +195,7 @@ public:
     void calc_phase_state(const c_ThermoPoint& point, bool thermal, c_PhaseState& out) const noexcept {
         c_EOSPoint law_point;
         this->p_components.eos->calc_eos(point, thermal, law_point);
-        out.density                = law_point.density;
+        p_copy_law_density(law_point, out);
         out.bulk_modulus           = law_point.bulk_modulus;
         out.adiabatic_bulk_modulus = law_point.adiabatic_bulk_modulus;
         out.thermal_expansion      = law_point.thermal_expansion;
@@ -208,7 +217,7 @@ public:
     void calc_phase_thermal(const c_ThermoPoint& point, bool thermal, c_PhaseState& out) const noexcept {
         c_EOSPoint law_point;
         this->p_components.eos->calc_eos(point, thermal, law_point);
-        out.density           = law_point.density;
+        p_copy_law_density(law_point, out);
         out.thermal_expansion = law_point.thermal_expansion;
         this->p_calc_thermal_properties(point.temperature, out);
     }
@@ -226,6 +235,13 @@ public:
     }
 
 protected:
+    static void p_copy_law_density(const c_EOSPoint& law_point, c_PhaseState& out) noexcept {
+        out.density                   = law_point.density;
+        out.density_pressure_slope    = law_point.density_pressure_slope;
+        out.density_temperature_slope = law_point.density_temperature_slope;
+        out.density_radius_slope      = law_point.density_radius_slope;
+    }
+
     static c_PhaseComponents p_default_components() {
         c_PhaseComponents components;
         components.eos = std::make_shared<const c_ConstantEOS>();
@@ -581,10 +597,26 @@ protected:
             out.latent_heat_capacity = this->p_latent_heat / span;
             out.heat_capacity += out.latent_heat_capacity;
         }
-        if (switches.use_melt_density) { out.density = (1.0 - phi) * solid.density + phi * liquid.density; }
-        if (!step && (phi < 1.0) && switches.use_pressure_melting) {
-            const double melting_slope = (1.0 - phi) * this->p_components.solidus->calc_melting_slope(point.pressure)
-                + phi * this->p_components.liquidus->calc_melting_slope(point.pressure);
+        // Inside the melting range phi = (T - T_sol(P)) / (T_liq(P) - T_sol(P)) moves with the temperature, and with
+        // the pressure where the melting curves follow it, at the phi-weighted slope of the two curves.
+        const bool in_melting_range = !step && (phi < 1.0);
+        const bool pressure_melting_range = in_melting_range && switches.use_pressure_melting;
+        const double melting_slope = pressure_melting_range
+            ? (1.0 - phi) * this->p_components.solidus->calc_melting_slope(point.pressure)
+                + phi * this->p_components.liquidus->calc_melting_slope(point.pressure)
+            : 0.0;
+        if (switches.use_melt_density) {
+            out.density = (1.0 - phi) * solid.density + phi * liquid.density;
+            // A step (no range) or a fully molten point moves no melt fraction.
+            const double jump_per_span = in_melting_range ? (liquid.density - solid.density) / span : 0.0;
+            out.density_pressure_slope = (1.0 - phi) * solid.density_pressure_slope
+                + phi * liquid.density_pressure_slope - jump_per_span * melting_slope;
+            out.density_temperature_slope = (1.0 - phi) * solid.density_temperature_slope
+                + phi * liquid.density_temperature_slope + jump_per_span;
+            out.density_radius_slope =
+                (1.0 - phi) * solid.density_radius_slope + phi * liquid.density_radius_slope;
+        }
+        if (pressure_melting_range) {
             const double latent_expansion = out.density * this->p_latent_heat * melting_slope / (span * temperature);
             if (std::isfinite(latent_expansion)) { out.latent_expansion = latent_expansion; }
         }
@@ -647,6 +679,9 @@ protected:
 
     static void p_copy_phase(const c_PhaseState& phase, c_MaterialState& out) noexcept {
         out.density                = phase.density;
+        out.density_pressure_slope    = phase.density_pressure_slope;
+        out.density_temperature_slope = phase.density_temperature_slope;
+        out.density_radius_slope      = phase.density_radius_slope;
         out.bulk_modulus           = phase.bulk_modulus;
         out.adiabatic_bulk_modulus = phase.adiabatic_bulk_modulus;
         out.thermal_expansion      = phase.thermal_expansion;

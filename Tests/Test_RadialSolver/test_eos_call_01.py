@@ -70,7 +70,8 @@ def test_the_fields_are_the_layout_in_order():
     """The field names follow the EOS layout, then the complex moduli, with float and complex scalar values."""
     assert EOS_CALL_FIELDS == (
         "gravity", "pressure", "mass", "moi", "density", "shear_modulus", "bulk_modulus",
-        "shear_viscosity", "bulk_viscosity", "temperature", "heat_flow", "melt_fraction")
+        "shear_viscosity", "bulk_viscosity", "temperature", "heat_flow", "melt_fraction",
+        "buoyancy_frequency_squared", "density_gradient")
     solution, _, _ = _build_homogeneous()
     eos = solution.eos_call(0.5 * PLANET_RADIUS)
     assert tuple(eos) == ALL_FIELDS

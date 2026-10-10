@@ -1,16 +1,12 @@
 # Luna-Dynamic: luna.toml with its fluid outer core solved as a dynamic, compressible liquid; only the core and
 # the refitted numbers below differ.
-# A constant-density dynamic liquid is unstably stratified and fails (luna.toml's core by a 10 day period), so
-# the core's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
+# A constant-density dynamic liquid is unstably stratified, so the core's density follows its bulk modulus, which
+# keeps it neutral (see Demos/Physics/P12_dynamic_liquids.ipynb).
 # Outer core: Birch-Murnaghan with Fe80S20 liquid K_T0 = 72.2 GPa, K0' = 4.75 (Nishida et al. 2020, Nat. Commun.
 # 11, 1954); reference density 4803.56 kg/m3 fitted to the 5100 kg/m3 mean of Weber et al. (2011).
 # Fitted: mantle reference density 3324.9486 kg/m3 to the mass (g = 1.6242 m/s2; central pressure 5.44 GPa);
 # crust 33.98 km to C/MR2 = 0.39312; mantle rigidity 6.385106e10 Pa to k2 = 0.02422 at 27.3217 days.
 # The zone is unchanged from luna.toml and still gives Q = 37.9 at the month and 41.0 at the year.
-# At the default solver tolerances the yearly k2 is within 3e-4; tighten rtol and atol together for longer periods.
-# With the temperature solved, the default tolerances give a negative monthly Q and an unphysical yearly k2
-# (-0.54+0.09j) while love_success stays True. The monthly k2 then needs rtol = 1e-10 (atol 1e-13), so use this world
-# isothermal (as pinned below) or tighten the radial tolerance.
 # Temperatures, viscosities, and spin are as in luna.toml.
 schema_version = "0.2.0"
 name = "Luna-Dynamic"

@@ -9,9 +9,9 @@
 # Temperatures and viscosities are nominal Earth-like values (core 4000 K; Andrade mantle 1600 K, 1e21 Pa s) with
 # nothing to constrain them. Set the mantle viscosity before trusting any dissipation number. The mantle shear
 # modulus, 6e10 Pa, is nominal too (earth_simple's mantle has 2.2e11 Pa), and k2 depends on it strongly.
-# The core is liquid for a numerical reason, not because iron melts at 4000 K and these pressures (in the larger
-# planets it would likely be solid). A solid iron core (1e20 Pa s) relaxes like a fluid at forcing frequencies below
-# about 1e-14 rad/s and leaves the Love solve singular there.
+# The core is a static liquid, though at 4000 K and these pressures iron would likely be solid in the larger planets.
+# A solid Maxwell iron core (1e20 Pa s) also solves at every forcing frequency; it relaxes like a fluid below about
+# 1e-12 rad/s, where its k2 approaches the liquid core's.
 # k2 = 0.297, Q = 156 at the orbital period. With the temperature solved under its 261 K equilibrium surface,
 # the mantle's lower boundary layer reaches the core's 4000 K, its base melts, and Q = 31.
 # Spin is synchronous with the orbit. With e = 0.00563 (Agol et al. 2021) the mantle takes all of the tidal
@@ -33,7 +33,7 @@ radius_outer_m = 1852821.5           # fitted to the published mass
 use_tides = false
 temperature_k = 4000.0
 
-# Liquid-only material, so the core is a static fluid (liquid for a numerical reason; see the header).
+# Liquid-only material, so the core is a static fluid (see the header).
 [layers.core.material.liquid]
 thermal_conductivity_w_mk = 7.95
 heat_capacity_j_kgk = 840.0

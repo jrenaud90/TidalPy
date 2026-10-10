@@ -51,6 +51,7 @@ cdef extern from "constants_.hpp" nogil:
         double   d_LAYER_CONTINUITY_RTOL
         double   d_MAX_START_RADIUS_FRAC
         double   d_MIN_SURFACE_RCOND
+        double   d_MIN_SOLUTION_INDEPENDENCE
         double   d_FREQUENCY_MATCH_RTOL
         double   d_MIN_NUSSELT
         double   d_MAX_EOS_MASS_RATIO

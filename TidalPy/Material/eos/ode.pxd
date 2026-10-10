@@ -16,6 +16,8 @@ cdef extern from "ode_.hpp" nogil:
     const size_t C_EOS_TEMPERATURE_INDEX
     const size_t C_EOS_HEAT_FLOW_INDEX
     const size_t C_EOS_MELT_FRACTION_INDEX
+    const size_t C_EOS_BUOYANCY_INDEX
+    const size_t C_EOS_DENSITY_GRADIENT_INDEX
 
     cdef struct c_EOSOutput:
         double density

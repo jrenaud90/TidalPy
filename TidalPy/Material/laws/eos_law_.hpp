@@ -16,6 +16,10 @@
  * A law evaluated with `thermal` off, or at a non-finite temperature, gives the athermal density; its expansivity is
  * still reported, since the adiabat needs it either way.
  *
+ * Each law also gives the partial derivatives of its density in pressure, temperature, and radius, which the radial
+ * solver's dynamic liquids need as d rho / dr along the structure (c_preeval_material). A density held at the end of a
+ * law's range or of a table has zero slope there.
+ *
  * References
  * ----------
  * - Birch (1947), Phys. Rev. 71, 809; Vinet et al. (1987), J. Geophys. Res. 92, 9319; Murnaghan (1944), PNAS 30,
@@ -50,6 +54,10 @@ struct c_EOSPoint {
     double bulk_modulus           = TidalPyConstants::d_NAN;   // isothermal, K_T [Pa]; NaN when the law gives none
     double adiabatic_bulk_modulus = TidalPyConstants::d_NAN;   // K_S [Pa]
     double thermal_expansion      = TidalPyConstants::d_NAN;   // alpha [1/K]
+    // Partial derivatives of the density, each at the other two arguments fixed.
+    double density_pressure_slope    = TidalPyConstants::d_NAN;   // [kg m-3 Pa-1]
+    double density_temperature_slope = TidalPyConstants::d_NAN;   // [kg m-3 K-1]
+    double density_radius_slope      = TidalPyConstants::d_NAN;   // [kg m-4]
 };
 
 class c_EOSBase : public c_PhysicsBase {
@@ -63,6 +71,8 @@ public:
     void calc_eos(const c_ThermoPoint& point, bool thermal, c_EOSPoint& out) const noexcept {
         this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), out);
         out.thermal_expansion = this->p_calc_thermal_expansion(out);
+        out.density_temperature_slope =
+            this->p_sees_temperature(point.temperature, thermal) ? this->p_calc_density_temperature_slope(out) : 0.0;
         const bool adiabatic = (this->p_gruneisen_parameter != 0.0) && std::isfinite(point.temperature)
             && std::isfinite(out.thermal_expansion);
         out.adiabatic_bulk_modulus = adiabatic
@@ -150,8 +160,26 @@ protected:
     // The thermal pressure at a temperature above the reference; zero for a law that scales its density instead.
     virtual double p_thermal_pressure(double /*temperature_offset*/) const noexcept { return 0.0; }
 
+    // (d rho / dT)_P [kg m-3 K-1] of a density that sees the temperature: -alpha0 rho for one scaled by
+    // exp(-alpha0 (T - T_ref)). A law with a thermal pressure or with none overrides it.
+    virtual double p_calc_density_temperature_slope(const c_EOSPoint& law_point) const noexcept {
+        return -this->p_thermal_expansion * law_point.density;
+    }
+
+    // The slope through a thermal pressure alpha0 K0 (T - T_ref): -(d rho / dP) alpha0 K0.
+    double p_thermal_pressure_temperature_slope(
+            double reference_bulk_modulus,
+            const c_EOSPoint& law_point) const noexcept {
+        return -law_point.density_pressure_slope * this->p_thermal_expansion * reference_bulk_modulus;
+    }
+
+    // Whether the density sees the temperature at all (p_temperature_offset is zero otherwise).
+    bool p_sees_temperature(double temperature, bool thermal) const noexcept {
+        return thermal && (this->p_thermal_expansion != 0.0) && std::isfinite(temperature);
+    }
+
     double p_temperature_offset(double temperature, bool thermal) const noexcept {
-        if (!thermal || (this->p_thermal_expansion == 0.0) || !std::isfinite(temperature)) { return 0.0; }
+        if (!this->p_sees_temperature(temperature, thermal)) { return 0.0; }
         return temperature - this->p_reference_temperature;
     }
 
@@ -206,6 +234,8 @@ protected:
             c_EOSPoint& out) const noexcept override {
         out.density      = this->p_reference_density * c_safe_exp(-this->p_thermal_expansion * temperature_offset);
         out.bulk_modulus = this->p_bulk_modulus;
+        out.density_pressure_slope = 0.0;
+        out.density_radius_slope   = 0.0;
     }
 
     double p_reference_density = 0.0;
@@ -245,19 +275,27 @@ public:
 
 protected:
     void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
+        const double pressure_target = point.pressure - this->p_thermal_pressure(temperature_offset);
         const double eta = eos_invert_eta(
-            point.pressure - this->p_thermal_pressure(temperature_offset), this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
+            pressure_target, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative,
             p_law_function(), this->p_law_range, this->p_resolved_rtol, this->p_resolved_max_iters);
         double pressure = 0.0;
         double bulk_modulus = 0.0;
         p_law_function()(eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative, pressure, bulk_modulus);
         out.density      = this->p_reference_density * eta;
         out.bulk_modulus = bulk_modulus;
+        // K_T = rho dP / d rho inside the range; the density holds at either end beyond it.
+        const bool in_range =
+            (pressure_target > this->p_law_range.pressure_min) && (pressure_target < this->p_law_range.pressure_max);
+        out.density_pressure_slope = in_range ? out.density / bulk_modulus : 0.0;
+        out.density_radius_slope   = 0.0;
     }
 
     double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
         return this->p_thermal_pressure_expansion(this->p_reference_bulk_modulus, law_point);
+    }
+    double p_calc_density_temperature_slope(const c_EOSPoint& law_point) const noexcept override {
+        return this->p_thermal_pressure_temperature_slope(this->p_reference_bulk_modulus, law_point);
     }
     double p_thermal_pressure(double temperature_offset) const noexcept override {
         return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
@@ -339,16 +377,22 @@ protected:
         const double k0 = this->p_reference_bulk_modulus;
         const double kp = this->p_bulk_modulus_derivative;
         const double pressure = point.pressure - this->p_thermal_pressure(temperature_offset);
+        out.density_radius_slope = 0.0;
         if ((kp == 0.0) || (pressure <= 0.0)) {
             out.density      = this->p_reference_density * c_safe_exp(pressure / k0);
             out.bulk_modulus = k0;
+            out.density_pressure_slope = out.density / k0;
             return;
         }
         out.density      = this->p_reference_density * std::pow(1.0 + kp * pressure / k0, 1.0 / kp);
         out.bulk_modulus = k0 + kp * pressure;
+        out.density_pressure_slope = out.density / out.bulk_modulus;
     }
     double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
         return this->p_thermal_pressure_expansion(this->p_reference_bulk_modulus, law_point);
+    }
+    double p_calc_density_temperature_slope(const c_EOSPoint& law_point) const noexcept override {
+        return this->p_thermal_pressure_temperature_slope(this->p_reference_bulk_modulus, law_point);
     }
     double p_thermal_pressure(double temperature_offset) const noexcept override {
         return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
@@ -391,15 +435,20 @@ protected:
             const c_ThermoPoint& point,
             double /*temperature_offset*/,
             c_EOSPoint& out) const noexcept override {
+        out.density_radius_slope = 0.0;
         if (!(point.pressure > 0.0)) {
             out.density      = 0.0;
             out.bulk_modulus = 0.0;
+            out.density_pressure_slope = 0.0;
             return;
         }
         const double n = this->p_polytropic_index;
         out.density      = std::pow(point.pressure / this->p_polytropic_constant, n / (n + 1.0));
         out.bulk_modulus = (1.0 + 1.0 / n) * point.pressure;
+        out.density_pressure_slope = out.density / out.bulk_modulus;
     }
+    // A barotrope: its density ignores the temperature.
+    double p_calc_density_temperature_slope(const c_EOSPoint& /*law_point*/) const noexcept override { return 0.0; }
 
     double p_polytropic_constant = 0.0;
     double p_polytropic_index    = 0.0;
@@ -447,18 +496,24 @@ protected:
             const c_ThermoPoint& point,
             double /*temperature_offset*/,
             c_EOSPoint& out) const noexcept override {
+        out.density_radius_slope = 0.0;
         if (!(point.pressure > 0.0)) {
             // The limit of K = rho P^(1 - n) / (n c) as P falls to 0: 0 for n < 1, rho0 / c for n = 1, unbounded above.
             out.density = this->p_reference_density;
             if (this->p_exponent < 1.0)       { out.bulk_modulus = 0.0; }
             else if (this->p_exponent == 1.0) { out.bulk_modulus = this->p_reference_density / this->p_coefficient; }
             else                              { out.bulk_modulus = TidalPyConstants::d_INF; }
+            // The density holds at rho0 in tension.
+            out.density_pressure_slope = 0.0;
             return;
         }
         const double compression_term = this->p_coefficient * std::pow(point.pressure, this->p_exponent);
         out.density      = this->p_reference_density + compression_term;
         out.bulk_modulus = out.density * point.pressure / (this->p_exponent * compression_term);
+        out.density_pressure_slope = this->p_exponent * compression_term / point.pressure;
     }
+    // A barotrope: its density ignores the temperature.
+    double p_calc_density_temperature_slope(const c_EOSPoint& /*law_point*/) const noexcept override { return 0.0; }
 
     // alpha0 times the Anderson-Gruneisen factor; alpha0 for a zero delta_T0 or a density that is not positive.
     double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
@@ -510,9 +565,11 @@ public:
 
 protected:
     void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
-        out.density = c_safe_exp(-this->p_thermal_expansion * temperature_offset)
-            * this->p_lookup.interpolate(point.radius, this->p_radius, this->p_density);
+        const double thermal_factor = c_safe_exp(-this->p_thermal_expansion * temperature_offset);
+        out.density = thermal_factor * this->p_lookup.interpolate(point.radius, this->p_radius, this->p_density);
         out.bulk_modulus = this->p_lookup.interpolate(point.radius, this->p_radius, this->p_bulk_modulus);
+        out.density_pressure_slope = 0.0;
+        out.density_radius_slope = thermal_factor * this->p_lookup.slope(point.radius, this->p_radius, this->p_density);
     }
 
     void p_validate() const override {

@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-10_
 
 `TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. Give it a radial grid with density and complex moduli, a forcing frequency, and the layer assumptions. It returns a [`RadialSolverSolution`](solution_class.md) with the radial functions and the Love numbers. With a built world, prefer `BaseWorld.solve_love_numbers`, which fills these arrays from the layer rheologies.
 
@@ -76,7 +76,7 @@ The test suite checks two references:
 - A homogeneous sphere ($V_P$ = 10 km/s, $V_S$ = 5 km/s, $\rho$ = 5000 kg m$^{-3}$) gives h' = -0.206731 and l' = 0.161380, the exact value from the Takeuchi and Saito solutions (Martens 2016 Table C.4: -0.2069 and 0.1617). Every starting method, every tolerance from $10^{-6}$ to $10^{-12}$, and dynamic solves from $\omega = 10^{-4}$ to $10^{-11}$ rad s$^{-1}$ agree.
 - The Guo et al. (2004) PREM gives h' = -0.28559 to -0.28564 and l' = 0.10372 to 0.10375 across static and dynamic layer choices, against their -0.285694 and 0.103633.
 
-**Liquid surface layers.** A static liquid surface layer has no horizontal displacement: its l' is NaN, and the CF and CL frames, which read l', are refused with error code -16. Its hydrostatic surface fixes h' = 1 - $\bar{\rho} / \rho_s$ in CE exactly, whatever lies beneath ($\bar{\rho}$ is the bulk density, $\rho_s$ the surface density). An incompressible solid lid of that density tends to this value as its rigidity falls. A dynamic liquid surface layer solves like a solid one, with a large l', since an inviscid liquid's horizontal motion grows as $1 / \omega^2$. At long periods a dynamic compressible liquid fails as it does at any degree, or returns a wrong answer flagged by a large `surface_frame_residual` and a conditioning warning.
+**Liquid surface layers.** A static liquid surface layer has no horizontal displacement: its l' is NaN, and the CF and CL frames, which read l', are refused with error code -16. Its hydrostatic surface fixes h' = 1 - $\bar{\rho} / \rho_s$ in CE exactly, whatever lies beneath ($\bar{\rho}$ is the bulk density, $\rho_s$ the surface density). An incompressible solid lid of that density tends to this value as its rigidity falls. A dynamic liquid surface layer solves like a solid one, with a large l', since an inviscid liquid's horizontal motion grows as $1 / \omega^2$. At long periods its h' tends to the static layer's. A 190 km constant-density compressible ocean gives h' within 5e-6 of $1 - \bar{\rho} / \rho_s$ at $10^{-9}$ rad s$^{-1}$ at the default and tighter tolerances. Being unstably stratified, it takes steps in proportion to the period, about 230,000 at $10^{-9}$ rad s$^{-1}$ at the default tolerance and more at tighter ones, which can reach `max_num_steps`.
 
 **Mixed static and dynamic layers.** A body with inertia in some layers but not others has no exact degree-1 frame: the replaced condition holds only to about $\omega^2 R / g$. `solution.surface_frame_residual` (`world.love_surface_frame_residual` on a world) reports the miss relative to the y6 condition, and the solver warns above $10^{-2}$. Dynamic solid layers under a static ocean leave $5 \times 10^{-3}$ at a one-day period. Making every layer static, or every layer dynamic, removes it.
 
@@ -90,7 +90,7 @@ A setting whose default is `None` reads the `[radial_solver]` or `[eos_solver]` 
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `degree_l` | `2` | Spherical-harmonic degree. Expect trouble beyond `l = 10`; stable solutions exist to `l = 40` with a higher starting radius and tighter tolerances. |
+| `degree_l` | `2` | Spherical-harmonic degree. At the default settings `io`, `luna`, `europa`, `earth_simple`, and `earth_prem` solve to `l = 40` within about 2e-6 of an `rtol = 1e-12` solve. |
 | `solve_for` | `None` | Tuple of `'tidal'`, `'loading'`, `'free'`; `None` means `('tidal',)` (note the trailing comma). Several at once is cheaper than separate calls. Sets the first dimension of `solution.love`. |
 | `love_method` | `'radial_solver'` | See [Choosing a Method](#choosing-a-method). |
 | `nondimensionalize` | `None` (config) | Solve in non-dimensional units, return SI. Leave it on: the tolerances then mean the same for every planet. |
@@ -99,16 +99,16 @@ A setting whose default is `None` reads the `[radial_solver]` or `[eos_solver]` 
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `starting_radius` | `0.0` | Start of integration [m]; `0.0` chooses one (Martens 2016 criterion). A deep start at high degree makes the surface solve ill-conditioned, and the solver warns when accuracy drops below the requested tolerance. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused: `ValueError` here, a failed solve on a world. |
+| `starting_radius` | `0.0` | Start of integration [m]; `0.0` chooses one (Martens 2016 criterion). A deep start costs steps, since the solutions it starts from are nearly dependent and are re-orthonormalized on the way out. The solver warns when the surface solve's accuracy drops below the requested tolerance. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused: `ValueError` here, a failed solve on a world. |
 | `start_radius_tolerance` | `None` (config) | The automatic start is at $R \cdot \mathrm{tol}^{1/l}$. |
 | `starting_method` | `None` (config) | `'takeuchi'` (`'ts'`), `'kamata'`, `'power_series'` (`'powerseries'`, `'ps'`, `'martens'`), or `'unity'`. See [Starting Conditions](starting_conditions.md). |
 | `degree1_frame` | `None` (config) | `'CE'`, `'CM'`, `'CF'`, `'CL'`, or `'CH'`; read only by a degree-1 loading solve. See [Degree-1 Load Love Numbers](#degree-1-load-love-numbers). |
 | `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type (liquids generally want it tighter). Experimental. |
-| `max_num_steps` | `None` (config) | Step ceiling per integration. |
+| `max_num_steps` | `None` (config) | Step ceiling per layer, over all of its re-orthonormalized segments and shared by its independent solutions. `0` lets `max_ram_MB` set it. |
 | `expected_size` | `None` (config) | Initial allocation hint for the integrator. Overshooting costs little. |
-| `max_ram_MB` | `None` (config) | Integrator memory ceiling. Real usage runs somewhat higher. |
+| `max_ram_MB` | `None` (config) | Memory ceiling of the integration and of the dense solution it keeps. The kept segments are counted to within a few percent of the memory they take; memory an earlier solve freed can stay with the process on top of it. |
 | `max_step` | `0` | Largest step [m]; `0` lets the integrator choose. |
 | `love_only` | `False` | Keep only the Love numbers; faster. `result`, `get_radial_solution`, and `plot_ys` then raise `ValueError`. |
 
@@ -162,13 +162,13 @@ A world's `solve_love_numbers` and `solve_eos` take the shorter configuration-ke
 
 Read `solution.message`, then `solution.steps_taken`, then plot. These messages come from the shooting method.
 
-**Slow solves, huge step counts, or "Maximum number of steps ... exceeded".** "(set by user)" means `max_num_steps` was hit, "(set by system architecture)" means `max_ram_MB`. Raising the limit is rarely the fix. A healthy solve takes a few hundred steps per solution per layer, a few thousand in awkward cases; ten thousand or more means it is likely unstable. `solution.plot_ys()` shows instability as spikes, ringing, or curves that are not smooth in radius. Try, roughly in order: other tolerances, another integration method, another `starting_method`, a lower `degree_l`, a higher `starting_radius`, other layer assumptions (dynamic compressible liquids especially), a small solid core under a fully liquid one, or more slices.
+**Slow solves, huge step counts, or "Maximum number of steps ... exceeded".** "(set by user)" means `max_num_steps` was hit, "(set by system architecture)" means `max_ram_MB`. Raising the limit is rarely the fix. A healthy solve takes tens to a few hundred steps per layer; ten thousand or more means the solutions change on a scale far shorter than the layer. A stratified dynamic liquid at a long forcing period does this, since its buoyancy solutions shorten with the period (see [Dense Radial Solutions](dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)). `solution.plot_ys()` shows instability as spikes, ringing, or curves that are not smooth in radius. Try, roughly in order: other tolerances, another integration method, another `starting_method`, a lower `degree_l`, a higher `starting_radius`, other layer assumptions (a stratified dynamic liquid especially), a small solid core under a fully liquid one, or more slices.
 
-**"Error in step size calculation: Required step size is less than spacing between numbers."** The tolerances are usually too tight, or too loose so that error compounds. A dynamic compressible liquid layer is a common trigger; try it static.
+**"Error in step size calculation: Required step size is less than spacing between numbers."** The tolerances are usually too tight, or too loose so that error compounds. Two starts are common triggers, since the closed-form and series starting conditions overflow in them: a start inside a compressible dynamic liquid at a long forcing period, and a very weak solid starting layer at high degree. Use `starting_method="unity"`, start in the layer below a liquid with a manual `starting_radius`, or treat the liquid as static (see [Starting Conditions](starting_conditions.md#accuracy-and-cost)).
 
-**NaN Love numbers from a successful solve.** The surface solve was ill-conditioned; a `surface_solve_amplification` far above one means catastrophic cancellation. Raise the starting radius or use the automatic one.
+**NaN Love numbers from a successful solve.** A static liquid surface layer has no horizontal displacement, so its l (and the Q and lag of l) is NaN by definition, while k and h are finite. A solve whose surface solutions or solution constants are not finite fails instead (error codes -13 and -12). Any other NaN from a successful solve is a bug; please open an issue with the inputs.
 
-**"The surface boundary condition system is singular to working precision" (error code -13).** `surface_solve_rcond` fell below `[numerical] minimum_surface_rcond` (default `1e-12`): the independent solutions became numerically dependent. Start higher or use the automatic radius. An rcond between that floor and the integration `rtol` is solved but logged as poorly conditioned. A very weak solid starting layer does this for every start; see [Starting Conditions](starting_conditions.md).
+**"The surface boundary condition system is singular to working precision" (error code -13).** `surface_solve_rcond` fell below `[numerical] minimum_surface_rcond` (default `1e-12`), or the surface solutions are not finite. The shooting method re-orthonormalizes each layer's solutions where they lose their independence (`[numerical] minimum_solution_independence`), which kept rcond at 4e-5 or above in every starting-method comparison of [Starting Conditions](starting_conditions.md#accuracy-and-cost). Near-fluid solid layers ($|\mu^*|$ down to $4 \times 10^{-10} \rho g R$) reached 3e-8 and stayed within 3e-10 of `rtol = 1e-12` solves. The other -13 failures are singular by construction: a degree-1 tidal or free solve in which every integrated layer is static, and any degree-1 propagation-matrix solve (see [Degree-1 Load Love Numbers](#degree-1-load-love-numbers)). With `minimum_solution_independence = 0` the solutions can lose their independence again, and a deep manual starting radius or a weak solid starting layer then fails here (a 0.1 m start at degree 3, or an $\eta = 10^{10}$ Pa s Maxwell start at degree 3). An rcond between the floor and the integration `rtol` is solved but logged as poorly conditioned.
 
 **"Layer ... is compressible but its bulk modulus is not positive" (error code -15).** A compressible solid or dynamic liquid needs a positive bulk modulus. An interpolated equation of state without a bulk-modulus table reports NaN, and a zero bulk modulus with a shear modulus (Poisson ratio -1) would silently give wrong Love numbers. Give the material a bulk modulus or mark the layer incompressible.
 

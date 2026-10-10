@@ -101,4 +101,24 @@ inline void c_preeval_material(
     output->bulk_modulus    = std::complex<double>(state.adiabatic_bulk_modulus / eos_data->pascal_scale, 0.0);
     output->shear_viscosity = state.shear_viscosity;
     output->bulk_viscosity  = state.bulk_viscosity;
+
+    // N^2 = -g (rho' + rho^2 g / K_S) / rho, with rho' = d rho / dr by the chain rule through the material's own
+    // density along the structure ODE's dP/dr = -rho g and dT/dr (zero where the temperature is not integrated, which
+    // is uniform in each segment). rho^2 g / K_S = -(rho / K_S) dP/dr joins the pressure slope before the sum, so a
+    // material whose density follows its bulk modulus (d rho / dP = rho / K_S, no other slope) gives exactly 0 rather
+    // than the roundoff of two large terms, which would set a dynamic liquid's response at very long periods.
+    const double pressure_gradient_si = -output->density * radial_solutions[0] * eos_data->pascal_scale;
+    const double temperature_gradient = (eos_data->use_state_temperature && (radius > TidalPyConstants::d_EPS_10))
+        ? c_eos_temperature_gradient(radius, radial_solutions, *output, *ode_args) : 0.0;
+    const double adiabatic_pressure_slope =
+        (state.adiabatic_bulk_modulus > 0.0) ? state.density / state.adiabatic_bulk_modulus : 0.0;
+    const double gradient_off_pressure = state.density_temperature_slope * temperature_gradient
+        + state.density_radius_slope * eos_data->length_scale;
+    const double gradient_off_adiabat =
+        ((state.density_pressure_slope - adiabatic_pressure_slope) * pressure_gradient_si + gradient_off_pressure)
+        / eos_data->density_scale;
+    output->buoyancy_frequency_squared =
+        (output->density > 0.0) ? -radial_solutions[0] * gradient_off_adiabat / output->density : 0.0;
+    output->density_gradient =
+        (state.density_pressure_slope * pressure_gradient_si + gradient_off_pressure) / eos_data->density_scale;
 }

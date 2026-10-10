@@ -103,6 +103,10 @@ struct TidalPyConfig
     // may have; below it the system is singular to working precision and the solve fails.
     double d_MIN_SURFACE_RCOND; // Updated from TidalPy.config['numerical']['minimum_surface_rcond']
 
+    // Factor by which a radial-solver integration may reduce the normalized Gram determinant of a layer's independent
+    // solutions before they are re-orthonormalized; 0 never.
+    double d_MIN_SOLUTION_INDEPENDENCE; // Updated from TidalPy.config['numerical']['minimum_solution_independence']
+
     // Relative tolerance within which two tidal-mode frequencies are the same one, and a frequency is zero.
     double d_FREQUENCY_MATCH_RTOL; // Updated from TidalPy.config['numerical']['frequency_match_rtol']
 
@@ -179,6 +183,7 @@ struct TidalPyConfig
         d_LAYER_CONTINUITY_RTOL = nan;
         d_MAX_START_RADIUS_FRAC = nan;
         d_MIN_SURFACE_RCOND = nan;
+        d_MIN_SOLUTION_INDEPENDENCE = nan;
         d_FREQUENCY_MATCH_RTOL = nan;
         d_MIN_NUSSELT = nan;
         d_MAX_EOS_MASS_RATIO = nan;

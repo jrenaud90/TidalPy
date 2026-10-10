@@ -384,6 +384,7 @@ private:
         piece.radius_upper  = radius_end;
         piece.liquid        = liquid;
         piece.temperature   = request.segment_ptr->start_temperature;
+        piece.temperature_kind = request.segment_ptr->temperature_kind;
         out.pieces.push_back(piece);
         if (capture_dense)
         {

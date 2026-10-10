@@ -7,7 +7,7 @@
 # Solved k2 = 0.4267, not fitted, vs the 0.41 used below.
 # Caveat: one density per layer. The central pressure, 818 GPa, is close to published estimates, but use a better
 # interior for pressure or density profiles.
-# The inner layers are static liquids. A rigid core would also fail numerically (shear modulus << rho g R).
+# The inner layers are static liquids. A rigid rock core (shear modulus 1e11 Pa) would lower k2 by a relative 8e-4.
 # Tides: constant phase lag, k2 = 0.41 (Durda 1992) and Q = 9000, the low end of the 9e3 to 3.6e4 of Zhang and
 # Hamilton (2008). The dissipation is an upper bound: Wang et al. (2025) put Q/k2 above 8.2e4 from Triton's motion
 # (2.2e4 here). Higher degrees use the unmeasured default k_l ~ k_2 / (l - 1). None of it uses the interior.

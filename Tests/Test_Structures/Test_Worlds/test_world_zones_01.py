@@ -127,16 +127,19 @@ def test_the_latent_heat_of_the_moving_boundary():
 
 
 @pytest.mark.parametrize("is_static", [True, False])
-def test_a_dynamic_liquid_zone_is_checked_for_its_instability(spdlog_text, is_static):
-    """A liquid zone of a layer solved with the dynamic equations is a dynamic liquid like a liquid layer, and a
-    constant-density one grows unstable at long periods: the Love solve warns about it, naming the layer."""
+def test_a_dynamic_liquid_zone_solves_at_long_periods(is_static):
+    """A liquid zone of a layer solved with the dynamic equations is a dynamic liquid like a liquid layer: this
+    constant-density one is unstably stratified, and its Love numbers at a 73-day period still agree with a tight solve
+    and lie close to the static zone's."""
     world, _ = _uniform_planet(2000.0)
     world.body.is_static = is_static
     world.solve_love_numbers(frequency=1.0e-6)
-    text = spdlog_text()
-    assert ("grows unstable at long periods" in text) == (not is_static)
-    if not is_static:
-        assert "'body'" in text
+    k2 = complex(world.love_number_k)
+    world.solve_love_numbers(frequency=1.0e-6, rtol=1.0e-12, atol=1.0e-14)
+    assert k2 == pytest.approx(complex(world.love_number_k), rel=1.0e-7)
+    world.body.is_static = True
+    world.solve_love_numbers(frequency=1.0e-6)
+    assert k2 == pytest.approx(complex(world.love_number_k), rel=1.0e-3)
 
 
 def test_a_state_change_that_lets_a_layer_melt_needs_a_new_solve():

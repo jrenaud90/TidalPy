@@ -220,7 +220,8 @@ def radial_solver(
     eos_max_iters : int, optional
         Maximum central-pressure iterations.
     verbose, warnings, raise_on_fail, perform_checks, log_info : bool
-        Reporting switches; ``perform_checks`` is accepted for compatibility and inputs are always validated.
+        Reporting switches. ``warnings`` also logs a failed solve's message when ``raise_on_fail`` is off;
+        ``perform_checks`` is accepted for compatibility and inputs are always validated.
     love_only : bool, default=False
         Keep only what the Love numbers need (shooting method): the integration builds no dense output, which makes
         the solve faster, and the solution's radial functions (``result``, ``get_radial_solution``, ``plot_ys``) are
@@ -445,10 +446,6 @@ def radial_solver(
     # This function runs its own conditioning check on the finished solution below.
     love_cfg.warnings           = False
 
-    # A dynamic liquid layer whose equations lose accuracy at this period is logged, once, before the solve.
-    if warnings and not use_prop_matrix:
-        world_ptr.warn_if_dynamic_liquid_unstable(degree_l, frequency, love_cfg.rtol)
-
     shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus_array[0]
     bulk_ptr  = <cpp_complex[double]*><void*>&complex_bulk_modulus_array[0]
     with nogil:
@@ -484,8 +481,9 @@ def radial_solver(
             log_warning(
                 f"Large number of steps taken found in radial solver solution "
                 f"(max = {np.max(solution.steps_taken)}).")
-        # A failed solve already says why in its message.
-        if solution.success:
+        if not solution.success:
+            log_warning(f"TidalPy: the radial solve failed: {solution.message.strip()}")
+        else:
             cy_check_surface_solve_conditioning(
                 solution.surface_solve_amplification, love_cfg.rtol, solution.surface_solve_rcond)
             cy_check_degree1_frame_residual(solution.surface_frame_residual)

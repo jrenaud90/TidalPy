@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <complex>
 #include <cstddef>
 
 
@@ -21,3 +23,18 @@ constexpr size_t C_MAX_SURFACE_CONDITIONS = C_MAX_NUM_YTYPES * C_NUM_SURFACE_CON
 
 /// Fewest radial slices a layer of a supplied profile, or of the propagation matrix's grid, may have.
 constexpr size_t C_RS_MIN_SLICES_PER_LAYER = 5;
+
+/// A change of basis of a layer's solutions (orthonormalize_.hpp), row-major [row * C_MAX_NUM_SOL + column]: the
+/// solutions before it are those after it times it. The upper-triangular R of a re-orthonormalization, or a dynamic
+/// liquid's split of its starting solutions.
+using c_BasisChange = std::array<std::complex<double>, C_MAX_NUM_SOL * C_MAX_NUM_SOL>;
+
+inline c_BasisChange c_identity_basis_change() noexcept
+{
+    c_BasisChange identity{};
+    for (size_t solution_i = 0; solution_i < C_MAX_NUM_SOL; ++solution_i)
+    {
+        identity[solution_i * C_MAX_NUM_SOL + solution_i] = std::complex<double>(1.0, 0.0);
+    }
+    return identity;
+}

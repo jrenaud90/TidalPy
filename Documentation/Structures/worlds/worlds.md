@@ -1,6 +1,6 @@
 # Worlds (`Structures.worlds`)
 
-_Updated: 2026-10-09_
+_Updated: 2026-10-10_
 
 A world is TidalPy's top-level structure: a planet, moon, or star. It holds its identity, orbital and thermal scalars, bulk geometry, spin model, tide model, and an ordered stack of [layers](../layers/layer.md) (possibly empty). It runs the whole-planet equation-of-state (EOS), thermal, Love-number, and tidal solves, and holds the heat sources that act inside its layers. Build one by name or from a file with `build_world` (see the [TOML Schema](../config/toml_schema.md)), or in Python.
 
@@ -151,7 +151,7 @@ The Love solver takes each zone as a layer with its layer's `is_static` and `is_
 A layer forced to `"solid"` or `"liquid"` after the solve is one zone in that state to the next Love solve, while `zones` keeps the solved states until the next `solve_eos`. A change between `"auto"` and a forced state that decides whether the layer can change state makes the world forget its solve.
 
 > [!NOTE]
-> Only a layer that can change state is split. A solid layer given a near-zero shear modulus some other way (a material without melting, or `use_melting` off) is solved as a solid, and the solver may fail on it or return $\mathrm{Im}[k]$ with the wrong sign and only a conditioning warning.
+> Only a layer that can change state is split. A solid layer given a near-zero shear modulus some other way (a material without melting, or `use_melting` off) is solved as a solid. An Io-sized world with a Maxwell layer down to $|\mu^*| = 4$ Pa ($4 \times 10^{-10} \rho g R$) solved with $-\mathrm{Im}[k_2] > 0$, within 3e-10 of an `rtol = 1e-12` solve. That held alone or between a rigid core and lid, static or dynamic, and compressible or incompressible, and a homogeneous static incompressible one matched Love's (1911) closed form. A uniform-density compressible layer that soft is unstably stratified, so its static response can vary irregularly with the modulus (see `Benchmarks/RadialSolver/Homogeneous_Viscoelastic_Love_Numbers.ipynb`), and a very weak starting layer can defeat the closed-form starts at high degree (see [Starting Conditions](../../RadialSolver/starting_conditions.md)).
 
 ### Layer Size
 

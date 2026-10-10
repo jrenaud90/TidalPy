@@ -1,6 +1,6 @@
 # Love Numbers and Radial Functions (`RadialSolver`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-09_
 
 `TidalPy.RadialSolver` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions $y_1$ through $y_6$ throughout the interior and the Love numbers $k$, $h$, and $l$ at the surface. These set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and a body's predicted gravity and displacement signals.
 
@@ -26,7 +26,7 @@ Parallel Love Solves <parallel.md>
 
 ## Solution Methods
 
-The default "shooting method" integrates the viscoelastic-gravitational equations from a starting radius near the center out to the surface, one layer at a time, then fixes the combination of each layer's independent solutions from the surface boundary condition (see [Dense Radial Solutions](dense_radial_solution.md)). [Starting Conditions](starting_conditions.md) covers how it starts. The quasi-analytic propagation matrix is restricted to a single solid, static, incompressible layer. Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve. [Calculating Love Numbers](calculating_love_numbers.md#choosing-a-method) compares them.
+The default "shooting method" integrates the viscoelastic-gravitational equations from a starting radius near the center out to the surface, one layer at a time, with each layer's independent solutions integrated together and re-orthonormalized where they become nearly dependent, then fixes their combination from the surface boundary condition (see [Dense Radial Solutions](dense_radial_solution.md)). [Starting Conditions](starting_conditions.md) covers how it starts. The quasi-analytic propagation matrix is restricted to a single solid, static, incompressible layer. Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve. [Calculating Love Numbers](calculating_love_numbers.md#choosing-a-method) compares them.
 
 ## References
 
@@ -36,6 +36,8 @@ A starting point, not a comprehensive list. The starting-condition references ar
 - Takeuchi, H., and Saito, M. (1972). Seismic Surface Waves. In *Methods in Computational Physics: Advances in Research and Applications*, 11, 217-295.
 - Tobie, G., Mocquet, A., and Sotin, C. (2005). Tidal dissipation within large icy satellites: Applications to Europa and Titan. *Icarus*, 177(2), 534-549.
 - Kervazo, M., Tobie, G., Choblet, G., Dumoulin, C., and Běhounková, M. (2021). Solid tides in Io's partially molten interior. *Astronomy and Astrophysics*, 650, A72.
+- Godunov, S. K. (1961). On the numerical solution of boundary value problems for systems of linear ordinary differential equations. *Uspekhi Matematicheskikh Nauk*, 16(3), 171-174.
+- Conte, S. D. (1966). The numerical solution of linear boundary value problems. *SIAM Review*, 8(3), 309-321.
 
 **Interfaces, constants, and assumptions**
 - Saito, M. (1974). Some problems of static deformation of the earth. *Journal of Physics of the Earth*, 22(1), 123-140.

@@ -1,7 +1,7 @@
 # Mercury-Dynamic: mercury.toml with its fluid outer core solved as a dynamic, compressible liquid; only the core
 # and the refitted numbers below differ.
-# A constant-density dynamic liquid is unstably stratified and fails (mercury.toml's core by a 3.5 day period), so
-# the core's density follows its bulk modulus (see Demos/Physics/P12_dynamic_liquids.ipynb).
+# A constant-density dynamic liquid is unstably stratified, so the core's density follows its bulk modulus, which
+# keeps it neutral (see Demos/Physics/P12_dynamic_liquids.ipynb).
 # Outer core: Birch-Murnaghan with K0 = 115.47 GPa, K0' = 4.93 (Margot et al. 2018, Table 6); reference density
 # 6653.47 kg/m3 fitted to the mass (Margot et al.: 6471.29). Its mean, 7305.6 kg/m3, matches mercury.toml's core.
 # C/MR2 = 0.34549 (not fitted) vs 0.346 +/- 0.009 measured (Margot et al. 2018); g = 3.7006 m/s2; central

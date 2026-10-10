@@ -48,10 +48,7 @@ def _check_3layer(
         starting_method,
         solve_for,
         starting_radius):
-    """Solve the 3-layer planet and check the output; the known unstable pairing is skipped."""
-    # A compressible dynamic liquid over an incompressible solid can fail to integrate (step size underflow).
-    known_unstable = (not liquid_is_incompressible) and solid_is_incompressible
-    unstable_reason = 'Integration Failed. Compressible liquid with incompressible solid below is not very stable.'
+    """Solve the 3-layer planet and check the output."""
     start_layer = _start_layer(starting_radius)
     start_is_liquid = layer_types[start_layer] == "liquid"
 
@@ -83,22 +80,16 @@ def _check_3layer(
             nondimensionalize=True)
 
     # Halfway up the planet in the constant-density dynamic liquid, whose solutions grow by up to exp(200) here, the
-    # power series refuses to start rather than return an inaccurate start.
+    # power series refuses to start rather than return an inaccurate start. Every other start integrates through that
+    # growth: re-orthonormalizing the solutions keeps the surface system well conditioned (these solves agree with
+    # DOP853 at rtol 1e-12 to 2e-6).
     series_may_refuse = (starting_method == 'power_series') and start_is_liquid and (not liquid_is_static) and \
         (not liquid_is_incompressible)
-    # That growth also leaves the surface system singular to working precision for some starts, integrators, and
-    # degrees (rcond 1e-13 to 1e-12, below the 1e-12 floor; where a reference succeeds, k was off by 0.3 to 9).
-    surface_may_be_singular = (not liquid_is_static) and (not liquid_is_incompressible)
     try:
         out = solve()
     except SolutionFailedError as error:
         if series_may_refuse and ('power series starting conditions refused' in str(error)):
             return
-        if surface_may_be_singular and ('singular to working precision' in str(error)):
-            return
-        # Only the liquid layer's step-size collapse is expected; any other failure is a real one.
-        if known_unstable and ('Integration problem at layer 2' in str(error)):
-            pytest.skip(unstable_reason)
         raise
 
     assert out.success

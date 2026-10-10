@@ -27,7 +27,7 @@ requirements:
     - scipy
     - cython
     - wheel
-    - cyrk >=0.19.5,<0.20.0
+    - cyrk >=0.20.0,<0.21.0
     - pip
   run:
     - python
@@ -36,7 +36,7 @@ requirements:
     - platformdirs
     - toml
     - tqdm >=4.64
-    - cyrk >=0.19.5,<0.20.0
+    - cyrk >=0.20.0,<0.21.0
     - matplotlib-base >=3.4.2
 
 test:

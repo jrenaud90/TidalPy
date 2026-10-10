@@ -45,17 +45,23 @@ public:
         return c_interp(x, abscissa.data(), values.data(), values.size(), this->p_seed(x));
     }
 
-    // d(values)/dx at `x`: the slope of the interval holding it, zero beyond the ends (where the values are held) and
-    // for a one-point table; NaN for an empty table or a NaN `x`.
+    // d(values)/dx at `x`: the slope of the interval holding it, and at either end that of the end interval, so a
+    // profile read at its own end radius keeps its slope. Zero strictly beyond the ends (where the values are held),
+    // across a zero-width interval, and for a one-point table; NaN for an empty table or a NaN `x`.
     double slope(double x, const std::vector<double>& abscissa, const std::vector<double>& values) const noexcept {
         const std::size_t num_points = values.size();
         if ((num_points == 0) || (num_points != abscissa.size()) || std::isnan(x)) { return TidalPyConstants::d_NAN; }
-        if ((num_points == 1) || !(x > abscissa.front()) || !(x < abscissa.back())) { return 0.0; }
-        int code = 0;
-        const std::size_t interval = (num_points == 2)
-            ? 0 : c_binary_search_with_guess(x, abscissa.data(), num_points, this->p_seed(x), code);
-        if ((code == -1) || (interval + 1 >= num_points)) { return 0.0; }
-        return (values[interval + 1] - values[interval]) / (abscissa[interval + 1] - abscissa[interval]);
+        if ((num_points == 1) || (x < abscissa.front()) || (x > abscissa.back())) { return 0.0; }
+        std::size_t interval = 0;
+        if (x >= abscissa.back()) {
+            interval = num_points - 2;
+        } else if ((x > abscissa.front()) && (num_points > 2)) {
+            int code = 0;
+            interval = c_binary_search_with_guess(x, abscissa.data(), num_points, this->p_seed(x), code);
+            if ((code == -1) || (interval + 1 >= num_points)) { return 0.0; }
+        }
+        const double width = abscissa[interval + 1] - abscissa[interval];
+        return (width > 0.0) ? (values[interval + 1] - values[interval]) / width : 0.0;
     }
 
 private:

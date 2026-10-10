@@ -17,8 +17,8 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 NOT_CONVERGED_MESSAGE = (
     "The power series starting conditions refused to start: the series did not converge at this radius, or the "
-    "solutions grow too steeply there (a weak solid, or a dynamic liquid at long periods); use the Takeuchi or Kamata "
-    "starting conditions, or a smaller radius.")
+    "solutions grow too steeply there (a weak solid, or a compressible dynamic liquid at long periods); use the "
+    "Takeuchi or Kamata starting conditions, unity where those fail too, or a smaller radius.")
 
 
 cdef void cy_power_series_solid(

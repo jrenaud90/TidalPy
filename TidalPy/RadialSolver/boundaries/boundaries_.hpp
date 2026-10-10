@@ -162,23 +162,26 @@ inline double c_estimate_surface_amplification(
         const std::complex<double>* uppermost_y_per_solution_ptr,
         size_t num_sols,
         size_t num_ys,
-        size_t max_num_y) noexcept
+        size_t max_num_y,
+        const double* y_weights_ptr = nullptr) noexcept
 {
     double max_cancellation_scale = 0.0;
     double max_collapsed_mag      = 0.0;
     for (size_t y_i = 0; y_i < num_ys; ++y_i)
     {
+        // Each y in its characteristic size (c_layer_y_weights), so the estimate does not depend on the units.
+        const double weight = y_weights_ptr ? y_weights_ptr[y_i] : 1.0;
         double cancellation_scale = 0.0;
         std::complex<double> collapsed_value(0.0, 0.0);
         for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
         {
             const std::complex<double> constant = constant_vector_ptr[solution_i];
             const std::complex<double> y_value  = uppermost_y_per_solution_ptr[solution_i * max_num_y + y_i];
-            cancellation_scale += std::abs(constant) * std::abs(y_value);
+            cancellation_scale += std::abs(constant) * std::abs(y_value) * weight;
             collapsed_value    += constant * y_value;
         }
         max_cancellation_scale = std::fmax(max_cancellation_scale, cancellation_scale);
-        max_collapsed_mag      = std::fmax(max_collapsed_mag, std::abs(collapsed_value));
+        max_collapsed_mag      = std::fmax(max_collapsed_mag, std::abs(collapsed_value) * weight);
     }
 
     if (max_cancellation_scale <= 0.0)

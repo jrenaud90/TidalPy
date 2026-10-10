@@ -2187,7 +2187,7 @@ cdef class BaseWorld(StructureBase):
         verbose : bool, optional
             Print solver status messages. Default False.
         warnings : bool, optional
-            Emit solver warnings. Default True.
+            Emit solver warnings, and log a failed solve's message when ``raise_on_fail`` is off. Default True.
         love_method : str, optional
             How the Love numbers are obtained. ``None`` (default) uses the world's configured method
             (``set_tide_config(love_method=...)`` or the ``[tides]`` table). ``'radial_solver'``
@@ -2271,10 +2271,13 @@ cdef class BaseWorld(StructureBase):
                 self._world_ptr.get().get_love_surface_rcond())
             cy_check_degree1_frame_residual(self._world_ptr.get().get_love_surface_frame_residual())
         result = self._build_love_result()
-        if raise_on_fail and not result["success"]:
-            raise SolutionFailedError(
-                f"TidalPy: the Love-number solve of world '{self.name}' at frequency {frequency:.6e} rad s-1 "
-                f"failed: {result['message']}")
+        if not result["success"]:
+            failure = (f"TidalPy: the Love-number solve of world '{self.name}' at frequency {frequency:.6e} rad s-1 "
+                       f"failed: {result['message'].strip()}")
+            if raise_on_fail:
+                raise SolutionFailedError(failure)
+            if warnings:
+                log_warning(failure)
         return result
 
     def calc_love_numbers(self, frequencies, **solve_love_numbers_kwargs) -> dict:

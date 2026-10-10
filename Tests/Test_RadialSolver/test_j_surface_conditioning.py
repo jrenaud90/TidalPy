@@ -4,6 +4,8 @@ import math
 import numpy as np
 import pytest
 
+import TidalPy
+from TidalPy.constants import update_constants
 from TidalPy.Rheology import Maxwell
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.RadialSolver.rs_solution import SEVERE_SURFACE_AMPLIFICATION
@@ -66,19 +68,48 @@ def _solved_earth(**kwargs):
     return world, world.solve_love_numbers(frequency=1.0e-5, **kwargs)
 
 
-def test_pathological_solve_records_amplification_and_warns(spdlog_text):
-    """A 1 m starting radius at degree 3 (rcond near 1e-9) reports severe amplification and logs the warning."""
+@pytest.fixture
+def without_orthonormalization(restore_config):
+    """The shooting method with re-orthonormalization off, where a deep start loses its solutions' independence."""
+    TidalPy.config["numerical"]["minimum_solution_independence"] = 0.0
+    update_constants()
+
+
+def test_pathological_solve_records_amplification_and_warns(spdlog_text, without_orthonormalization):
+    """Without re-orthonormalization, a 1 m starting radius at degree 3 leaves the surface system near singular (rcond
+    near 1e-8) and its constants cancelling (an amplification near 1e5 in the radial functions' own sizes), and logs
+    the warning."""
     solution = _run(starting_radius=1.0)
     assert solution.success
-    assert solution.surface_solve_amplification > SEVERE_SURFACE_AMPLIFICATION
+    assert solution.surface_solve_rcond < 1.0e-7
+    assert solution.surface_solve_amplification > 1.0e4
     assert WARNING_TEXT in spdlog_text()
 
 
-def test_singular_start_fails():
-    """A 0.1 m starting radius drops the rcond near 1e-13, below the default floor: the solve fails (k was off by
-    2e-4 at rtol 1e-7 when it was accepted)."""
+def test_singular_start_fails(without_orthonormalization):
+    """Without re-orthonormalization, a 0.1 m starting radius drops the rcond near 1e-13, below the default floor: the
+    solve fails (k was off by 2e-4 at rtol 1e-7 when it was accepted)."""
     with pytest.raises(SolutionFailedError, match="singular to working precision"):
         _run(starting_radius=0.1)
+
+
+@pytest.mark.parametrize('starting_radius', (1.0, 0.1))
+def test_deep_start_stays_conditioned(starting_radius, spdlog_text):
+    """Re-orthonormalizing the solutions keeps a deep start well conditioned and as accurate as the automatic one."""
+    reference = _solve(
+        degree_l=3,
+        solve_for=('tidal',),
+        integration_rtol=1.0e-12,
+        integration_atol=1.0e-14,
+        nondimensionalize=False,
+        warnings=False)
+    solution = _run(starting_radius=starting_radius)
+    assert solution.success
+    assert int(solution.orthonormalizations[0]) > 0
+    assert solution.surface_solve_rcond > 1.0e-3
+    assert solution.surface_solve_amplification < SEVERE_SURFACE_AMPLIFICATION
+    assert abs(solution.k - reference.k) / abs(reference.k) < 1.0e-6
+    assert WARNING_TEXT not in spdlog_text()
 
 
 def test_healthy_solve_is_silent(spdlog_text):

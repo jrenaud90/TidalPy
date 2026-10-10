@@ -15,6 +15,9 @@ cdef extern from "odes_.hpp" nogil:
         double frequency
         size_t layer_index
         c_EOSSolution* eos_solution_ptr
+        size_t num_solutions
+        size_t num_ys
+        double independence_floor
 
     cdef void c_solid_dynamic_compressible(
         double* dy_ptr,

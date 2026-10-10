@@ -1,7 +1,10 @@
 """The shooting method on a 1-layer planet for each layer flag, integrator, degree, and solve type."""
+from functools import lru_cache
+
 import numpy as np
 import pytest
 
+from TidalPy.constants import G
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.Rheology import Maxwell
 
@@ -17,11 +20,27 @@ shear_array = 5.0e10 * np.ones_like(radius_array)
 complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 planet_bulk_density = float(density_array[0])
 upper_radius_by_layer = np.asarray((radius_array[-1],))
+integration_settings = dict(
+    integration_rtol=1.0e-7,
+    integration_atol=1.0e-10,
+    scale_rtols_bylayer_type=False,
+    max_num_steps=5_000_000,
+    expected_size=250,
+    max_step=0,
+    verbose=False,
+    nondimensionalize=True,
+    starting_radius=0.2 * radius_array[-1])
 
 # The incompressible, elastic homogeneous sphere's k_l = (3 / (2 (l - 1))) / (1 + (2 l^2 + 4 l + 3) mu / (l rho g R)).
 # This planet is compressible (K = 2 mu) and barely viscous (Maxwell time about 40 orbits), which moves k_l by well
 # under this tolerance; a wrong boundary condition or start moves it by far more.
 K_TOLERANCE = 0.25
+
+# A liquid planet is checked against the homogeneous inviscid sphere (see _homogeneous_liquid_love). The regular starts
+# match it to 2e-5 (RK23 at this rtol). Unity's unit vectors at 0.2 R carry singular content that decays only as
+# (0.2)^(2l + 1) on the way out, which leaves 1.4e-3 at degree 2.
+LIQUID_TOLERANCE = 1.0e-4
+UNITY_LIQUID_TOLERANCE = 5.0e-3
 
 
 def _homogeneous_k(degree_l):
@@ -30,6 +49,65 @@ def _homogeneous_k(degree_l):
     rigidity = (2 * degree_l**2 + 4 * degree_l + 3) * float(shear_array[0]) / (
         degree_l * planet_bulk_density * surface_gravity * radius)
     return (3.0 / (2.0 * (degree_l - 1))) / (1.0 + rigidity)
+
+
+@lru_cache(maxsize=None)
+def _dynamic_compressible_load_reference(degree_l):
+    """(k, h, l) of a load on the dynamic compressible liquid planet, solved at rtol 1e-10."""
+    solution = radial_solver(
+        radius_array,
+        density_array,
+        bulk_modulus_array,
+        complex_shear_modulus_array,
+        frequency,
+        planet_bulk_density,
+        ('liquid',),
+        (False,),
+        (False,),
+        upper_radius_by_layer,
+        degree_l=degree_l,
+        solve_for=('loading',),
+        starting_method='takeuchi',
+        integration_method='DOP853',
+        integration_rtol=1.0e-10,
+        integration_atol=1.0e-12,
+        starting_radius=0.2 * radius_array[-1],
+        raise_on_fail=True)
+    return complex(solution.k), complex(solution.h), complex(solution.l)
+
+
+def _homogeneous_liquid_love(degree_l, is_static, is_incompressible, solve_type):
+    """(k, h, l) of a homogeneous inviscid liquid sphere of this planet's density and radius.
+
+    Static, a tide gives k = 3 / (2 (l - 1)) and h = (2 l + 1) / (2 (l - 1)), and a load k' = -1 and h' = -(2 l + 1) / 3
+    (the displaced liquid's mass cancels the load's). Dynamic, both scale by 1 / (1 - omega^2 / omega_l^2), with
+    omega_l^2 = (2 l (l - 1) / (2 l + 1)) (4 pi G rho / 3) the sphere's fundamental mode; its flow is a potential flow,
+    so the Shida number is h / l. A static liquid has no horizontal displacement, so l is NaN.
+
+    Assumptions
+    -----------
+    - The static liquid equations do not read the bulk modulus, so a compressible static liquid gives the same numbers.
+    - A tide leaves the Lagrangian pressure perturbation zero throughout a constant-density sphere, so the dynamic
+      compressible liquid compresses nowhere and matches the incompressible forms.
+    - A load's weight does compress it: k' (set by the conserved mass) keeps its form, but h' and l' do not, and are
+      taken from a solve at rtol 1e-10.
+    """
+    surface_gravity_over_radius = 4.0 / 3.0 * np.pi * G * planet_bulk_density
+    if is_static:
+        resonance = 1.0
+    else:
+        mode_frequency2 = 2.0 * degree_l * (degree_l - 1) / (2.0 * degree_l + 1.0) * surface_gravity_over_radius
+        resonance = 1.0 / (1.0 - frequency**2 / mode_frequency2)
+    if solve_type == 'tidal':
+        k_love = 3.0 / (2.0 * (degree_l - 1)) * resonance
+        h_love = (2.0 * degree_l + 1.0) / (2.0 * (degree_l - 1)) * resonance
+    else:
+        k_love = -resonance
+        h_love = -(2.0 * degree_l + 1.0) / 3.0 * resonance
+    l_love = np.nan if is_static else h_love / degree_l
+    if (solve_type == 'loading') and not (is_static or is_incompressible):
+        _, h_love, l_love = _dynamic_compressible_load_reference(degree_l)
+    return k_love, h_love, l_love
 
 
 def _solve_1layer(
@@ -41,50 +119,47 @@ def _solve_1layer(
         starting_method,
         solve_for,
         **kwargs):
-    """Solve a 1-layer planet: every start succeeds with a k_l near the homogeneous sphere's. All-liquid planets are
-    skipped."""
-    # A 1-layer all-liquid planet is numerically unstable.
-    if layer_type != 'solid':
-        pytest.skip('Planets with 1-layer liquid are not currently very stable. Skipping tests.')
-
-    def solve():
-        return radial_solver(
-            radius_array,
-            density_array,
-            bulk_modulus_array,
-            complex_shear_modulus_array,
-            frequency,
-            planet_bulk_density,
-            (layer_type,),
-            (is_static,),
-            (is_incompressible,),
-            upper_radius_by_layer,
-            degree_l=degree_l,
-            solve_for=solve_for,
-            starting_method=starting_method,
-            integration_method=method,
-            integration_rtol=1.0e-7,
-            integration_atol=1.0e-10,
-            scale_rtols_bylayer_type=False,
-            max_num_steps=5_000_000,
-            expected_size=250,
-            max_step=0,
-            verbose=False,
-            nondimensionalize=True,
-            starting_radius=0.2 * radius_array[-1],
-            raise_on_fail=True,
-            **kwargs)
-
-    out = solve()
+    """Solve a 1-layer planet: every start succeeds, a solid with a tidal k_l near the homogeneous sphere's and a liquid
+    with the homogeneous liquid sphere's tidal and load Love numbers."""
+    out = radial_solver(
+        radius_array,
+        density_array,
+        bulk_modulus_array,
+        complex_shear_modulus_array,
+        frequency,
+        planet_bulk_density,
+        (layer_type,),
+        (is_static,),
+        (is_incompressible,),
+        upper_radius_by_layer,
+        degree_l=degree_l,
+        solve_for=solve_for,
+        starting_method=starting_method,
+        integration_method=method,
+        raise_on_fail=True,
+        **integration_settings,
+        **kwargs)
     assert out.success
     assert type(out.message) is str
     assert type(out.result) is np.ndarray
     assert out.result.shape == (len(solve_for) * 6, N)
-    if 'tidal' in solve_for:
-        k_tidal = np.atleast_1d(out.k)[solve_for.index('tidal')]
-        assert k_tidal.real == pytest.approx(_homogeneous_k(degree_l), rel=K_TOLERANCE)
+    for index, solve_type in enumerate(solve_for):
+        k_value = np.atleast_1d(out.k)[index]
+        if layer_type == 'solid':
+            if solve_type == 'tidal':
+                assert k_value.real == pytest.approx(_homogeneous_k(degree_l), rel=K_TOLERANCE)
+            continue
+        if solve_type == 'free':
+            continue
+        tolerance = UNITY_LIQUID_TOLERANCE if starting_method == 'unity' else LIQUID_TOLERANCE
+        expected = _homogeneous_liquid_love(degree_l, is_static, is_incompressible, solve_type)
+        found = (k_value, np.atleast_1d(out.h)[index], np.atleast_1d(out.l)[index])
+        for name, value, target in zip('khl', found, expected):
+            if np.isnan(target):
+                assert np.isnan(value), (solve_type, name, value)
+            else:
+                assert value == pytest.approx(target, rel=tolerance), (solve_type, name, value, target)
     return out
-
 
 
 @pytest.mark.parametrize('layer_type', ("solid", "liquid"))

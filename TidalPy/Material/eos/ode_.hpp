@@ -31,12 +31,22 @@ struct c_EOSOutput
     double thermal_conductivity           = TidalPyConstants::d_NAN;   // SI [W m-1 K-1]
     // SI [1/K]: the latent heat's share of an adiabat's expansivity inside a pressure-dependent melting range.
     double latent_expansion = 0.0;
+    // The buoyancy frequency squared N^2 and d rho / dr along the solved structure, a full state only
+    // (c_preeval_material).
+    double buoyancy_frequency_squared = TidalPyConstants::d_NAN;
+    double density_gradient           = TidalPyConstants::d_NAN;
 };
 
 struct c_EOSMaterialState
 {
     double gravity = TidalPyConstants::d_NAN;
     double density = TidalPyConstants::d_NAN;
+    // The buoyancy frequency squared N^2 of the same density, along the solved structure, and the static (adiabatic)
+    // bulk modulus K_S it is measured against.
+    double buoyancy_frequency_squared = TidalPyConstants::d_NAN;
+    double static_bulk_modulus        = TidalPyConstants::d_NAN;
+    // d rho / dr of the same density.
+    double density_gradient           = TidalPyConstants::d_NAN;
     std::complex<double> shear_modulus = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
     std::complex<double> bulk_modulus  = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
 };
@@ -154,6 +164,37 @@ inline void c_eos_structure_derivatives(
 }
 
 
+/// dT/dr [K per solve length] of a thermal solve's temperature at a point inside the planet: 0, -L / (4 pi r^2 k), or
+/// -(alpha + alpha_L) g T / c_p, by the input's temperature kind, from the material the EOS function reported there
+/// (its conductivity, expansivity, latent expansion, and heat capacity) and the state (g, T, L at indices 0, 4, 5).
+inline double c_eos_temperature_gradient(
+        double radius,
+        const double* y_ptr,
+        const c_EOSOutput& eos_output,
+        const c_EOS_ODEInput& eos_input) noexcept
+{
+    switch (eos_input.temperature_kind)
+    {
+        case c_TemperatureKind::Conductive:
+        {
+            const double conductivity = eos_output.thermal_conductivity;
+            return (conductivity > TidalPyConstants::d_EPS)
+                ? -y_ptr[5] / (C_FOUR_PI * radius * radius * conductivity * eos_input.length_scale) : 0.0;
+        }
+        case c_TemperatureKind::Adiabatic:
+        {
+            const double heat_capacity = eos_output.heat_capacity;
+            const double expansion = eos_output.thermal_expansion + eos_output.latent_expansion;
+            return (heat_capacity > TidalPyConstants::d_EPS)
+                ? -expansion * y_ptr[0] * eos_input.gravity_scale * eos_input.length_scale * y_ptr[4] / heat_capacity
+                : 0.0;
+        }
+        default:
+            return 0.0;
+    }
+}
+
+
 /// CyRK DiffeqFuncType signature.
 inline void c_eos_diffeq(
         double* dy_ptr,
@@ -192,29 +233,7 @@ inline void c_eos_diffeq_thermal(
         return;
     }
 
-    switch (eos_input_ptr->temperature_kind)
-    {
-        case c_TemperatureKind::Conductive:
-        {
-            const double conductivity = eos_output.thermal_conductivity;
-            dy_ptr[4] = (conductivity > TidalPyConstants::d_EPS)
-                ? -y_ptr[5] / (C_FOUR_PI * radius * radius * conductivity * eos_input_ptr->length_scale) : 0.0;
-            break;
-        }
-        case c_TemperatureKind::Adiabatic:
-        {
-            const double heat_capacity = eos_output.heat_capacity;
-            const double expansion = eos_output.thermal_expansion + eos_output.latent_expansion;
-            dy_ptr[4] = (heat_capacity > TidalPyConstants::d_EPS)
-                ? -expansion * y_ptr[0] * eos_input_ptr->gravity_scale
-                    * eos_input_ptr->length_scale * y_ptr[4] / heat_capacity
-                : 0.0;
-            break;
-        }
-        default:
-            dy_ptr[4] = 0.0;
-            break;
-    }
+    dy_ptr[4] = c_eos_temperature_gradient(radius, y_ptr, eos_output, *eos_input_ptr);
     dy_ptr[5] = (eos_input_ptr->heating_ptr != nullptr)
         ? eos_input_ptr->heating_ptr->calc_heat_flow_gradient(eos_input_ptr->layer_index, radius, eos_output.density)
         : 0.0;

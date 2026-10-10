@@ -96,6 +96,8 @@ struct c_EOSPiece
     bool liquid = false;         // solved as a liquid by the radial solver
     // The temperature of an isothermal segment [K], which a solve that does not integrate temperature reports.
     double temperature = TidalPyConstants::d_NAN;
+    // The segment's temperature profile, which sets dT/dr in a solve that integrates temperature.
+    c_TemperatureKind temperature_kind = c_TemperatureKind::Isothermal;
 };
 
 
@@ -228,6 +230,8 @@ public:
     // moduli, and viscosities are evaluated on demand from the interpolated state.
     std::vector<PreEvalFunc>    eos_function_bylayer_vec = std::vector<PreEvalFunc>();
     std::vector<c_EOS_ODEInput> eos_input_bylayer_vec    = std::vector<c_EOS_ODEInput>();
+    // Each piece's copy of its layer's input with the piece's temperature profile, which the buoyancy frequency reads.
+    std::vector<c_EOS_ODEInput> eos_input_bypiece_vec    = std::vector<c_EOS_ODEInput>();
 
     // An interface radius is the last slice of the lower layer and the first slice of the upper one, so a
     // lookup for a layer must stay inside its own slices.
@@ -310,6 +314,7 @@ public:
             }
             this->num_pieces_bylayer_vec[layer_i]++;
         }
+        this->p_update_piece_inputs();
     }
 
     /// The piece of a layer that holds a radius: the first whose top is at or above it, so a radius on the boundary
@@ -449,6 +454,7 @@ public:
         {
             input.full_state = true;
         }
+        this->p_update_piece_inputs();
     }
 
 
@@ -482,6 +488,19 @@ public:
 
 
 protected:
+
+    /// Rebuilds eos_input_bypiece_vec from the layers' inputs and the pieces, once both are set.
+    void p_update_piece_inputs()
+    {
+        this->eos_input_bypiece_vec.clear();
+        for (const c_EOSPiece& piece : this->piece_vec)
+        {
+            if (piece.layer_index >= this->eos_input_bylayer_vec.size()) { break; }
+            this->eos_input_bypiece_vec.push_back(this->eos_input_bylayer_vec[piece.layer_index]);
+            this->eos_input_bypiece_vec.back().temperature_kind = piece.temperature_kind;
+        }
+    }
+
     /// The structure state of a piece at a radius in solve units: a radius just past either end of the piece (the
     /// layer continuity tolerance) is read at that end. False, with NaN, for anything further out, so an integration a
     /// terminal event stopped (whose CyRK domain runs past the root) is never read past its root, or for a piece with
@@ -556,6 +575,9 @@ protected:
             {
                 material_out->gravity       = TidalPyConstants::d_NAN;
                 material_out->density       = TidalPyConstants::d_NAN;
+                material_out->buoyancy_frequency_squared = TidalPyConstants::d_NAN;
+                material_out->density_gradient           = TidalPyConstants::d_NAN;
+                material_out->static_bulk_modulus        = TidalPyConstants::d_NAN;
                 material_out->shear_modulus = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
                 material_out->bulk_modulus  = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
             }
@@ -581,7 +603,8 @@ protected:
             y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = 0.0;
         }
         if (layer_index < this->eos_function_bylayer_vec.size()
-            && this->eos_function_bylayer_vec[layer_index] != nullptr)
+            && this->eos_function_bylayer_vec[layer_index] != nullptr
+            && piece_i < this->eos_input_bypiece_vec.size())
         {
             // Only within the root finder's tolerance of a state root does the material radius differ from the
             // (clamped) radius asked for, and then the material is read at the structure state there.
@@ -609,24 +632,28 @@ protected:
             }
 
             c_EOSOutput eos_output;
-            // The EOS functions take non-const pointers but leave this solution unchanged.
-            char* input_ptr = const_cast<char*>(
-                reinterpret_cast<const char*>(&this->eos_input_bylayer_vec[layer_index]));
             // The EOS function reads the state layout, where a thermal solve keeps its temperature at index
-            // 4; in the evaluation layout that slot is the density this call is about to fill.
+            // 4; in the evaluation layout that slot is the density this call is about to fill. It takes non-const
+            // pointers but leaves the input unchanged.
             this->eos_function_bylayer_vec[layer_index](
-                reinterpret_cast<char*>(&eos_output), material_radius, material_state_ptr, input_ptr);
+                reinterpret_cast<char*>(&eos_output), material_radius, material_state_ptr,
+                const_cast<char*>(reinterpret_cast<const char*>(&this->eos_input_bypiece_vec[piece_i])));
             y_interp_ptr[C_EOS_DENSITY_INDEX]         = eos_output.density;
             y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = eos_output.shear_modulus.real();
             y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = eos_output.bulk_modulus.real();
             y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = eos_output.shear_viscosity;
             y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = eos_output.bulk_viscosity;
             y_interp_ptr[C_EOS_MELT_FRACTION_INDEX]   = eos_output.melt_fraction;
+            y_interp_ptr[C_EOS_BUOYANCY_INDEX]        = eos_output.buoyancy_frequency_squared;
+            y_interp_ptr[C_EOS_DENSITY_GRADIENT_INDEX] = eos_output.density_gradient;
             if (material_out)
             {
-                material_out->density       = eos_output.density;
-                material_out->shear_modulus = eos_output.shear_modulus;
-                material_out->bulk_modulus  = eos_output.bulk_modulus;
+                material_out->density                    = eos_output.density;
+                material_out->buoyancy_frequency_squared = eos_output.buoyancy_frequency_squared;
+                material_out->density_gradient           = eos_output.density_gradient;
+                material_out->static_bulk_modulus        = eos_output.bulk_modulus.real();
+                material_out->shear_modulus              = eos_output.shear_modulus;
+                material_out->bulk_modulus               = eos_output.bulk_modulus;
             }
         }
         else
@@ -637,12 +664,15 @@ protected:
                 y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
             }
             y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_BUOYANCY_INDEX]      = TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_DENSITY_GRADIENT_INDEX] = TidalPyConstants::d_NAN;
         }
     }
 
 
-    /// Applies to the structure variables, density, and the two static moduli. The viscosities and
-    /// everything past them are SI in every state and are left alone.
+    /// Applies to the structure variables, density, the two static moduli, N^2 (in gravity per length), and the density
+    /// gradient (in density per length). The
+    /// viscosities, temperature, heat flow, and melt fraction are SI in every state and are left alone.
     void p_rescale_outputs(double* y_interp_ptr, const size_t count) const noexcept
     {
         if (this->nondim_status == 0)
@@ -654,12 +684,18 @@ protected:
             this->redim_gravity_scale, this->redim_pascal_scale, this->redim_mass_scale, this->redim_moi_scale,
             this->redim_density_scale, this->redim_pascal_scale, this->redim_pascal_scale};
         const size_t limit = (count < scaled_values) ? count : scaled_values;
+        const bool has_buoyancy = (count > C_EOS_BUOYANCY_INDEX);
+        const bool has_gradient = (count > C_EOS_DENSITY_GRADIENT_INDEX);
+        const double buoyancy_scale = this->redim_gravity_scale / this->redim_length_scale;
+        const double gradient_scale = this->redim_density_scale / this->redim_length_scale;
         if (this->nondim_status == 1)
         {
             for (size_t value_i = 0; value_i < limit; ++value_i)
             {
                 y_interp_ptr[value_i] *= scales[value_i];
             }
+            if (has_buoyancy) { y_interp_ptr[C_EOS_BUOYANCY_INDEX] *= buoyancy_scale; }
+            if (has_gradient) { y_interp_ptr[C_EOS_DENSITY_GRADIENT_INDEX] *= gradient_scale; }
         }
         else
         {
@@ -667,6 +703,8 @@ protected:
             {
                 y_interp_ptr[value_i] /= scales[value_i];
             }
+            if (has_buoyancy) { y_interp_ptr[C_EOS_BUOYANCY_INDEX] /= buoyancy_scale; }
+            if (has_gradient) { y_interp_ptr[C_EOS_DENSITY_GRADIENT_INDEX] /= gradient_scale; }
         }
     }
 
@@ -753,6 +791,11 @@ public:
                 layer_index, radius_val * this->p_structure_length_scale, state, out.shear_modulus, out.bulk_modulus);
             out.gravity        = state[0] / this->p_structure_gravity_scale;
             out.density        = state[C_EOS_DENSITY_INDEX] / this->p_structure_density_scale;
+            out.buoyancy_frequency_squared = state[C_EOS_BUOYANCY_INDEX] * this->p_structure_length_scale
+                / this->p_structure_gravity_scale;
+            out.static_bulk_modulus = state[C_EOS_BULK_MODULUS_INDEX] / this->p_structure_pascal_scale;
+            out.density_gradient = state[C_EOS_DENSITY_GRADIENT_INDEX] * this->p_structure_length_scale
+                / this->p_structure_density_scale;
             out.shear_modulus /= this->p_structure_pascal_scale;
             out.bulk_modulus  /= this->p_structure_pascal_scale;
             return;
@@ -770,6 +813,9 @@ public:
         {
             out.gravity       *= this->redim_gravity_scale;
             out.density       *= this->redim_density_scale;
+            out.buoyancy_frequency_squared *= this->redim_gravity_scale / this->redim_length_scale;
+            out.density_gradient *= this->redim_density_scale / this->redim_length_scale;
+            out.static_bulk_modulus *= this->redim_pascal_scale;
             out.shear_modulus *= this->redim_pascal_scale;
             out.bulk_modulus  *= this->redim_pascal_scale;
         }
@@ -777,6 +823,9 @@ public:
         {
             out.gravity       /= this->redim_gravity_scale;
             out.density       /= this->redim_density_scale;
+            out.buoyancy_frequency_squared /= this->redim_gravity_scale / this->redim_length_scale;
+            out.density_gradient /= this->redim_density_scale / this->redim_length_scale;
+            out.static_bulk_modulus /= this->redim_pascal_scale;
             out.shear_modulus /= this->redim_pascal_scale;
             out.bulk_modulus  /= this->redim_pascal_scale;
         }

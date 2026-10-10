@@ -108,9 +108,11 @@ def test_regular_solve_reports_a_healthy_rcond(starting_method, degree_l):
     assert "rcond" in diagnostics
 
 
-def test_singular_surface_system_fails():
+def test_singular_surface_system_fails(numerical_setter):
     """A surface system singular to working precision fails (error -13) and raises when asked to."""
-    # A 0.1 m start at degree 3 leaves the independent solutions numerically dependent at the surface (rcond 2e-13).
+    # Without re-orthonormalization, a 0.1 m start at degree 3 leaves the independent solutions numerically dependent
+    # at the surface (rcond 2e-13). With it, the same start solves to 1e-9 of the automatic start.
+    numerical_setter("minimum_solution_independence", 0.0)
     solution = radial_solver(*_static_one_layer_inputs(), degree_l=3, starting_radius=0.1)
     assert not solution.success
     assert solution.error_code == -13
@@ -120,6 +122,17 @@ def test_singular_surface_system_fails():
 
     with pytest.raises(SolutionFailedError, match="singular"):
         radial_solver(*_static_one_layer_inputs(), degree_l=3, starting_radius=0.1, raise_on_fail=True)
+
+
+def test_a_deep_start_is_re_orthonormalized():
+    """With re-orthonormalization on, the 0.1 m start whose surface system is singular without it solves to the
+    automatic start's Love number, well conditioned."""
+    deep = radial_solver(*_static_one_layer_inputs(), degree_l=3, starting_radius=0.1, warnings=False)
+    automatic = radial_solver(*_static_one_layer_inputs(), degree_l=3, warnings=False)
+    assert deep.success, deep.message
+    assert int(deep.orthonormalizations[0]) > 0
+    assert deep.surface_solve_rcond > 1.0e-2
+    assert abs(complex(deep.k) - complex(automatic.k)) < 1.0e-8 * abs(complex(automatic.k))
 
 
 def test_the_threshold_is_read_from_the_config(numerical_setter):

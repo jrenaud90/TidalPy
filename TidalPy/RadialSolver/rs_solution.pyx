@@ -24,6 +24,8 @@ from TidalPy.Material.eos.ode cimport (
     C_EOS_TEMPERATURE_INDEX,
     C_EOS_HEAT_FLOW_INDEX,
     C_EOS_MELT_FRACTION_INDEX,
+    C_EOS_BUOYANCY_INDEX,
+    C_EOS_DENSITY_GRADIENT_INDEX,
 )
 from TidalPy.constants cimport d_PI
 
@@ -46,6 +48,8 @@ cdef tuple cy_eos_field_names():
     names[C_EOS_TEMPERATURE_INDEX]     = "temperature"
     names[C_EOS_HEAT_FLOW_INDEX]       = "heat_flow"
     names[C_EOS_MELT_FRACTION_INDEX]   = "melt_fraction"
+    names[C_EOS_BUOYANCY_INDEX]        = "buoyancy_frequency_squared"
+    names[C_EOS_DENSITY_GRADIENT_INDEX] = "density_gradient"
     if None in names:
         raise RuntimeError("TidalPy: the dense EOS layout has a slot with no field name.")
     return tuple(names)
@@ -53,7 +57,8 @@ cdef tuple cy_eos_field_names():
 # Field names of `RadialSolverSolution.eos_call`, in layout order.
 EOS_CALL_FIELDS = cy_eos_field_names()
 
-# The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
+# The severe threshold sits far above the amplification of a healthy automatic-starting-radius solve, 1 to 10 with each
+# radial function in its characteristic size.
 DBL_EPSILON = np.finfo(np.float64).eps
 SEVERE_SURFACE_AMPLIFICATION = 1.0e8
 # A degree-1 loading solve's frame residual above this is warned about. A static body meets the replaced condition to
@@ -99,8 +104,9 @@ cdef bint cy_check_surface_solve_conditioning(
             f"~{surface_amplification:0.1e}; achievable relative accuracy "
             f"~{surface_amplification * DBL_EPSILON:0.1e}; reciprocal condition number "
             f"{surface_rcond:0.1e}; requested integration rtol {integration_rtol:0.1e}). Love numbers and "
-            f"surface outputs may be much less accurate than requested. A larger (or automatic) starting radius "
-            f"improves conditioning; tightening tolerances cannot beat the roundoff floor.")
+            f"surface outputs may be much less accurate than requested. If [numerical] "
+            f"minimum_solution_independence is 0, set it above 0 to re-orthonormalize the solutions; otherwise "
+            f"compare a solve at a tighter rtol. Tightening tolerances cannot beat the roundoff floor.")
         return True
     return False
 
@@ -451,10 +457,13 @@ cdef class RadialSolverSolution:
         log_message += f"\n\t\tSuccess:     {self.success}"
         log_message += f"\n\t\tError code:  {self.error_code}"
         log_message += f"\n\t\tMessage:     {self.message}"
-        log_message += f"\n\t\tSteps Taken (per sub-solution):"
+        log_message += f"\n\t\tSteps taken and re-orthonormalizations, per layer:"
         cdef size_t layer_i
+        steps_taken = self.steps_taken
+        orthonormalizations = self.orthonormalizations
         for layer_i in range(self.num_layers):
-            log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
+            log_message += (f"\n\t\t\tLayer {layer_i} = {int(np.max(steps_taken[layer_i]))} steps, "
+                            f"{int(orthonormalizations[layer_i])} re-orthonormalizations")
         log_message += f"\n\t\tSurface solve amplification:  {self.surface_solve_amplification:0.3e}"
         log_message += f"\n\t\tSurface solve rcond:          {self.surface_solve_rcond:0.3e}"
         if self.degree_l == 1:
@@ -809,7 +818,24 @@ cdef class RadialSolverSolution:
 
     @property
     def steps_taken(self):
+        """Integration steps of the shooting method, one row per layer and one column per independent solution.
+
+        A layer's solutions are integrated together, so each holds the layer's whole count across its
+        re-orthonormalized segments; a layer with fewer than three solutions leaves the rest 0. Zero for the
+        propagation matrix method.
+        """
         return np.copy(self.shooting_method_steps_taken_array)
+
+    @property
+    def orthonormalizations(self):
+        """How many times the shooting method re-orthonormalized each layer's solutions, one entry per layer.
+
+        A layer's independent solutions are integrated together, and where their normalized Gram determinant has fallen
+        by the factor ``[numerical] minimum_solution_independence`` since the segment began they are replaced by an
+        orthonormal basis of their span, which keeps the surface solve well conditioned. Zero for the propagation
+        matrix method.
+        """
+        return np.asarray(self.solution_storage_ptr.shooting_method_orthonormalizations_vec, dtype=np.uint64)
 
     @property
     def surface_solve_amplification(self):
@@ -817,8 +843,10 @@ cdef class RadialSolverSolution:
 
         Large cancelling collapse constants, from deep starting radii or high degrees, amplify roundoff and
         integration error into the Love numbers by up to this factor, so the achievable relative accuracy is
-        about this times machine epsilon. Near 1 is well conditioned; 0 for the propagation matrix method. It
-        measures cancellation only and can read 1 for a singular system; :attr:`surface_solve_rcond` gives the rank.
+        about this times machine epsilon. Each radial function is measured in its characteristic size, so SI and
+        non-dimensional solves report the same value. Near 1 is well conditioned; 0 for the propagation matrix method.
+        It measures cancellation only and can read 1 for a singular system; :attr:`surface_solve_rcond` gives the
+        rank.
         """
         return self.solution_storage_ptr.surface_amplification
 

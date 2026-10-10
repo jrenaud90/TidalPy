@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-10-09_
+_Updated: 2026-10-10_
 
 TidalPy reads its settings from one file, `TidalPy_Configs.toml`, when the package is first imported. The file sits in the TidalPy data directory inside your documents directory:
 
@@ -118,18 +118,18 @@ The other `[radial_solver]` keys:
 - `degree1_frame = "CE"`: the frame of degree-1 load Love numbers, `"CE"`, `"CM"`, `"CF"`, `"CL"`, or `"CH"` (Blewitt 2003). Only a degree-1 loading solve reads it; see [Degree-1 Load Love Numbers](../RadialSolver/calculating_love_numbers.md#degree-1-load-love-numbers).
 - `start_radius_tolerance = 1.0e-5`: sets the automatic starting radius $R\, \tau^{1/l}$, where $\tau$ is this tolerance, capped by `[numerical] max_start_radius_fraction`.
 - `scale_rtols = false`: tighten the `rtol` of the stress-like radial functions by layer type (experimental).
-- `max_num_steps = 500000`, `expected_size = 128`, `max_ram_mb = 500`: the step cap, the initial storage in steps (it grows as needed), and the memory cap \[MB\].
+- `max_num_steps = 500000`, `expected_size = 128`, `max_ram_mb = 500`: the step cap per layer (0 lets the memory cap set it), the initial storage in steps (it grows as needed), and the memory cap \[MB\] of the integration and the dense solution it keeps.
 
 ### Accuracy of the Defaults
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same for every planet. The defaults come from a convergence study over the bundled worlds and synthetic models:
 
-- DOP853 gave the most accuracy per millisecond on both solves. RK45 needs a hundred times tighter `rtol` for the same Love-number error; the implicit methods are slower and no more accurate.
+- DOP853 gave the most accuracy per millisecond on both solves. RK45 needs a few times tighter `rtol` for the same Love-number error; the implicit methods are slower and no more accurate.
 - The EOS tolerances converge mass, moment of inertia, and surface gravity to about 1e-8, at almost no cost.
-- At `rtol = atol = 3e-8`, Love numbers are within about 4e-6 of an `rtol = 1e-11` reference (90 percent within 4e-7). A Love solve takes a fraction of a millisecond on a cached world.
+- At `rtol = atol = 3e-8`, the bundled worlds' Love numbers are within about 3e-7 of an `rtol = 1e-12` reference (90 percent within 7e-8), and PREM's load $l'$ within 4e-6. An imaginary part far smaller than the real part carries about the same absolute error, so `earth_thermal`'s $\mathrm{Im}\,k_2$ and $\mathrm{Im}\,h_2$ are good to 1.4e-5 and 2.6e-5 of their own size. A Love solve takes a fraction of a millisecond on a cached world.
 - To tighten, lower `rtol` and `atol` together; a small `atol` alone costs steps without improving the Love numbers. Below about 1e-7, neighboring tolerances can differ in error by a factor of a few.
 
-Limits: a dynamic liquid layer at a long forcing period is ill-conditioned at any tolerance (use a static liquid), and an interpolated PREM-style profile is limited by its tabulation (its Love numbers move in the fifth digit with the slice count), not by the integrator.
+Limits: a stratified dynamic liquid layer at a long forcing period takes steps in proportion to the period, since its buoyancy solutions shorten with it. A neutral one, whose density follows its bulk modulus, keeps a flat step count, 4 to 9 steps through the liquid at every period down to $10^{-16}$ rad s$^{-1}$ in the bundled `_dynamic` worlds. An interpolated PREM-style profile is limited by its tabulation (its Love numbers move in the fifth digit with the slice count), not by the integrator.
 
 ## Numerical Settings
 
@@ -146,6 +146,7 @@ Limits: a dynamic liquid layer at a long forcing period is ill-conditioned at an
 - `layer_continuity_rtol = 1.0e-6`: how closely a layer's inner radius must match the previous outer radius, and how far past a layer end a profile read snaps onto the end.
 - `max_start_radius_fraction = 0.90`: the largest radial-solver starting radius over the planet radius; the automatic choice is capped here and a larger supplied one refused.
 - `minimum_surface_rcond = 1.0e-12`: the reciprocal condition number below which the surface boundary-condition system counts as singular and the radial solve fails.
+- `minimum_solution_independence = 1.0e-4`: the shooting method re-orthonormalizes a layer's independent solutions where its integration has driven their normalized Gram determinant (1 when orthogonal, 0 when dependent) down by this factor. It keeps long-period dynamic liquids and near-static solids well conditioned. The determinant, like `surface_solve_amplification`, is taken with each radial function scaled to its characteristic size, so a solve in SI units restarts where a non-dimensional one does. Values between 1e-6 and 1e-2 gave the same Love numbers on the bundled worlds, and a larger one restarts the integration more often. The value must be at least 0 and below 1, and 0 turns it off.
 - `frequency_match_rtol = 1.0e-9`: how close two mode frequencies must be to share a radial solve, and how small a frequency counts as zero.
 - `minimum_nusselt = 1.0`: the floor of the convection cooling model's Nusselt number.
 - `maximum_eos_mass_ratio = 10.0`: the largest factor between a world's solved and stated mass before its EOS solve fails.

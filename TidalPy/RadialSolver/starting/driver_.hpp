@@ -108,8 +108,9 @@ inline void c_find_starting_conditions(
             *success_ptr = false;
             message = "RadialSolver::Shooting::FindStartingConditions: The power series starting conditions refused "
                 "to start: the series did not converge at the starting radius, or the solutions grow too steeply "
-                "there (a weak solid, or a dynamic liquid at long periods).\n"
-                "Recommend starting_method='takeuchi' or 'kamata', or a smaller starting radius.";
+                "there (a weak solid, or a compressible dynamic liquid at long periods).\n"
+                "Recommend starting_method='takeuchi' or 'kamata', 'unity' where those fail too, or a smaller "
+                "starting radius.";
             return;
         }
     }

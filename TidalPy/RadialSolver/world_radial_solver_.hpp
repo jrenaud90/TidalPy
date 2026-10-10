@@ -295,6 +295,7 @@ public:
         storage->surface_frame_residual = TidalPyConstants::d_NAN;
         storage->p_degree1_frame       = rt.degree1_frame;
         std::fill(storage->shooting_method_steps_taken_vec.begin(), storage->shooting_method_steps_taken_vec.end(), 0);
+        storage->shooting_method_orthonormalizations_vec.assign(storage->num_layers, 0);
         storage->p_bc_models = rt.bc_models;
         storage->p_love_frequency_si = rt.frequency;
         this->p_solved      = false;

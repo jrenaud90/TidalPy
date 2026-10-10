@@ -1,6 +1,6 @@
 # Starting Conditions (`RadialSolver.starting`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-10_
 
 The shooting method integrates its independent solutions (three in a solid, two in a dynamic liquid, one in a static liquid) outward from a starting radius near the center. The starting conditions are their values there. `starting_method` chooses them; `radial_solver`, `BaseWorld.solve_love_numbers`, and the `[radial_solver]` configuration and world tables all take it. The default is `"takeuchi"`.
 
@@ -15,13 +15,13 @@ Every method covers every layer type. All but unity start from solutions regular
 
 ## Choosing a Method
 
-- `"takeuchi"`, the default, is accurate wherever the starting layer is not a weak solid, and is the cheapest along with the power series.
-- `"kamata"` was at least as accurate as Takeuchi and Saito in every comparison, and far more so in weak solid starting layers, at 1.0 to 3.1 times the cost. Use it for a weak solid starting layer (a viscoelastic $|\mu^*|$ far below $\rho g R$, as in a low-viscosity Maxwell mantle at tidal periods), or when the extra digits matter.
+- `"takeuchi"`, the default, is accurate wherever it solves, weak solid starting layers included (a very weak one can make it fail; see the note below), and is the cheapest along with the power series.
+- `"kamata"` was as accurate as Takeuchi and Saito at degrees 2 to 10 (median errors within a factor of two of each other) at about 1.1 times the cost (see [Size of the Starting Vectors](#size-of-the-starting-vectors)). At degrees 20 to 40 its errors were lower, up to 1000 times (`luna` at degree 40: 2.5e-9 against 1.9e-6).
 - `"power_series"` costs about as much as Takeuchi and Saito and gives the same Love numbers where it starts. It needs no special functions and stays finite without gravity, where the compressible Takeuchi and Saito forms and every Kamata form divide by $\gamma$. It refuses to start in a weak solid or deep in an exponential regime.
-- `"unity"` assumes nothing about the layer. Use it to test whether a result depends on the start.
+- `"unity"` assumes nothing about the layer, so it also starts where the closed forms overflow, inside a dynamic liquid at long periods and in a very weak solid. Its start leaves an error that depends on the starting radius and grows large at periods of minutes (see [Unity](#unity)). Use it there, and to test whether a result depends on the start.
 
-> [!WARNING]
-> In a very weak solid starting layer ($|\mu^*|$ near $10^{-4} \rho g R$ and below), the solve is ill-conditioned for every start. The `[numerical] minimum_surface_rcond` floor of $10^{-12}$ refuses most such solves, but not all: with an $\eta = 10^{10}$ Maxwell start, degree 3 Takeuchi and Saito and power series solves succeeded with $k$ off by 0.6 at a `surface_solve_rcond` of $1.1 \times 10^{-12}$. A solve whose rcond is below the integration `rtol` logs a conditioning warning. Check `surface_solve_rcond`, use `"kamata"`, and tighten the tolerances.
+> [!NOTE]
+> In a very weak solid starting layer the closed-form solutions grow steeply across the layer, and the integrator can fail to follow them. With an $\eta = 10^5$ Pa s Maxwell start ($|\mu^*| \approx 10^{-11} \rho g R$, the weak solid model of [Accuracy and Cost](#accuracy-and-cost)), Takeuchi and Saito failed from degree 5 and Kamata from degree 10 with error code -11 ("Required step size is less than spacing between numbers"), and the power series refused. Unity solved every degree from 2 to 20, and the starts that did solve agreed with it to 1e-10. Tighter tolerances fail sooner. Use `"unity"` there.
 
 ## Setting the Method
 
@@ -127,21 +127,21 @@ The closed forms carry that growth analytically and apply in all four cases. Whe
 
 The unit vectors are $y_1$, $y_4$, and $y_6$ in a solid, $y_1$ and $y_6$ in a dynamic liquid, and $y_7$ in a static liquid: the leading components of Martens' free-constant solutions. This set's errors were within a factor of two of the best set of unit vectors on homogeneous bodies; sets that include $y_3$ can leave the regular solutions degenerate.
 
-A unit vector holds singular content as well as regular. Integrating outward, the singular part decays relative to the regular part as $(r_0 / r)^{2l - 1}$ in a solid and $(r_0 / r)^{2l + 1}$ in a liquid, where $r_0$ is the starting radius. Its surface error therefore depends on the starting radius, not the integration tolerance. Unity is a check on the other methods, not a default, and is unreliable in a weak solid starting layer.
+A unit vector holds singular content as well as regular. Integrating outward, the singular part decays relative to the regular part as $(r_0 / r)^{2l - 1}$ in a solid and $(r_0 / r)^{2l + 1}$ in a liquid, where $r_0$ is the starting radius. Its surface error therefore depends on the starting radius, not the integration tolerance. Where the solutions oscillate at the start (a large $\omega r_0 / \beta$, at periods of minutes) the singular part need not decay: in a homogeneous solid at degrees 8, 10, and 20 with $\omega r_0 / \beta$ = 10, 20, and 40, unity was off by 1e-3 or more in 8 of the 9 cases (by 1 at degree 20 and 20) while the closed forms agreed to 1e-5. Unity is a check on the other methods and a start where they overflow, not a default.
 
 ## Accuracy and Cost
 
-One-time measurements (2026-10-07, TidalPy 0.8.0), with errors in $k$ against references at `rtol = 1e-12` and costs relative to Takeuchi and Saito:
+One-time measurements (2026-10-09, TidalPy 0.8.0), with errors in $k$ against references at `rtol = 1e-12` and costs relative to Takeuchi and Saito:
 
-- **Bundled worlds** (every world as bundled, with dynamic solids, all dynamic, all dynamic with incompressible liquids, and with incompressible solids; degrees 2 to 10, periods 0.5 to 30 days, packaged settings; 1367 solves per method, median 0.36 ms): median errors of 1.7e-9 for Kamata, 5.5e-9 for Takeuchi and Saito, 9.6e-9 for the power series, and 1.6e-7 for unity, at median costs of 1.44, 1.00, 1.04, and 1.38. Unity was off by more than $10^{-5}$ in 15.7% of solves, the others in 2.6 to 4.1%.
-- **Weak solid start** (a Maxwell solid, $\mu$ = 60 GPa, under a 171 km elastic lid, 1.8 day period, degrees 2 to 20): at $\eta = 10^{11}$ Pa s, median errors of 8e-12 for Kamata (at 2.6 times the cost), 6e-7 for Takeuchi and Saito, 3e-9 for the power series (which refused 2 of 5 starts), and 3e-2 for unity. At $\eta = 10^{10}$ only Kamata stayed usable (4 of 5 solves, 8e-5); the others were off by 0.3 or failed. At $\eta = 10^{9}$ the rcond floor refused every solve.
-- On homogeneous solids and a liquid core under a solid mantle, every median error was between 2e-9 and 7e-8, except unity's 2e-7 on homogeneous solids.
-- Every method failed some dynamic-liquid solves at long periods, where the solutions grow exponentially. The rcond floor refused the badly wrong answers (in the bundled worlds, one Kamata and eight unity solves with $k$ off by $10^{-3}$ to 13).
-- The start itself takes 0.3 to 1.1 µs for the closed forms and up to 13 µs for the power series, against a 0.2 to 0.5 ms solve. The cost differences come from the integration.
+- **Bundled worlds** (every world as bundled, with dynamic solids, all dynamic, all dynamic with incompressible liquids, and with incompressible solids; degrees 2 to 10, periods 0.5 to 30 days, packaged settings; 1427 solves per method, median 0.24 ms): median errors of 7.4e-10 for Kamata, 1.1e-9 for Takeuchi and Saito and for the power series, and 2.3e-9 for unity, at median costs of 1.12, 1.00, 1.02, and 1.16. No solve was off by more than $10^{-5}$, and the largest errors were 8.0e-7, 9.6e-7, 1.9e-6, and 8.5e-6. Every failure was a start inside a dynamic liquid (below): 31 for Takeuchi and Saito and for Kamata, 78 for the power series, and none for unity.
+- **Weak solid start** (a Maxwell solid, $\mu$ = 60 GPa, under a 171 km elastic lid, 1.8 day period, degrees 2 to 20): at $\eta = 10^{11}$, $10^{10}$, and $10^{9}$ Pa s every closed-form and unity start solved, with median errors between 3e-12 and 2e-10 (unity's the largest) and a `surface_solve_rcond` of at least 5e-4. The power series refused 2 or 3 of the 5 starts. Kamata cost 0.9 to 1.2 times Takeuchi and Saito.
+- On homogeneous solids and a liquid core under a solid mantle, every median error was between 5e-10 and 2e-8, except unity's 3e-8 on homogeneous solids.
+- Every closed-form and series start treats a dynamic liquid as a homogeneous liquid sphere. Where the liquid is compressible, that constant density is unstably stratified, so at long periods the regular solutions grow exponentially from the center and a start inside the liquid fails. An incompressible dynamic liquid of constant density is neutral, and starts inside it solve (`luna_dynamic`'s outer core made incompressible solves at 200, 1000, and $10^4$ days). In `luna_dynamic`'s outer core at degree 5, the Takeuchi and Saito and Kamata starts solve at 150 days and fail from 200 days, and the power series refuses from about 10 days. Unity's unit vectors carry no such growth, and there it solved out to 1000 days, within 4e-9 of a start in the solid inner core. In the bundled worlds it solved all 31 starts inside a dynamic liquid core that the closed forms failed, consistent to 2e-8 across starting radii where the deeper starts solved. A start in the layer below the liquid, with a manual `starting_radius`, also avoids the failure.
+- The start itself takes 0.5 to 1.6 µs for the closed forms and up to 14 µs for the power series, against a 0.1 to 1 ms solve. The cost differences come from the integration.
 
 ### Size of the Starting Vectors
 
-Kamata's starting vectors are larger than the others' by the factor $r^{-l}$. The integrator measures its absolute tolerance against those sizes, so Kamata's start is integrated to a tighter effective tolerance: that is its extra accuracy and its extra cost. Scaling every start to unit size equalized the methods. In the $\eta = 10^{10}$ Maxwell start, Takeuchi and Saito reached Kamata's value with `atol` lowered to $10^{-14}$, so tightening `atol` is an alternative to switching methods.
+Kamata's starting vectors are larger than the others' by the factor $r^{-l}$. The integrator measures its absolute tolerance against those sizes, so Kamata's start is integrated to a tighter effective tolerance: that is its small edge in accuracy and its extra cost. A lower `atol` does the same for the other starts. On the bundled worlds as bundled, Takeuchi and Saito at `atol = 1e-10` had a median error of 3.9e-10 against Kamata's 1.0e-9 at the defaults, with 1.3 times the steps.
 
 ### Validation
 
