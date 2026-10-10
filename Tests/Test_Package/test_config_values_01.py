@@ -27,15 +27,18 @@ def packaged():
     {"tides": {"fixed_q": 100.0}},
     {"radial_solver": {"starting_method": "bessel"}},
     {"eos_solver": {"integration_method": "euler"}},
+    {"radial_solver": {"integration_method": "vern9"}},
     {"numerical": {"minimum_frequency": 0.0}},
     {"evolution": {"method": "RK45"}},
+    {"evolution": {"method": "Vern8"}},
     {"evolution": {"spin_rtol": -1.0}},
     {"evolution": {"max_wall_time": -1.0}},
     {"evolution": {"evolve_thermal": "false"}},
 ], ids=["level_name", "level_number", "level_bool", "negative_rtol", "float_iterations", "int_for_bool",
         "zero_frequency_ceiling", "negative_threads", "per_type_world_string", "scalar_for_list",
-        "starting_method_name", "integration_method_name", "zero_frequency_floor", "explicit_evolution_method",
-        "negative_evolution_rtol", "negative_wall_time", "string_for_evolve_thermal"])
+        "starting_method_name", "integration_method_name", "near_integration_method_name", "zero_frequency_floor",
+        "explicit_evolution_method", "new_explicit_evolution_method", "negative_evolution_rtol", "negative_wall_time",
+        "string_for_evolve_thermal"])
 def test_unusable_values_are_found(packaged, override):
     assert len(find_invalid_config_values(override, packaged)) == 1
 
@@ -49,8 +52,11 @@ def test_unusable_values_are_found(packaged, override):
     {"numerical": {"love_solve_threads": 0}},
     {"not_a_section": {"x": 1}},
     {"radial_solver": {"starting_method": "PS", "integration_method": "lsoda"}},
+    {"eos_solver": {"integration_method": "TSIT5"}, "radial_solver": {"integration_method": "vern7"}},
+    {"eos_solver": {"integration_method": "Vern8"}, "radial_solver": {"integration_method": "Tsit5"}},
 ], ids=["levels", "int_for_float", "truncation_names", "per_type_tides", "material_table", "zero_threads",
-        "unknown_keys_left_to_the_key_check", "method_names_any_case"])
+        "unknown_keys_left_to_the_key_check", "method_names_any_case", "new_explicit_methods_any_case",
+        "new_explicit_methods"])
 def test_usable_values_pass(packaged, override):
     assert find_invalid_config_values(override, packaged) == []
 

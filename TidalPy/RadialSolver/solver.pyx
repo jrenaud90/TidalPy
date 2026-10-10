@@ -196,7 +196,7 @@ def radial_solver(
         Starting conditions: 'takeuchi' (Takeuchi and Saito 1972; alias 'ts'), 'kamata' (Kamata et al. 2015),
         'power_series' (Martens 2016; aliases 'powerseries', 'ps', 'martens'), or 'unity' (unit vectors).
     integration_method, eos_integration_method : str, optional
-        CyRK method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
+        CyRK method: 'RK23', 'RK45', 'DOP853', 'Tsit5', 'Vern7', 'Vern8', 'BDF', 'LSODA', or 'Radau'.
     integration_rtol, integration_atol, eos_rtol, eos_atol : float64, optional
         Integration tolerances.
     scale_rtols_bylayer_type : bool, optional

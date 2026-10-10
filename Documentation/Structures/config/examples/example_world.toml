@@ -18,7 +18,7 @@ moment_of_inertia_factor = 0.36     # C / (M R^2), used until the equation of st
 
 # This world's solver settings: they win over TidalPy_Configs.toml, and a call's own argument wins over both.
 [eos_solver]
-integration_method = "DOP853"       # DOP853 | RK45 | RK23 | BDF | LSODA | Radau
+integration_method = "DOP853"       # DOP853 | RK45 | RK23 | Tsit5 | Vern7 | Vern8 | BDF | LSODA | Radau
 rtol = 1.0e-10
 atol = 1.0e-14
 pressure_tol = 1.0e-8               # surface-pressure mismatch that ends the central-pressure iteration

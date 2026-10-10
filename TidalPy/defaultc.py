@@ -120,8 +120,9 @@ schema_version = "{SCHEMA_VERSION}"
 # arguments win over these, and a world file's own [eos_solver] table wins for that world.
 # =====================================================================================================================
 [eos_solver]
-    # "DOP853", "RK45", "RK23", or implicit "BDF", "LSODA", "Radau". These tolerances converge mass, moment of
-    # inertia, and surface gravity to about 1e-8 (from a convergence study over bundled and synthetic worlds).
+    # "DOP853", "RK45", "RK23", "Tsit5", "Vern7", "Vern8", or implicit "BDF", "LSODA", "Radau". These tolerances
+    # converge mass, moment of inertia, and surface gravity to about 1e-8 (from a convergence study over bundled and
+    # synthetic worlds).
     integration_method = "DOP853"
     rtol = 1.0e-10
     atol = 1.0e-14
@@ -148,10 +149,10 @@ schema_version = "{SCHEMA_VERSION}"
 # call's arguments win over these, and a world file's own [radial_solver] table wins for that world.
 # =====================================================================================================================
 [radial_solver]
-    # "DOP853", "RK45", "RK23", or implicit "BDF", "LSODA", "Radau". These settings keep the bundled worlds' Love
-    # numbers within about 3e-7 of an rtol 1e-12 reference (PREM's load l' 4e-6). A small imaginary part keeps that
-    # absolute error, so earth_thermal's Im(k2) and Im(h2) are good to 1.4e-5 and 2.6e-5 of their own size. RK45
-    # needs a few times tighter rtol to match.
+    # "DOP853", "RK45", "RK23", "Tsit5", "Vern7", "Vern8", or implicit "BDF", "LSODA", "Radau". These settings keep
+    # the bundled worlds' Love numbers within about 3e-7 of an rtol 1e-12 reference (PREM's load l' 4e-6). A small
+    # imaginary part keeps that absolute error, so earth_thermal's Im(k2) and Im(h2) are good to 1.4e-5 and 2.6e-5 of
+    # their own size. RK45 needs a few times tighter rtol to match.
     integration_method = "DOP853"
     rtol = 3.0e-8
     atol = 3.0e-8

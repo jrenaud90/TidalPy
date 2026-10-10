@@ -106,7 +106,7 @@ TidalPy logs through one C++ logger (see [Logging](../Utilities/logging.md)). Th
 | `rtol`, `atol` | `1.0e-10`, `1.0e-14` | `3.0e-8`, `3.0e-8` |
 | `nondimensionalize` | `true` | `true` |
 
-`integration_method` takes `"DOP853"`, `"RK45"`, `"RK23"`, or the implicit `"BDF"`, `"LSODA"`, `"Radau"`. `nondimensionalize` integrates in non-dimensional units. The other `[eos_solver]` keys:
+`integration_method` takes `"DOP853"`, `"RK45"`, `"RK23"`, `"Tsit5"`, `"Vern7"`, `"Vern8"`, or the implicit `"BDF"`, `"LSODA"`, `"Radau"`. `nondimensionalize` integrates in non-dimensional units. The other `[eos_solver]` keys:
 
 - `pressure_tol = 1.0e-8`: the surface-pressure mismatch, relative to the central-pressure scale, that ends the central-pressure iteration; `max_iters = 100` caps the iterations.
 - `solve_temperature = true`: carry temperature and heat flow through the solve, so each layer's profile follows its cooling model and its material is evaluated at the local temperature (see [Worlds](../Structures/worlds/worlds.md#temperature-and-heat-flow)). The solve relaxes its thermal network in passes, one structure integration each, until interface temperatures and heat flows change by less than `thermal_tol = 1.0e-8` (relative) between passes, or `max_thermal_passes = 12` is reached.

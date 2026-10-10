@@ -33,12 +33,15 @@ inline ODEMethod c_parse_ode_method(const std::string& method_name, const std::s
     if (method_lower == "rk45")   return ODEMethod::RK45;
     if (method_lower == "rk23")   return ODEMethod::RK23;
     if (method_lower == "dop853") return ODEMethod::DOP853;
+    if (method_lower == "tsit5")  return ODEMethod::TSIT5;
+    if (method_lower == "vern7")  return ODEMethod::VERN7;
+    if (method_lower == "vern8")  return ODEMethod::VERN8;
     if (method_lower == "bdf")    return ODEMethod::BDF;
     if (method_lower == "lsoda")  return ODEMethod::LSODA;
     if (method_lower == "radau")  return ODEMethod::RADAU;
     throw std::invalid_argument(
         "Unsupported " + method_label + " provided: " + method_lower +
-        ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
+        ". Supported: rk23, rk45, dop853, tsit5, vern7, vern8, bdf, lsoda, radau.");
 }
 
 inline void c_validate_and_prep_radial_inputs(

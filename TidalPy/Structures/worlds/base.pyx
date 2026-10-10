@@ -1685,8 +1685,8 @@ cdef class BaseWorld(StructureBase):
         G_to_use : float, optional
             Gravitational constant [m^3 kg^-1 s^-2]. ``None`` (default) uses the TidalPy configuration's value.
         integration_method : str, optional
-            CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the implicit (stiff) methods
-            ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at the planet's center, where
+            CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, ``'Tsit5'``, ``'Vern7'``, ``'Vern8'``,
+            or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at the planet's center, where
             LSODA's startup can fail to take its first step (a clean unsuccessful result) while BDF and Radau
             handle the singular start.
         rtol, atol : float, optional
@@ -2172,8 +2172,8 @@ cdef class BaseWorld(StructureBase):
         start_radius_tol : float, optional
             Tolerance of the automatic starting radius, R * tol^(1/l).
         integration_method : str, optional
-            CyRK ODE method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the implicit (stiff) methods ``'BDF'``,
-            ``'LSODA'``, ``'Radau'``.
+            CyRK ODE method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, ``'Tsit5'``, ``'Vern7'``, ``'Vern8'``, or the
+            implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
         rtol, atol : float, optional
             Relative and absolute ODE tolerances.
         scale_rtols : bool, optional

@@ -103,7 +103,7 @@ A setting whose default is `None` reads the `[radial_solver]` or `[eos_solver]` 
 | `start_radius_tolerance` | `None` (config) | The automatic start is at $R \cdot \mathrm{tol}^{1/l}$. |
 | `starting_method` | `None` (config) | `'takeuchi'` (`'ts'`), `'kamata'`, `'power_series'` (`'powerseries'`, `'ps'`, `'martens'`), or `'unity'`. See [Starting Conditions](starting_conditions.md). |
 | `degree1_frame` | `None` (config) | `'CE'`, `'CM'`, `'CF'`, `'CL'`, or `'CH'`; read only by a degree-1 loading solve. See [Degree-1 Load Love Numbers](#degree-1-load-love-numbers). |
-| `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
+| `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, `'Tsit5'`, `'Vern7'`, `'Vern8'`, or the implicit `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type (liquids generally want it tighter). Experimental. |
 | `max_num_steps` | `None` (config) | Step ceiling per layer, over all of its re-orthonormalized segments and shared by its independent solutions. `0` lets `max_ram_MB` set it. |

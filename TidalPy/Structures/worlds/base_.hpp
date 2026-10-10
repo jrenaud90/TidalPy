@@ -94,12 +94,24 @@ struct c_WorldConfig {
 // (c_BaseWorld::calc_continuation_frequency).
 inline constexpr double d_CONTINUATION_VOLUME_FRACTION = 0.5;
 
+// The config's method as the enum, or `fallback` when the value names no integration method the solvers run (unset,
+// or one of CyRK's base-class placeholders).
 inline ODEMethod c_ode_method_from_config(int method_int, ODEMethod fallback) noexcept {
-    if (method_int > static_cast<int>(ODEMethod::RK_BASE_METHOD)
-        && method_int <= static_cast<int>(ODEMethod::RADAU)) {
-        return static_cast<ODEMethod>(method_int);
+    switch (static_cast<ODEMethod>(method_int))
+    {
+        case ODEMethod::RK23:
+        case ODEMethod::RK45:
+        case ODEMethod::DOP853:
+        case ODEMethod::TSIT5:
+        case ODEMethod::VERN7:
+        case ODEMethod::VERN8:
+        case ODEMethod::BDF:
+        case ODEMethod::LSODA:
+        case ODEMethod::RADAU:
+            return static_cast<ODEMethod>(method_int);
+        default:
+            return fallback;
     }
-    return fallback;
 }
 
 // True once update_constants has filled the solver sections of the shared config.

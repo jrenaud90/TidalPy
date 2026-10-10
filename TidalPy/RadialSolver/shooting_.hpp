@@ -53,6 +53,9 @@ inline size_t c_dense_values_per_y(ODEMethod method) noexcept
         case ODEMethod::RK23:   return 1 + RK23_len_Pcols;
         case ODEMethod::RK45:   return 1 + RK45_len_Pcols;
         case ODEMethod::DOP853: return 1 + DOP853_INTERPOLATOR_POWER;
+        case ODEMethod::TSIT5:  return 1 + Tsit5_len_Pcols;
+        case ODEMethod::VERN7:  return 1 + Vern7_len_Pcols;
+        case ODEMethod::VERN8:  return 1 + Vern8_len_Pcols;
         case ODEMethod::BDF:    return 1 + BDF_MAX_ORDER;
         case ODEMethod::RADAU:  return 1 + RADAU_INTERPOLATOR_POWER;
         default:                return 1 + LSODA_MAX_ORDER;

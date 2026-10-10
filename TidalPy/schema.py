@@ -181,7 +181,7 @@ EOS_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["eos_solver"])
 # The names the string-valued solver keys accept (any case). TidalPy.constants maps them to the C++ values
 # (ODE_METHOD_INTS, STARTING_METHOD_ALIASES, DEGREE1_FRAME_ALIASES); a test checks that they agree.
 SOLVER_KEY_NAMES = {
-    "integration_method": ("rk23", "rk45", "dop853", "bdf", "lsoda", "radau"),
+    "integration_method": ("rk23", "rk45", "dop853", "tsit5", "vern7", "vern8", "bdf", "lsoda", "radau"),
     "starting_method":    ("takeuchi", "ts", "kamata", "power_series", "powerseries", "ps", "martens",
                            "unity"),
     "degree1_frame":      ("ce", "cm", "cf", "cl", "ch"),

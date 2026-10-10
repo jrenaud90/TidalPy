@@ -134,6 +134,9 @@ ODE_METHOD_NAMES = {
     <int>ODEMethod.RK23:   'RK23',
     <int>ODEMethod.RK45:   'RK45',
     <int>ODEMethod.DOP853: 'DOP853',
+    <int>ODEMethod.TSIT5:  'Tsit5',
+    <int>ODEMethod.VERN7:  'Vern7',
+    <int>ODEMethod.VERN8:  'Vern8',
     <int>ODEMethod.BDF:    'BDF',
     <int>ODEMethod.LSODA:  'LSODA',
     <int>ODEMethod.RADAU:  'Radau',
@@ -147,7 +150,8 @@ def ode_method_from_name(name: str) -> int:
     Parameters
     ----------
     name : str
-        ``'RK23'``, ``'RK45'``, ``'DOP853'``, ``'BDF'``, ``'LSODA'``, or ``'Radau'`` (any case).
+        ``'RK23'``, ``'RK45'``, ``'DOP853'``, ``'Tsit5'``, ``'Vern7'``, ``'Vern8'``, ``'BDF'``, ``'LSODA'``, or
+        ``'Radau'`` (any case).
 
     Returns
     -------
