@@ -33,7 +33,10 @@ if install_platform == 'windows':
         extra_link_args.append('/debug:full')
     cpp_standard_flag = '/std:c++20'
 else:
-    extra_compile_args = ['-O3']
+    # Clang on arm64 (Apple silicon) otherwise fuses a * b + c into one FMA, so results differ in the last bit from the
+    # MSVC and x86-64 builds. A mode frequency that should cancel to exactly zero, and be dropped as static, is then
+    # left at about 1e-21.
+    extra_compile_args = ['-O3', '-ffp-contract=off']
     extra_link_args = []
     if install_platform == 'darwin':
         # Cython-generated code trips this warning, which recent Apple clang treats as an error.
