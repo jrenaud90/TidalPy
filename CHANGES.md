@@ -2,7 +2,7 @@
 
 ## Version 0.8.X
 
-### Version 0.8.0 (2026-10-01)
+### Version 0.8.0 (2026-10-10)
 
 _This release is extensive (this update has been in the works for almost 2.5 years!) sorry for that. I would recommend treating this as a major new update and just dive into the documentation as if it was a new package. Please reach out to joseph.p.renaud@nasa.gov to invite you to the TidalPy slack for more discussion and help._
 
