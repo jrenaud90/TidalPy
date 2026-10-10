@@ -75,7 +75,7 @@ def test_the_torque_passes_smoothly_through_a_commensurability(commensurability)
 
 def test_a_warm_ice_shell_raises_the_continuation_frequency():
     """A warm all-solid ice shell is near-fluid far below its Maxwell rate, so its world continues its tides from where
-    omega eta falls to the liquid threshold rather than from minimum_frequency; the torque stays smooth and restoring
+    omega eta falls to a near-fluid threshold rather than from minimum_frequency; the torque stays smooth and restoring
     through synchrony."""
     minimum = TidalPy.config["numerical"]["minimum_frequency"]
     frequencies = []

@@ -419,7 +419,8 @@ inline double c_rigidity_scale(double mass, double radius, double G) noexcept {
 }
 
 // The shear modulus [Pa] at or below which a material behaves as a liquid: the radial solver's minimum_solid_rigidity
-// times the planet's rigidity scale (c_rigidity_scale). Zero when the config or the planet gives no scale.
+// times the planet's rigidity scale (c_rigidity_scale). Zero when the config or the planet gives no scale, and for
+// the default minimum_solid_rigidity of zero, which leaves a material liquid only where its shear modulus vanishes.
 inline double c_liquid_shear_threshold(double mass, double radius, double G) noexcept {
     const double min_rigidity = (tidalpy_config_ptr != nullptr)
         ? tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY : TidalPyConstants::d_NAN;
@@ -452,7 +453,8 @@ inline std::complex<double> c_floor_complex_shear(std::complex<double> shear, do
 // The thermal network's view of one layer for its cooling model: the solved structure at a radius, and the layer's
 // material at a point (c_LayerThermalProbe, Cooling/cooling_base_.hpp). The material is liquid where the Love solve
 // takes it as liquid: everywhere in a liquid layer, and where a layer that can change state is fully molten or has a
-// post-melt shear modulus at or below liquid_shear (c_liquid_shear_threshold).
+// post-melt shear modulus at or below liquid_shear (c_liquid_shear_threshold). With the default threshold of zero a
+// partially molten band is solid here too.
 class c_LayerProbe final : public c_LayerThermalProbe {
 public:
     c_LayerProbe(

@@ -192,7 +192,8 @@ public:
     double redim_pascal_scale  = TidalPyConstants::d_NAN;
 
     // The shear modulus [Pa] at or below which the solve took a material that can change state as a liquid:
-    // minimum_solid_rigidity times the stated planet's rho g R. Set by the caller; zero when it set none.
+    // minimum_solid_rigidity times the stated planet's rho g R. Set by the caller; zero when it set none and with the
+    // default minimum_solid_rigidity of zero, where only a vanishing shear modulus is liquid.
     double liquid_shear_threshold = 0.0;
 
     // Store results from CyRK's cysolve_ivp. The layer tops are outputs of the solve: a layer that holds its mass
@@ -318,7 +319,8 @@ public:
     }
 
     /// The piece of a layer that holds a radius: the first whose top is at or above it, so a radius on the boundary
-    /// between two pieces belongs to the lower one. The layer's last piece takes anything above it (and p_call_piece
+    /// between two pieces belongs to the lower one, within the roundoff of converting it to and from SI
+    /// (C_EOS_ZONE_EDGE_FIRST_STEP machine epsilons). The layer's last piece takes anything above it (and p_call_piece
     /// refuses a radius past its top); SIZE_MAX for a layer with none. The structure is continuous across a boundary,
     /// but the material changes across one between a solid and a liquid zone, so a read for one zone (zone_state)
     /// takes the neighbor in that state when the radius lies on such a boundary, within the layer continuity
@@ -333,9 +335,10 @@ public:
         const size_t count = this->num_pieces_bylayer_vec[layer_index];
         if (count == 0) { return static_cast<size_t>(-1); }
         size_t found = first + count - 1;
+        const double on_boundary = C_EOS_ZONE_EDGE_FIRST_STEP * TidalPyConstants::d_EPS * std::abs(radius_val);
         for (size_t offset = 0; offset < count - 1; ++offset)
         {
-            if (radius_val <= this->piece_vec[first + offset].radius_upper)
+            if (radius_val <= this->piece_vec[first + offset].radius_upper + on_boundary)
             {
                 found = first + offset;
                 break;
@@ -510,7 +513,9 @@ protected:
         for (size_t y_i = 0; y_i < C_EOS_THERMAL_Y_VALUES; ++y_i) { state_out[y_i] = TidalPyConstants::d_NAN; }
         if (piece_i >= this->cysolver_results_uptr_vec.size() || piece_i >= this->piece_vec.size()) { return false; }
         const c_EOSPiece& piece = this->piece_vec[piece_i];
-        const double end_rtol = tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0;
+        // At least the roundoff piece_index allows on a boundary, so a radius it assigns here is always read.
+        const double end_rtol = std::max(tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0,
+                                         C_EOS_ZONE_EDGE_FIRST_STEP * TidalPyConstants::d_EPS);
         const double slack = end_rtol * std::max(std::abs(piece.radius_lower), std::abs(piece.radius_upper));
         const bool inside = (radius_val >= piece.radius_lower - slack) && (radius_val <= piece.radius_upper + slack);
         if (!inside) { return false; }

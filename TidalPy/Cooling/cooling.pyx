@@ -297,7 +297,8 @@ cdef class ConvectiveCooling(CoolingBase):
     solve the layer is a conducting boundary layer at its base and its top around an adiabatic interior whose top is
     at the layer's temperature; the Rayleigh number takes the material's viscosity there, at the top of the
     interior, and the interior is liquid where the Love solve takes it as liquid (a liquid layer, or a layer that can
-    melt, molten past the radial solver's solid threshold ``[numerical] minimum_solid_rigidity``)."""
+    melt, molten past the radial solver's solid threshold ``[numerical] minimum_solid_rigidity``, by default where its
+    shear modulus vanishes)."""
     MODEL_NAME = "convection"
 
 

@@ -2069,7 +2069,8 @@ cdef class BaseWorld(StructureBase):
         Each layer is one zone unless its material changed state inside it (a layer with ``use_melting`` and
         ``state = "auto"`` whose material melts). The EOS solve finds each boundary as it integrates: where the
         material's post-melt rigidity mu / (rho g R) (the world's stated bulk density, surface gravity, and radius)
-        crosses the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy configuration. A zone thinner than
+        crosses the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy configuration (by default 0, so a zone is
+        liquid only where the shear modulus vanishes and partial melt stays a weakened solid). A zone thinner than
         ``[numerical] minimum_zone_fraction`` of the world's radius takes the state of its thicker neighbor. The radial
         solver integrates each zone as a layer of its own, with the liquid equations in a liquid zone and the layer's
         ``is_static`` and ``is_incompressible`` choices. Empty before an EOS solve.
@@ -2863,9 +2864,9 @@ cdef class BaseWorld(StructureBase):
         dissipation scaled by |omega| over that, so the tidal torque passes smoothly through a spin-orbit lock. It is
         ``[numerical] minimum_frequency``, or higher where most of the world's solid would be near-fluid. A solid of
         viscosity eta forced well below its Maxwell rate has a complex modulus near omega eta, and once that falls under
-        the liquid threshold (``minimum_solid_rigidity`` times rho g R) its Love solve is slow and its result solver
-        noise. The viscosity used is the one below which the softer half of the solid volume lies, so a warm ice shell
-        raises it and a thin partially molten band does not.
+        a near-fluid threshold (1e-6 times rho g R) its Love solve is slow and its result solver noise. The viscosity
+        used is the one below which the softer half of the solid volume lies, so a warm ice shell raises it and a thin
+        partially molten band does not.
 
         Returns
         -------

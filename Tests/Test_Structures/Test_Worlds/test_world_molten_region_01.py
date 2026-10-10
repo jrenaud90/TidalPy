@@ -214,26 +214,28 @@ def _hot_core_io(core_temperature):
 
 
 def test_minimum_solid_rigidity_takes_in_the_weakened_band():
-    """The minimum_solid_rigidity floor extends Io's molten stretch from the fully molten part over the weakened band
-    above it."""
+    """A positive minimum_solid_rigidity extends Io's molten stretch from the fully molten part over the weakened band
+    above it; the default of 0 keeps that band a melt-weakened solid."""
     numerical = TidalPy.config["numerical"]
     default_floor = numerical["minimum_solid_rigidity"]
+    floor = 1.0e-6
     outer_edges = {}
     try:
-        for floor in (0.0, default_floor):
-            numerical["minimum_solid_rigidity"] = floor
+        for value in (default_floor, floor):
+            numerical["minimum_solid_rigidity"] = value
             update_constants()
-            outer_edges[floor] = _hot_core_io(1900.0).molten_regions[0][2]
+            outer_edges[value] = _hot_core_io(1900.0).molten_regions[0][2]
+        # Just above the positive floor's edge the modulus has left the band: its rigidity is at least the floor.
+        io = _hot_core_io(1900.0)
+        rigidity_scale = _rigidity_scale(io)
+        edge = io.molten_regions[0][2]
+        assert io.mantle.get_shear_modulus(edge + 1.0) >= floor * rigidity_scale
+        assert io.mantle.get_shear_modulus(edge - 1.0) < floor * rigidity_scale
     finally:
         numerical["minimum_solid_rigidity"] = default_floor
         update_constants()
-    assert outer_edges[default_floor] > outer_edges[0.0]
-    # Just above the default edge the modulus has left the band: its rigidity is at least the floor.
-    io = _hot_core_io(1900.0)
-    rigidity_scale = _rigidity_scale(io)
-    edge = io.molten_regions[0][2]
-    assert io.mantle.get_shear_modulus(edge + 1.0) >= default_floor * rigidity_scale
-    assert io.mantle.get_shear_modulus(edge - 1.0) < default_floor * rigidity_scale
+    assert default_floor == 0.0
+    assert outer_edges[floor] > outer_edges[default_floor]
 
 
 @pytest.mark.parametrize("core_temperature", [1900.0, 2000.0])

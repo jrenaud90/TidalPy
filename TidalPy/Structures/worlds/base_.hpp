@@ -93,6 +93,8 @@ struct c_WorldConfig {
 // The share of a world's solid volume, softest first, whose viscosity sets its continuation frequency
 // (c_BaseWorld::calc_continuation_frequency).
 inline constexpr double d_CONTINUATION_VOLUME_FRACTION = 0.5;
+// The near-fluid rigidity mu / (rho g R) below which calc_continuation_frequency counts a solid point as relaxed.
+inline constexpr double d_CONTINUATION_RIGIDITY = 1.0e-6;
 
 // The config's method as the enum, or `fallback` when the value names no integration method the solvers run (unset,
 // or one of CyRK's base-class placeholders). A new method is added here and in four other places:
@@ -943,9 +945,9 @@ public:
     // The frequency [rad s-1] below which this world's tidal modes are continued linearly to zero (c_love_frequency),
     // [numerical] minimum_frequency, or higher where most of the world's solid would be near-fluid. A solid of
     // viscosity eta forced at omega well below its Maxwell rate has |mu(omega)| near omega eta, and once that falls
-    // under the liquid threshold (minimum_solid_rigidity times rho g R, c_liquid_shear_threshold) throughout most of
-    // the solid, the Love solve is slow and its result solver noise. The continuation starts no lower than that
-    // threshold over the viscosity below which the softest d_CONTINUATION_VOLUME_FRACTION of the solid volume lies, so
+    // under a near-fluid threshold (d_CONTINUATION_RIGIDITY times rho g R) throughout most of the solid, the Love
+    // solve is slow and its result solver noise. The continuation starts no lower than that threshold over the
+    // viscosity below which the softest d_CONTINUATION_VOLUME_FRACTION of the solid volume lies, so
     // a world made mostly of a warm ice shell (Charon) raises it while a world with a weak band or layer (Io's
     // asthenosphere, a partially molten mantle) does not. The continuation is a numerical regularization below that
     // frequency: exact for a Maxwell body below its slowest relaxation, approximate otherwise (Andrade's transient
@@ -959,7 +961,8 @@ public:
             return floor;
         }
         if (this->p_continuation_floor == floor) { return this->p_continuation_frequency; }
-        const double liquid_shear = solution->liquid_shear_threshold;
+        const double near_fluid_shear =
+            d_CONTINUATION_RIGIDITY * c_rigidity_scale(this->p_mass, this->p_radius, c_get_G());
         const std::size_t num_points = std::min({solution->complex_shear_array_vec.size(),
             solution->shear_viscosity_array_vec.size(), solution->radius_array_vec.size()});
         // Each solid point's viscosity and the shell volume it stands for (4 pi r^2 dr, dr from its neighbors).
@@ -967,7 +970,7 @@ public:
         double solid_volume = 0.0;
         for (std::size_t i = 0; i < num_points; ++i) {
             const double viscosity = solution->shear_viscosity_array_vec[i];
-            if (!((solution->complex_shear_array_vec[i].real() > liquid_shear) && (viscosity > 0.0))) { continue; }
+            if (!((solution->complex_shear_array_vec[i].real() > near_fluid_shear) && (viscosity > 0.0))) { continue; }
             const double r_lower = solution->radius_array_vec[(i > 0) ? i - 1 : i];
             const double r_upper = solution->radius_array_vec[(i + 1 < num_points) ? i + 1 : i];
             const double radius = solution->radius_array_vec[i];
@@ -976,13 +979,13 @@ public:
             solid_volume += volume;
         }
         double frequency = floor;
-        if ((liquid_shear > 0.0) && (solid_volume > 0.0)) {
+        if ((near_fluid_shear > 0.0) && (solid_volume > 0.0)) {
             std::sort(solid.begin(), solid.end());
             double softest = 0.0;
             for (const auto& [viscosity, volume] : solid) {
                 softest += volume;
                 if (softest >= d_CONTINUATION_VOLUME_FRACTION * solid_volume) {
-                    frequency = std::max(floor, liquid_shear / viscosity);
+                    frequency = std::max(floor, near_fluid_shear / viscosity);
                     break;
                 }
             }

@@ -4,7 +4,8 @@ A Maxwell solid forced near zero frequency has a complex shear modulus near i om
 mantle is tens of pascals; the solid radial equations divide by it. A Love solve raises a solid zone's complex modulus
 to ``minimum_complex_rigidity`` times rho g R through its real part, keeping its imaginary (dissipative) part. The hot
 state below is earth_thermal 9 kyr into an evolution at 0.05 au from a Sun-like star (a hot upper mantle with 2.5
-percent melt under a cold lid), where the solve failed without the floor for a spin within 4e-10 of 2:1.
+percent melt under a cold lid), near a spin within 4e-10 of 2:1. The packaged floor still binds there (it moves
+-Im(k2) by about 3e-3 at 1e-11 rad/s), and raising only the elastic part keeps the dissipation.
 """
 import numpy as np
 import pytest

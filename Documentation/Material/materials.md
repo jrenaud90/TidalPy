@@ -194,7 +194,7 @@ A layer passes four switches to its material, so one material can serve layers t
 | `use_pressure_melting` | The melting curves are read at zero pressure. | The melting curves follow the local pressure, and `latent_expansion` can be nonzero. |
 | `use_melt_density` | The solid's density, even when fully molten. | The phases' densities mixed by volume. |
 
-A layer's other switches and flags (`use_heating`, `use_tides`, `state`), and the split of a melting layer into solid and liquid zones where its post-melt shear modulus falls to `[numerical] minimum_solid_rigidity` (default 1e-6) times the world's $\rho g R$, are documented with the [layer](../Structures/layers/layer.md#physics-switches-and-flags). `Layer.calc_state(pressure, temperature=None, radius=None)` evaluates the layer's material with the layer's switches, at its own temperature and mid-radius unless given.
+A layer's other switches and flags (`use_heating`, `use_tides`, `state`), and the split of a melting layer into solid and liquid zones where its post-melt shear modulus falls to `[numerical] minimum_solid_rigidity` (default 0, so only where it vanishes) times the world's $\rho g R$, are documented with the [layer](../Structures/layers/layer.md#physics-switches-and-flags). `Layer.calc_state(pressure, temperature=None, radius=None)` evaluates the layer's material with the layer's switches, at its own temperature and mid-radius unless given.
 
 ## State
 

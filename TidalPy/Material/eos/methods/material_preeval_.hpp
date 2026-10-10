@@ -44,16 +44,14 @@ inline tidalpy::c_ThermoPoint c_preeval_point(
 
 /// CyRK EventFunc: the rigidity margin ln(mu / mu_min) of the layer's material at the state, with mu its post-melt
 /// shear modulus and mu_min the input's minimum_shear_modulus. Positive while the material is solid enough for the
-/// radial solver's solid equations, negative (-inf with no shear modulus) where it is a liquid to them.
+/// radial solver's solid equations, negative (-inf with no shear modulus) where it is a liquid to them. A threshold
+/// of zero makes the material a liquid only where its shear modulus vanishes (c_Material::calc_rigidity_margin).
 inline double c_preeval_rigidity_margin(double radius, double* radial_solutions, char* input_args) noexcept
 {
     const c_EOS_ODEInput* ode_args = reinterpret_cast<const c_EOS_ODEInput*>(input_args);
     const c_MaterialPreevalInput* eos_data = reinterpret_cast<const c_MaterialPreevalInput*>(ode_args->eos_input_ptr);
     const tidalpy::c_ThermoPoint point = c_preeval_point(*eos_data, radius, radial_solutions);
-    // A threshold of zero still separates a solid from a liquid with no shear modulus at all.
-    const double threshold = (ode_args->minimum_shear_modulus > 0.0)
-        ? ode_args->minimum_shear_modulus : TidalPyConstants::d_EPS;
-    return eos_data->material_ptr->calc_rigidity_margin(point, eos_data->switches, threshold);
+    return eos_data->material_ptr->calc_rigidity_margin(point, eos_data->switches, ode_args->minimum_shear_modulus);
 }
 
 

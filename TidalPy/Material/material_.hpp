@@ -496,7 +496,9 @@ public:
 
     // ln(mu / mu_min), the post-melt shear modulus against a threshold [Pa]: positive while the material is solid
     // enough for the radial solver's solid equations, negative where it is to be treated as a liquid; -inf for no
-    // shear modulus.
+    // shear modulus. A threshold of zero or less makes it a liquid only where its shear modulus vanishes (the liquid
+    // alone, past the weakening law's breakdown band): the margin is then the sign alone, +inf with a positive shear
+    // modulus, a step that the event root finder bisects.
     double calc_rigidity_margin(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
@@ -504,6 +506,7 @@ public:
         c_MaterialState state;
         this->p_evaluate(point, switches, true, state);
         if (!(state.shear_modulus > 0.0)) { return -TidalPyConstants::d_INF; }
+        if (!(minimum_shear_modulus > 0.0)) { return TidalPyConstants::d_INF; }
         return std::log(state.shear_modulus / minimum_shear_modulus);
     }
 

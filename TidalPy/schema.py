@@ -216,9 +216,10 @@ CONFIG_ALTERNATE_TYPES = {
     "graphics.interior.title_fontsize":      (int, float),
 }
 # The [numerical] values must be finite and positive, except these, which may also be 0 (0 love-solve threads picks
-# the count from the machine, and a 0 complex-rigidity floor or solution-independence floor turns it off).
+# the count from the machine, a 0 solid-rigidity threshold leaves a melting layer liquid only where its shear
+# modulus vanishes, and a 0 complex-rigidity floor or solution-independence floor turns it off).
 CONFIG_NUMERICAL_NONNEGATIVE = frozenset(
-    ("love_solve_threads", "minimum_complex_rigidity", "minimum_solution_independence"))
+    ("love_solve_threads", "minimum_solid_rigidity", "minimum_complex_rigidity", "minimum_solution_independence"))
 # These [numerical] values must also be below 1 (a fraction of the solutions' independence).
 CONFIG_NUMERICAL_BELOW_ONE = frozenset(("minimum_solution_independence",))
 

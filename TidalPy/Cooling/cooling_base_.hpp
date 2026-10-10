@@ -117,7 +117,8 @@ public:
     // The layer's material at a pressure [Pa], temperature [K], and radius [m], with the layer's switches. It is liquid
     // where the Love solve takes it as liquid: everywhere in a liquid layer (a liquid-only material, or a forced
     // liquid state), and, in a layer that can change state, where it is fully molten or its post-melt shear modulus is
-    // at or below the radial solver's solid threshold (minimum_solid_rigidity times the planet's rho g R).
+    // at or below the radial solver's solid threshold (minimum_solid_rigidity times the planet's rho g R; by default
+    // zero, so a partially molten band is solid).
     virtual void calc_transport_state(
             double pressure,
             double temperature,

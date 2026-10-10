@@ -61,13 +61,14 @@ schema_version = "{SCHEMA_VERSION}"
     maximum_frequency = 1.0e8
     # A modulus below this is treated as zero.
     minimum_modulus = 1.0e-3
-    # A layer that can melt is split into solid and liquid zones, liquid where its rigidity mu / (rho g R) is at or
-    # below this. A near-fluid solid cannot be integrated; treating it as liquid shifts Love numbers by about this.
-    minimum_solid_rigidity = 1.0e-6
+    # A layer that can melt is split into solid and liquid zones, liquid where its post-melt rigidity mu / (rho g R)
+    # is at or below this. 0 splits only where the shear modulus vanishes (the liquid phase), so partial melt stays a
+    # melt-weakened solid and the tides change continuously as a layer melts.
+    minimum_solid_rigidity = 0.0
     # Floor on a solid zone's |mu(omega)| / (rho g R) in a Love solve, raised through the real part only, so a
     # viscously relaxed solid at low frequency still integrates. Shifts Love numbers by about this where it binds;
-    # 0 turns it off.
-    minimum_complex_rigidity = 1.0e-9
+    # 0 turns it off. Small enough that a melt-weakened band decouples the layers above it continuously.
+    minimum_complex_rigidity = 1.0e-15
     # Thinnest solid or liquid zone, as a fraction of the world radius, kept as its own layer; a thinner one takes
     # its thicker neighbor's state.
     minimum_zone_fraction = 1.0e-7
