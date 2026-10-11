@@ -1,9 +1,9 @@
 # Builds the JOSS paper draft as a PDF.
 #
 # On a pull request the PDF is only uploaded as an artifact, so a reviewer can read it. On a push to a branch of
-# this repository the built PDF is also committed back beside the source, which is why Papers/2025-JOSS/paper.pdf
-# is in the tree. The commit is deliberately not attempted for pull requests: one from a fork cannot be pushed to,
-# so the step would fail and give an outside contributor a red check on work that is fine.
+# this repository, or a manual run on one, the built PDF is also committed back beside the source, which is why
+# Papers/2025-JOSS/paper.pdf is in the tree. The commit is deliberately not attempted for pull requests: one from a
+# fork cannot be pushed to, so the step would fail and give an outside contributor a red check on work that is fine.
 
 name: Draft PDF
 
@@ -15,6 +15,8 @@ on:
       - .github/workflows/make_joss_pdf.yml
   workflow_dispatch:
   push:
+    # Branches only: path filters are not applied to tag pushes, and a tag checkout has no branch to commit the PDF to.
+    branches: ['**']
     paths:
       - Papers/2025-JOSS/**
       - .github/workflows/make_joss_pdf.yml
@@ -23,7 +25,7 @@ concurrency:
   group: joss-pdf-${{ github.ref }}
   cancel-in-progress: true
 
-# The push path commits the built PDF back to the branch.
+# Pushes and manual runs on a branch commit the built PDF back to it.
 permissions:
   contents: write
 
@@ -35,9 +37,9 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v7
           with:
-            # On a push the branch itself is needed, because the PDF is committed back to it. Everywhere else the
-            # default checkout is right and nothing is committed, so the ref is left empty.
-            ref: ${{ github.event_name == 'push' && github.ref || '' }}
+            # A run that commits the PDF needs the branch itself checked out. Everywhere else the default checkout is
+            # right and nothing is committed, so the ref is left empty.
+            ref: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/') && github.ref || '' }}
 
         - name: Build draft PDF
           # JOSS documents this action as @master and publishes no version tags, so this tracks upstream by design.
@@ -59,7 +61,7 @@ jobs:
             archive: false
 
         - name: Commit PDF to repository
-          if: ${{ github.event_name == 'push' }}
+          if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/') }}
           uses: EndBug/add-and-commit@v11
           with:
             message: '(auto) Paper PDF Draft'

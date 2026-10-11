@@ -38,6 +38,11 @@ else:
     # left at about 1e-21.
     extra_compile_args = ['-O3', '-ffp-contract=off']
     extra_link_args = []
+    # Python's own CFLAGS carry -g, and on Linux the debug info of the templated C++ (Eigen, spdlog, CyRK) lands in
+    # every shared object, making each wheel about 200 MB (PyPI's limit is 100 MB) and slowing the compile. A later
+    # -g0 overrides it.
+    if not DEBUG_MODE:
+        extra_compile_args.append('-g0')
     if install_platform == 'darwin':
         # Cython-generated code trips this warning, which recent Apple clang treats as an error.
         extra_compile_args.append('-Wno-error=incompatible-function-pointer-types')

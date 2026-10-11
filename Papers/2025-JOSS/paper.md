@@ -88,7 +88,7 @@ A planet, moon, or star (collectively referred to as "worlds") are built from la
 
 # Research impact statement
 
-TidalPy has been vetted and used in investigations of tides on Earth [@Vidal2025], in our Solar System [@RenaudHenning2018; @Cascioli2023; @Goossens2024; @Wagner2024], and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025]. TidalPy can also be found on NASA's [Exoplanet Modeling and Analysis Center](https://emac.gsfc.nasa.gov/?cid=2207-034) [@emac]. Its test suite, benchmarks, and demos run on Linux, macOS, and Windows. TidalPy has been in development since 2017 and its tests share heritage with that earlier work. 
+TidalPy has been vetted and used in investigations of tides on Earth [@Vidal2025], in our Solar System [@RenaudHenning2018apr; @Cascioli2023; @Goossens2024; @Wagner2024], and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025]. TidalPy can also be found on NASA's [Exoplanet Modeling and Analysis Center](https://emac.gsfc.nasa.gov/?cid=2207-034) [@emac]. Its test suite, benchmarks, and demos run on Linux, macOS, and Windows. TidalPy has been in development since 2017 and its tests share heritage with that earlier work. 
 
 Documentation and Jupyter Notebook [@jupyter] demonstrations are available on the [GitHub repository](https://github.com/jrenaud90/TidalPy), these are continuously added to and updated as TidalPy evolves. The scripts used to make these figures can be found on TidalPy's [GitHub repository](https://github.com/jrenaud90/TidalPy/tree/main/Papers/2025-JOSS).
 

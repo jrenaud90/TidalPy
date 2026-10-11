@@ -76,7 +76,7 @@ jobs:
           python -c "from TidalPy.Structures.configs import build_world, build_system"
 
   build_wheels:
-    name: Build ${{ matrix.platform }} wheels
+    name: Build ${{ matrix.python }} ${{ matrix.platform }} wheel
     runs-on: ${{ matrix.platform }}
     strategy:
       # Ensure that a wheel builder finishes even if another fails.
@@ -86,6 +86,11 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest  # arm64
+        # One job per CPython version: each compile takes about 13 minutes, so building them in turn on one runner
+        # took 1.5 hours per platform.
+        python: [cp39, cp310, cp311, cp312, cp313, cp314]
+    env:
+      CIBW_BUILD: ${{ matrix.python }}-*
     steps:
       - uses: actions/checkout@v7
         with:
@@ -102,7 +107,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           path: ./wheelhouse/*.whl
-          name: artifact_${{ matrix.platform }}_whls
+          name: artifact_${{ matrix.platform }}_${{ matrix.python }}_whls
 
   check_dist:
     name: Check distributions
@@ -139,3 +144,6 @@ jobs:
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # PyPI never accepts a filename twice, so a rerun after a partial upload skips the files already there.
+          skip-existing: true
