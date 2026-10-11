@@ -59,6 +59,7 @@ Demos/Physics/P11_tidal_truncations.ipynb
 Demos/Physics/P12_dynamic_liquids.ipynb
 Demos/Physics/P13_melt_and_bulk_dissipation.ipynb
 Demos/Physics/P14_seismic_q.ipynb
+Demos/Physics/P15_dynamic_liquid_stability.ipynb
 Demos/Systems/S01_multi_world.ipynb
 Demos/Systems/S02_thermal_orbital_evolution.ipynb
 Demos/Systems/S03_earth_moon_sun.ipynb
