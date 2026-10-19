@@ -1960,6 +1960,7 @@ public:
         std::vector<double>      upper_radii;
         std::vector<std::size_t> world_layer_of;
         std::vector<double>      radius_grid;
+        std::vector<std::size_t> slices_by_layer;
         radius_grid.reserve(total_slices);
         const auto add_solver_layer = [&](std::size_t world_layer, int layer_type, bool is_static,
                                           bool is_incompressible, double radius_inner, double radius_outer) {
@@ -1974,6 +1975,7 @@ public:
             if ((radius_inner == layer->get_radius_inner()) && (radius_outer == layer->get_radius_outer())) {
                 // A whole layer keeps the EOS slices, so a world with nothing molten solves on its own grid.
                 radius_grid.insert(radius_grid.end(), layer_radii, layer_radii + slices);
+                slices_by_layer.push_back(slices);
                 return;
             }
             // A stretch takes its share of the layer's slices, at least as many as the shooting method needs.
@@ -1985,6 +1987,7 @@ public:
                 radius_grid.push_back((slice_i + 1 == count)
                     ? radius_outer : radius_inner + fraction * (radius_outer - radius_inner));
             }
+            slices_by_layer.push_back(count);
         };
 
         for (const c_EOSZone& zone : this->get_radial_zones()) {
@@ -2021,6 +2024,7 @@ public:
 
         return solver->build_cache(
             radius_grid,
+            slices_by_layer,
             upper_radii,
             layer_types_arr.get(),
             is_static_arr.get(),
@@ -2819,7 +2823,7 @@ public:
             const c_TideSolveConfig& state,
             double total_heating,
             std::vector<double>& out,
-            const std::vector<c_RetainedRadialSolve>* retained_solves = nullptr,
+            const std::vector<c_RetainedRadialSolve>& retained_solves,
             c_TidalHeatingRecord* record_out = nullptr);
 
     // The per-layer heating integral leaves out the radial nodes with no radial solution (non-finite shell power),
@@ -3367,7 +3371,8 @@ protected:
                 std::to_string(state.orbital_frequency) + " rad s-1.");
         }
         c_warn_tide_truncations(
-            "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
+            "world '" + this->get_name() + "'", "its [tides] table or set_tide_config",
+            "set_tide_config(obliquity_truncation=...) or its [tides] obliquity_trunc_lvl", state.eccentricity,
             state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
             this->p_tide_config.max_degree_l, state.spin_frequency / state.orbital_frequency,
             this->p_truncation_warnings_shown);

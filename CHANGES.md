@@ -2,6 +2,80 @@
 
 ## Version 0.8.X
 
+### Version 0.8.1 (unreleased)
+
+#### Fixes
+* A world's radial Love solve (`solve_love_numbers`, `calc_love_numbers`, and the tides and 3D maps with the
+  `radial_solver` or `propagation_matrix` Love method) split its radius grid into layers by a radius tolerance (1e-9 of
+  the radius), which gave the slices of a layer that lie within it of the layer's top to the layer above: under
+  Europa's 25 km shell, at 100 slices per layer, 76 slices of a 2 mm ocean, 15 of a 1 cm one, and 1 of a 10 cm one. A
+  layer thinner than the tolerance (1.5 mm there) failed with "No love-number solve has been run.". The solve now takes
+  each layer's slices as its grid was built, so such layers solve, and a failed setup reports its own reason (the
+  layer, its top, and its slice count). This changes the Love numbers of worlds with such thin layers; the bundled
+  worlds give the same Love numbers bit for bit.
+* The other readers of a layered radius grid matched a layer's top by the same radius tolerance, so they also took the
+  slices of a layer only millimeters thick for copies of the interface. `solve_eos` gave most of such a layer's slices
+  in its profile arrays the material of the layer above (under Europa's shell, a 2 mm ocean took the ice's density), and
+  the standalone `radial_solver` and `build_rs_input_from_data` refused a top layer of 2 cm or less ("Radius of layer 0
+  found 5 times") or gave it too few slices; `build_world_from_layered_profile` split its layers by the same rule.
+  Interfaces now match within 1e-9 of the thinner of the two layers that meet there, by one rule all of them share, so
+  such layers keep every slice. Grids without thin layers split as before.
+* With a radial-solver Love method, a layer whose complex shear and bulk moduli are purely real at the tidal
+  frequencies (no rheology, an elastic one, or `use_tides` off) takes exactly 0 tidal heating in `calc_tides`. An
+  elastic layer with `use_tides` on took the volume integral of its fields, which is the solve's round-off and can have
+  either sign, and its integral was part of the sum the layers are scaled by. The layers that dissipate now take the
+  whole total, which is unchanged. This changes the per-layer heating and heating profiles of worlds with such layers;
+  the bundled worlds have none and are unchanged.
+* The shooting method's bound on the dense solution it keeps (`max_ram_mb` of `[radial_solver]`, `max_ram_MB` of the
+  solves) counted mebibytes (2^20 bytes), while the setting is documented in megabytes and CyRK's own step bound counts
+  10^6 bytes. Both now count megabytes, so the bound is 4.6% lower in bytes; only a solve near the bound is affected.
+
+#### Changes
+* The warning of a tidal solve at nonzero obliquity with the obliquity truncation off (the default, under which the
+  obliquity adds no heating or torque) names the setting that turns the obliquity tides on:
+  `set_tide_config(obliquity_truncation=...)` or the `[tides]` `obliquity_trunc_lvl` for a world, the
+  `obliquity_truncation` argument for the standalone functions.
+* An unknown integration method, starting method, degree-1 frame, or `solve_for` name raises `ValueError` naming the
+  closest accepted name and listing the choices, as the model factories do. The message starts with
+  `TidalPy: unknown ...` instead of `Unsupported ...`, so code that matches the old text needs updating.
+
+#### Build
+* `setup.py` adds to each extension's `depends` the TidalPy headers its sources reach through `#include`. Cython lists
+  only the headers a `cdef extern from` names, so a build that kept `build/` left an extension stale when a header it
+  reached only through another header changed (`world_tides_.hpp`, `base_.hpp`, and the RadialSolver headers, among
+  others); it now recompiles every extension a changed header reaches, and only those.
+* `setup.py` compiles on every core of a machine with two cores or fewer. Leaving one core free there gave a single
+  compile thread, so the GitHub runners of a private repository compiled the extensions one at a time.
+* The build requires `setuptools>=77` (it named 64), the first release that reads the SPDX `license` string of
+  `pyproject.toml`. An isolated build always fetched a newer setuptools, so only a build without isolation on an older
+  one failed, at the metadata step.
+* The test workflow caches compiled objects with ccache on Linux and macOS, per operating system and Python version,
+  so a run recompiles only the extensions its changes reach. Those builds run without pip's build isolation, whose
+  temporary include paths would defeat the cache; Windows keeps the isolated build.
+
+#### Tests
+* The suite runs a reduced set by default: it skips the tests marked `slow` (8 demo and benchmark notebooks and 5
+  `System.evolve` runs), and from each test with more than 8 parametrized cases it keeps the cases that bring a
+  parameter value not yet run, so every value of every parameter still runs. `pytest --full-suite` or
+  `TIDALPY_FULL_SUITE=1` runs every test, as the GitHub workflow's full suite does. With 8 workers the reduced set
+  (5058 of 12422 cases) takes 41 s and the full suite 100 s.
+* An `-n` run without `--dist` distributes by `worksteal`: xdist's default `load` gave the demo notebooks to one worker
+  in a row, which set the run's length. Each test process uses one OpenBLAS thread (`OPENBLAS_NUM_THREADS=1`), since
+  each xdist worker otherwise reserves a BLAS buffer per logical processor.
+* `Tests/Test_Demos/test_demo_notebooks_02.py` checks every demo and benchmark notebook without running it: no control
+  characters in the markdown, relative links and their anchors resolve, every code cell is executed and holds no error
+  output, and no output shows a local path.
+* New tests for the fixes above: layers down to 1 um thick, the message of a failed solve setup, an elastic layer's
+  heating, and the obliquity warning of a world, a `System`, and a 3D heating call.
+
+#### Documentation
+* Demo S02 integrated 50 Gyr while its text described 5 Gyr, gave times in Myr as Gyr, started its sample grid at
+  1 Myr where its comment said 1 kyr, and had two broken links. It now integrates 5 Gyr and is executed again, as is
+  demo P15, which was committed unexecuted, and demo P11, for the new obliquity warning.
+* `global_tides.md` writes the derivative with respect to the argument of periapsis as $\omega_p$ (it wrote $\varpi$,
+  the symbol of the longitude of periapsis), and `legendre.md` notes that Kaula's $P_{lm}$, which TidalPy's harmonics
+  use, is $(-1)^m$ times the Condon-Shortley functions `legendre` returns.
+
 ### Version 0.8.0 (2026-10-10)
 
 _This release is extensive (this update has been in the works for almost 2.5 years!) sorry for that. I would recommend treating this as a major new update and just dive into the documentation as if it was a new package. Please reach out to joseph.p.renaud@nasa.gov to invite you to the TidalPy slack for more discussion and help._

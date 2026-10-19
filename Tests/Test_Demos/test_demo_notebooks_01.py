@@ -2,23 +2,13 @@
 
 Needs ``nbclient``, ``nbformat``, and ``ipykernel`` (the ``docs`` extra); without them the tests are skipped.
 """
-from pathlib import Path
-
 import pytest
+
+from demo_notebooks import NOTEBOOKS
 
 nbformat = pytest.importorskip("nbformat")
 nbclient = pytest.importorskip("nbclient")
 pytest.importorskip("ipykernel")
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-NOTEBOOKS = sorted(
-    path for path in (
-        list((REPO_ROOT / "Demos").rglob("*.ipynb")) +
-        list((REPO_ROOT / "Benchmarks" / "RadialSolver").glob("*.ipynb")) +
-        list((REPO_ROOT / "Benchmarks" / "EOS").glob("*.ipynb")) +
-        list((REPO_ROOT / "Benchmarks" / "Tides").glob("*.ipynb")))
-    # Jupyter's autosave copies are not part of the repository.
-    if ".ipynb_checkpoints" not in path.parts)
 
 # Packages a notebook imports that TidalPy does not require; a notebook that needs a missing one is skipped.
 OPTIONAL_PACKAGES = {"EOS_vs_BurnMan.ipynb": ("burnman",)}
@@ -30,7 +20,7 @@ CELL_TIMEOUT = 900  # [s]
 # command-line filter and the skip shows in the report.
 TOO_SLOW = {
     "S02_thermal_orbital_evolution.ipynb": "integrates 5 Gyr of a coupled thermal-orbital system with System.evolve, "
-                                           "about four minutes, longer than the rest of the suite together",
+                                           "about three minutes, longer than the rest of the suite together",
 }
 
 SETUP_TEMPLATE = """\
@@ -40,7 +30,19 @@ os.environ["TIDALPY_TEST_MODE"] = "1"
 """
 
 
-@pytest.mark.parametrize("notebook_path", NOTEBOOKS, ids=[path.name for path in NOTEBOOKS])
+# Notebooks that take more than about four seconds in the suite; they run only in the full suite.
+SLOW = {
+    "RadialSolver - General Benchmarks and Performance.ipynb", "P15_dynamic_liquid_stability.ipynb",
+    "Homogeneous_Viscoelastic_Love_Numbers.ipynb", "Renaud2021_Dual_Body_Eccentric.ipynb",
+    "Enceladus_Tobie_Roberts.ipynb", "P11_tidal_truncations.ipynb", "P08_tidal_maps_3d.ipynb",
+    "Earth_Love_Numbers.ipynb",
+}
+
+
+@pytest.mark.parametrize(
+    "notebook_path",
+    [pytest.param(path, marks=pytest.mark.slow) if path.name in SLOW else path for path in NOTEBOOKS],
+    ids=[path.name for path in NOTEBOOKS])
 def test_notebook_executes(notebook_path, tmp_path):
     """The notebook executes in a fresh kernel from its own folder."""
     if notebook_path.name in TOO_SLOW:

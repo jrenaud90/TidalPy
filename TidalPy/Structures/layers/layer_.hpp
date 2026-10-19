@@ -491,6 +491,28 @@ public:
         }
     }
 
+    // Whether the layer can dissipate: whether its complex shear or bulk modulus has a nonzero imaginary part at one
+    // of radii[0 .. num_radii) [m] at one of the frequencies [rad s-1]. Purely real moduli there (no rheology in
+    // effect, an elastic one, or use_tides off) dissipate nothing.
+    bool calc_can_dissipate(
+            const double* radii,
+            std::size_t num_radii,
+            const std::vector<double>& frequencies) const noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        double state[C_EOS_DY_VALUES];
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+            this->p_eos_state(radii[radius_i], state);
+            for (const double frequency : frequencies) {
+                const std::complex<double> shear = this->apply_shear_rheology(
+                    state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+                const std::complex<double> bulk = this->apply_bulk_rheology(
+                    state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+                if ((shear.imag() != 0.0) || (bulk.imag() != 0.0)) { return true; }
+            }
+        }
+        return false;
+    }
+
     // =================================================================================================================
     // Cooling and radiogenics
     // =================================================================================================================

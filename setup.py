@@ -5,6 +5,7 @@ decides whether a wheel is platform specific from the extensions handed to `setu
 extension list itself is kept in "cython_extensions.json" so it can be read without importing this file.
 """
 import os
+import re
 import sys
 import json
 import platform
@@ -116,7 +117,37 @@ for ext_data in cython_ext_dict.values():
 # ======================================================================================================================
 # Build Command
 # ======================================================================================================================
-num_threads = 1 if DEBUG_MODE else max(1, (os.cpu_count() or 2) - 1)
+# One core is left free for the rest of a workstation, but a machine with two cores or fewer (the GitHub runners of
+# a private repository) uses all of them: leaving one free there compiles every extension in turn.
+cpu_count = os.cpu_count() or 2
+num_threads = 1 if DEBUG_MODE else (cpu_count - 1 if cpu_count > 2 else cpu_count)
+
+tidalpy_dir = os.path.normcase(os.path.join(setup_dir, 'TidalPy'))
+include_pattern = re.compile(r'^\s*#\s*include\s*"([^"]+)"', re.MULTILINE)
+
+
+def find_header_dependencies(headers: list, include_dirs: list) -> list:
+    """ Returns `headers` plus the TidalPy headers they reach through `#include "..."`.
+
+    Cython lists in `depends` only the headers a `cdef extern from` names, not the headers those include, and
+    setuptools rebuilds an extension in a kept "build/" folder only when a source or a `depends` entry is newer.
+    """
+    found = set()
+    pending = [os.path.normcase(os.path.abspath(header)) for header in headers]
+    while pending:
+        header = pending.pop()
+        if (header in found) or (not header.startswith(tidalpy_dir)) or (not os.path.isfile(header)):
+            continue
+        found.add(header)
+        with open(header, 'r', encoding='utf-8', errors='replace') as header_file:
+            included_names = include_pattern.findall(header_file.read())
+        for name in included_names:
+            for directory in [os.path.dirname(header)] + include_dirs:
+                candidate = os.path.normcase(os.path.abspath(os.path.join(directory, name)))
+                if os.path.isfile(candidate):
+                    pending.append(candidate)
+                    break
+    return sorted(set(headers) | found)
 
 
 class build_ext(_build_ext):
@@ -147,6 +178,7 @@ class build_ext(_build_ext):
             for attribute, value in vars(cythonized_extension).items():
                 if not attribute.startswith('_'):
                     setattr(extension, attribute, value)
+            extension.depends = find_header_dependencies(extension.depends, extension.include_dirs)
         print('!-- Finished Cythonizing TidalPy')
 
         # Compile the extensions in parallel unless the caller asked for a specific worker count.

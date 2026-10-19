@@ -19,6 +19,7 @@
 // TidalPy imports
 #include "../constants_.hpp"
 #include "../Utilities/math/numerics_.hpp"
+#include "../Utilities/arrays/layer_partition_.hpp"  // c_layer_boundary_tolerance
 
 // RadialSolver imports
 #include "rs_constants_.hpp"
@@ -137,6 +138,9 @@ inline void c_validate_and_prep_radial_inputs(
         size_t slice_check       = 0;
         size_t layer_check       = 0;
         double last_radius_check = 0.0;
+        // Relative to the layers' thicknesses, so a layer far thinner than the planet is not read as many copies.
+        const double boundary_tolerance =
+            tidalpy::c_layer_boundary_tolerance(upper_radius_bylayer_array, num_layers, layer_i);
 
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i)
         {
@@ -145,7 +149,7 @@ inline void c_validate_and_prep_radial_inputs(
                 throw std::invalid_argument("A negative radius value was found in `radius_array`.");
             if (radius_check < last_radius_check)
                 throw std::invalid_argument("Radius array must be in ascending order.");
-            if (c_isclose(radius_check, layer_radius, 1.0e-9, 0.0))
+            if (std::abs(radius_check - layer_radius) <= boundary_tolerance)
                 layer_check += 1;
             if (last_layer_radius <= radius_check && radius_check <= layer_radius)
                 slice_check += 1;

@@ -21,6 +21,58 @@ _TEST_DATA_DIR = tempfile.mkdtemp(prefix="tidalpy_tests_")
 atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
 os.environ[DATA_DIR_ENVIRONMENT_VARIABLE] = _TEST_DATA_DIR
 os.environ["TIDALPY_TEST_MODE"] = "1"
+# One BLAS thread per test process: TidalPy's solvers thread in C++, and with pytest-xdist each worker would otherwise
+# reserve a BLAS buffer per logical processor.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+# The reduced suite (the default) skips tests marked `slow` and runs a subset of each heavily parametrized test: cases
+# are taken in order while they bring a parameter value not yet run, so every value of every parameter runs at least
+# once. `--full-suite` or TIDALPY_FULL_SUITE=1 runs everything; the GitHub workflow sets it for its "full" suite.
+FULL_SUITE_ENVIRONMENT_VARIABLE = "TIDALPY_FULL_SUITE"
+REDUCED_MAX_CASES = 8
+
+
+def pytest_addoption(parser):
+    parser.addoption("--full-suite", action="store_true", default=False,
+                     help=f"Run every test and every parametrized case (also {FULL_SUITE_ENVIRONMENT_VARIABLE}=1).")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_cmdline_main(config):
+    # With pytest-xdist's -n and no --dist, distribute by work stealing rather than xdist's default `load`, which hands
+    # each worker a contiguous block of the collection up front, so the demo notebooks land on one worker in a row.
+    if getattr(config.option, "numprocesses", None) and (config.option.dist == "no"):
+        config.option.dist = "worksteal"
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: runs only in the full suite (--full-suite or TIDALPY_FULL_SUITE=1)")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--full-suite") or os.environ.get(FULL_SUITE_ENVIRONMENT_VARIABLE, "0") not in ("", "0"):
+        return
+    cases = {}
+    reduced = set()
+    for item in items:
+        if (not item.get_closest_marker("slow")) and hasattr(item, "callspec"):
+            cases.setdefault((item.path, item.cls, item.originalname), []).append(item)
+    for group in cases.values():
+        if len(group) <= REDUCED_MAX_CASES:
+            reduced.update(group)
+            continue
+        seen = set()
+        for item in group:
+            values = {(name, repr(value)) for name, value in item.callspec.params.items()}
+            if not values <= seen:
+                reduced.add(item)
+                seen |= values
+    kept = [item for item in items
+            if (not item.get_closest_marker("slow")) and ((not hasattr(item, "callspec")) or (item in reduced))]
+    if len(kept) < len(items):
+        kept_ids = set(map(id, kept))
+        config.hook.pytest_deselected(items=[item for item in items if id(item) not in kept_ids])
+        items[:] = kept
 
 
 @pytest.fixture

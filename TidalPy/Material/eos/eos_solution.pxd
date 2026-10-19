@@ -98,7 +98,6 @@ cdef extern from "eos_solution_.hpp" nogil:
             const size_t layer_index,
             const double radius_si,
             double* y_interp_ptr) except +
-        void update_slice_partition()
         double convert_radius_si_to_solve(const double radius_si)
 
         void change_radius_array(

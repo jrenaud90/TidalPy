@@ -15,7 +15,6 @@
 
 #include "../constants_.hpp"                              // TidalPyConstants
 #include "../Utilities/math/numerics_.hpp"                // c_isclose
-#include "../Utilities/arrays/layer_partition_.hpp"       // c_partition_radius_by_layer
 #include "../Utilities/dimensions/nondimensional_.hpp"    // c_NonDimensionalScales
 #include "rs_constants_.hpp"
 #include "rs_solution_.hpp"
@@ -124,12 +123,13 @@ public:
         }
     }
 
-    // Frequency-independent setup from SI inputs: the radius grid of the solver's layers (each layer's run, its
-    // interface radii repeated), their tops and flags, and the world's solved EOS, which supplies the planet's
-    // scalars. The solver's layers can outnumber the world's, when a layer is split. False, with an error on the
-    // storage, for an invalid layer slice partition.
+    // Frequency-independent setup from SI inputs: the radius grid of the solver's layers (each layer's run of
+    // `slices_by_layer` slices, its interface radii repeated), their tops and flags, and the world's solved EOS,
+    // which supplies the planet's scalars. The solver's layers can outnumber the world's, when a layer is split.
+    // False, with an error on the storage, for a layer with too few slices.
     bool build_cache(
         const std::vector<double>& radius_si,
+        const std::vector<size_t>& slices_by_layer,
         const std::vector<double>& upper_radii_si,
         const int* layer_types,
         const bool* is_static,
@@ -198,23 +198,22 @@ public:
             total_slices,
             degree_l);
 
-        // Interface radii appear in two layers.
-        std::vector<size_t> first_slice_idx;
-        std::vector<size_t> num_slices;
-        tidalpy::c_partition_radius_by_layer(
-            this->p_radius_nd.data(),
-            total_slices,
-            this->p_upper_radii_nd.data(),
-            n_layers,
-            first_slice_idx,
-            num_slices);
+        // Interface radii appear in two layers. The caller built the grid layer by layer, so it gives the runs: a
+        // partition by a radius tolerance would give a layer's slices within it of the layer's top to the layer above.
+        const std::vector<size_t>& num_slices = slices_by_layer;
+        std::vector<size_t> first_slice_idx(n_layers, 0);
         for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            if (layer_i > 0) { first_slice_idx[layer_i] = first_slice_idx[layer_i - 1] + num_slices[layer_i - 1]; }
             if (num_slices[layer_i] < C_RS_MIN_SLICES_PER_LAYER) {
                 this->p_storage->error_code = -5;
                 this->p_storage->message    =
-                    "TidalPy: at least " + std::to_string(C_RS_MIN_SLICES_PER_LAYER) + " slices per layer required";
+                    "TidalPy: the radial solver's layer " + std::to_string(layer_i) + " (top at " +
+                    c_format_scientific(upper_radii_si[layer_i]) + " m) has " + std::to_string(num_slices[layer_i]) +
+                    " radial slices; at least " + std::to_string(C_RS_MIN_SLICES_PER_LAYER) +
+                    " per layer are required.";
                 this->p_storage->success    = false;
                 this->p_cache_valid         = false;
+                this->p_storage_current     = true;
                 return false;
             }
         }

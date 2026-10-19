@@ -327,7 +327,7 @@ A tide solve (in a `System` evolution too) warns once per world when the spin is
 
 | Love numbers from | Layer heating |
 |-------------------|---------------|
-| The radial solver (`radial_solver`, `propagation_matrix`) | The volume integral of the orbit-averaged heating density over the layer (the `calc_3d_tides` integral, every axis summed), scaled so the tidal layers sum to the 1D total. Liquid zones and layers with `use_tides` off (purely real moduli) take none. It costs about another global solve; `layer_tidal_heating=False` (in `set_tide_config` or `[tides]`) skips it, leaving every layer NaN. |
+| The radial solver (`radial_solver`, `propagation_matrix`) | The volume integral of the orbit-averaged heating density over the layer (the `calc_3d_tides` integral, every axis summed), scaled so the layers that dissipate sum to the 1D total. Liquid zones take none, and a layer whose moduli are purely real at the tidal frequencies (elastic, or `use_tides` off) takes exactly 0, where an integral of its fields would be the solve's round-off. It costs about another global solve; `layer_tidal_heating=False` (in `set_tide_config` or `[tides]`) skips it, leaving every layer NaN. |
 | The quasi-homogeneous methods (`homogeneous`, `cpl`, `ctl`) | The heating of the layer's own term $s_i k_i$, constant within the layer; the layers sum to the total. |
 | An analytic tide model (`cpl`, `ctl`, `ctl_q` tide models, which describe the whole body) | The total times the layer's tidal scale $s_i$. |
 

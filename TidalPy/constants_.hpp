@@ -40,6 +40,8 @@ struct TidalPyConstants
     static constexpr double d_EPS             = std::numeric_limits<double>::epsilon();
     static constexpr double d_EPS_10          = 10 * std::numeric_limits<double>::epsilon();
     static constexpr double d_EPS_100         = 100 * std::numeric_limits<double>::epsilon();
+    // Bytes in a megabyte, as the memory limits (max_ram_mb) and CyRK's storage bound count them.
+    static constexpr double d_BYTES_PER_MB    = 1.0e6;
 
     // Sun
     static constexpr double d_MASS_SOLAR       = 1.988435e30;

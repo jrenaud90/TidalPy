@@ -1,4 +1,4 @@
-"""Degree-1 reference frame, Love-number Q and lag signs, static-ocean h, and non-positive bulk moduli."""
+"""Degree-1 reference frame, Love-number Q and lag signs, static-ocean h, non-positive bulk moduli, and thin layers."""
 import cmath
 import math
 from pathlib import Path
@@ -9,6 +9,7 @@ import pytest
 from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers, build_rs_input_from_data
 from TidalPy.RadialSolver.love import LoveNumbers
 from TidalPy.Rheology import Elastic
+from TidalPy.Structures import build_world
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
 from TidalPy.Material import Material, Phase
@@ -361,3 +362,86 @@ def test_static_liquid_layer_ignores_its_bulk_modulus():
         slice_per_layer=40)
     solution = radial_solver(*inputs, warnings=False)
     assert solution.success, solution.message
+
+
+# ======================================================================================================================
+# A layer far thinner than its radius (world and standalone solves), and a failed setup that reports its own reason
+# ======================================================================================================================
+_EUROPA_FREQUENCY = 2.047827e-5   # [rad s-1]
+
+
+def _thin_ocean_world(thickness):
+    """Europa with its dynamic ocean cut to `thickness` [m] (the mantle raised to meet it)."""
+    world = build_world('europa_dynamic', overrides={'layers': {'mantle': {'radius_outer_m': 1536.0e3 - thickness}}})
+    world.solve_eos()
+    return world
+
+
+def test_world_solves_a_layer_far_thinner_than_its_radius():
+    """Oceans of 1 um to 2 cm (6e-13 to 1e-8 of their radius) solve, and k2 follows the thickness linearly: each layer
+    integrates over its own slices, however close their radii are."""
+    thicknesses = np.array((1.0e-6, 1.0e-3, 5.0e-3, 2.0e-2))
+    k2 = []
+    for thickness in thicknesses:
+        solution = _thin_ocean_world(thickness).solve_love_numbers(_EUROPA_FREQUENCY, 2)
+        assert solution['success'], solution['message']
+        k2.append(solution['love_number_k'])
+    k2 = np.asarray(k2)
+    slope = (k2[-1] - k2[0]) / (thicknesses[-1] - thicknesses[0])
+    np.testing.assert_allclose(k2, k2[0] + slope * (thicknesses - thicknesses[0]), rtol=1.0e-6)
+
+
+def test_world_eos_profile_gives_a_thin_layer_its_own_material():
+    """Every EOS slice of a 0.2 mm to 2 cm ocean carries the ocean's density, not the ice shell's above it."""
+    for thickness in (2.0e-4, 2.0e-3, 2.0e-2):
+        eos = _thin_ocean_world(thickness).solve_eos()
+        density = np.asarray(eos['density'])
+        slices = density.size // 4
+        ocean = density[2 * slices:3 * slices]
+        np.testing.assert_allclose(ocean, ocean[0], rtol=1.0e-6)
+        assert ocean[0] > density[3 * slices] + 50.0
+
+
+def _split_body_k2(thickness, from_data):
+    """k2 of a homogeneous elastic body, cut `thickness` [m] below its surface into two layers of the same material
+    (one layer when `thickness` is None), through the standalone solver."""
+    planet_radius = 1.5608e6
+    if thickness is None:
+        radius, uppers = np.linspace(0.0, planet_radius, 100), (planet_radius,)
+    else:
+        radius = np.concatenate((np.linspace(0.0, planet_radius - thickness, 60),
+                                 np.linspace(planet_radius - thickness, planet_radius, 40)))
+        uppers = (planet_radius - thickness, planet_radius)
+    num_slices, num_layers = radius.size, len(uppers)
+    layer_flags = (('solid',) * num_layers, (True,) * num_layers, (False,) * num_layers)
+    if from_data:
+        inputs = build_rs_input_from_data(
+            1.0e-5, radius, np.full(num_slices, 3000.0), np.full(num_slices, 1.0e11), np.full(num_slices, 5.0e10),
+            np.full(num_slices, 1.0e30), np.full(num_slices, 1.0e30), uppers, *layer_flags, Elastic(), Elastic(),
+            warnings=False)
+        solution = radial_solver(*inputs, warnings=False)
+    else:
+        solution = radial_solver(
+            radius, np.full(num_slices, 3000.0), np.full(num_slices, 1.0e11 + 0.0j),
+            np.full(num_slices, 5.0e10 + 0.0j), 1.0e-5, 3000.0, *layer_flags, np.asarray(uppers), warnings=False)
+    assert solution.success, solution.message
+    return np.asarray(solution.k).ravel()[0]
+
+
+@pytest.mark.parametrize("from_data", (False, True))
+def test_standalone_solve_takes_a_layer_far_thinner_than_its_radius(from_data):
+    """A homogeneous body cut 1 um to 2 cm below its surface solves to the k2 of the whole body, from arrays and
+    through build_rs_input_from_data: the input checks and the layer split tell the thin layer's slices apart."""
+    whole = _split_body_k2(None, from_data)
+    for thickness in (1.0e-6, 2.0e-4, 2.0e-3, 2.0e-2):
+        assert _split_body_k2(thickness, from_data) == pytest.approx(whole, rel=1.0e-9)
+
+
+def test_world_solve_setup_failure_reports_its_reason():
+    """Too few radial slices per layer fail the world's Love solve with that reason, not as a solve that never ran."""
+    world = build_world('europa_dynamic', overrides={'eos_solver': {'slices_per_layer': 4}})
+    world.solve_eos()
+    solution = world.solve_love_numbers(_EUROPA_FREQUENCY, 2)
+    assert not solution['success']
+    assert solution['error_code'] == -5
+    assert 'has 4 radial slices' in solution['message']

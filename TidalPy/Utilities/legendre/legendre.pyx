@@ -2,8 +2,9 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Python wrappers for TidalPy's associated-Legendre utilities.
 
-Both entry points return ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)`` unnormalized with the
-Condon-Shortley phase, matching ``scipy.special.assoc_legendre_p`` with ``branch_cut=2``.
+Both entry points return ``(P_l^m(cos theta), dP_l^m/dtheta, d2P_l^m/dtheta2)`` unnormalized with the
+Condon-Shortley phase, matching ``scipy.special.assoc_legendre_p`` with ``branch_cut=2``. Kaula's P_lm, which
+TidalPy's harmonics use, is (-1)^m times this function.
 """
 
 from TidalPy.Utilities.legendre.legendre cimport (

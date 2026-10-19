@@ -234,11 +234,6 @@ public:
     // Each piece's copy of its layer's input with the piece's temperature profile, which the buoyancy frequency reads.
     std::vector<c_EOS_ODEInput> eos_input_bypiece_vec    = std::vector<c_EOS_ODEInput>();
 
-    // An interface radius is the last slice of the lower layer and the first slice of the upper one, so a
-    // lookup for a layer must stay inside its own slices.
-    std::vector<size_t> first_slice_bylayer_vec = std::vector<size_t>();
-    std::vector<size_t> num_slices_bylayer_vec  = std::vector<size_t>();
-
 // Methods
 protected:
 
@@ -458,27 +453,6 @@ public:
             input.full_state = true;
         }
         this->p_update_piece_inputs();
-    }
-
-
-    /// A layer's slices run from its first through the first copy of its upper radius; the second copy starts
-    /// the next layer. Both copies share a radius but carry their own layer's density and moduli, so every
-    /// array lookup must stay inside one layer's slices.
-    void update_slice_partition() noexcept
-    {
-        if (this->upper_radius_bylayer_vec.size() < this->num_layers)
-        {
-            this->first_slice_bylayer_vec.assign(this->num_layers, 0);
-            this->num_slices_bylayer_vec.assign(this->num_layers, 0);
-            return;
-        }
-        tidalpy::c_partition_radius_by_layer(
-            this->radius_array_vec.data(),
-            this->radius_array_vec.size(),
-            this->upper_radius_bylayer_vec.data(),
-            this->num_layers,
-            this->first_slice_bylayer_vec,
-            this->num_slices_bylayer_vec);
     }
 
 
@@ -895,7 +869,6 @@ public:
         std::memcpy(this->radius_array_vec.data(), new_radius_ptr, new_radius_size * sizeof(double));
 
         this->radius = this->radius_array_vec.back();
-        this->update_slice_partition();
     }
 
     /// Interpolate the whole planet onto the stored radius array, layer by layer.
@@ -913,72 +886,54 @@ public:
             throw std::runtime_error("No radius slices have been set. Can not perform interpolation.");
         }
 
-        size_t current_layer_index        = 0;
-        double current_layer_upper_radius = this->upper_radius_bylayer_vec[0];
+        if (this->upper_radius_bylayer_vec.size() < this->num_layers)
+        {
+            throw std::runtime_error("No layer radii have been set. Can not perform interpolation.");
+        }
+
+        // Each layer evaluates its own slices; an interface radius appears twice, and the first copy belongs to the
+        // lower layer.
+        std::vector<size_t> first_slice_bylayer;
+        std::vector<size_t> num_slices_bylayer;
+        tidalpy::c_partition_radius_by_layer(
+            this->radius_array_vec.data(), this->radius_array_size, this->upper_radius_bylayer_vec.data(),
+            this->num_layers, first_slice_bylayer, num_slices_bylayer);
 
         // Zero initialized because the surface values are read out after the loop: a loop that breaks on
         // its first pass would otherwise leave the planet's mass and moi holding stack garbage.
         double y_interp_arr[C_EOS_DY_VALUES] = {0.0};
         double* y_interp_ptr = &y_interp_arr[0];
 
-        bool ready_for_next_layer = false;
-
-        size_t interface_check = 0;
-
-        for (size_t radius_i = 0; radius_i < this->radius_array_size; radius_i++)
+        for (size_t current_layer_index = 0; current_layer_index < this->num_layers; ++current_layer_index)
         {
-            const double radius_val = this->radius_array_vec[radius_i];
-
-            if (c_isclose(radius_val, current_layer_upper_radius))
+            const size_t layer_stop =
+                first_slice_bylayer[current_layer_index] + num_slices_bylayer[current_layer_index];
+            for (size_t radius_i = first_slice_bylayer[current_layer_index]; radius_i < layer_stop; ++radius_i)
             {
-                // An interface radius appears twice; the first copy belongs to the lower layer.
-                if (interface_check == 1)
+                const double radius_val = this->radius_array_vec[radius_i];
+
+                // The evaluation layout carries only the unrelaxed moduli, so the complex ones come separately.
+                c_EOSMaterialState material_state;
+                this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr, &material_state);
+
+                this->gravity_array_vec.push_back(y_interp_ptr[0]);
+                this->pressure_array_vec.push_back(y_interp_ptr[1]);
+                this->mass_array_vec.push_back(y_interp_ptr[2]);
+                this->moi_array_vec.push_back(y_interp_ptr[3]);
+                this->density_array_vec.push_back(y_interp_ptr[C_EOS_DENSITY_INDEX]);
+
+                this->complex_shear_array_vec.push_back(material_state.shear_modulus);
+                this->complex_bulk_array_vec.push_back(material_state.bulk_modulus);
+
+                this->shear_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
+                this->bulk_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
+                this->temperature_array_vec.push_back(y_interp_ptr[C_EOS_TEMPERATURE_INDEX]);
+                this->heat_flow_array_vec.push_back(y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]);
+
+                if (current_layer_index == 0 && radius_i == 0)
                 {
-                    ready_for_next_layer = true;
+                    this->central_pressure = y_interp_ptr[1];
                 }
-                interface_check++;
-            }
-            else if (radius_val > current_layer_upper_radius)
-            {
-                ready_for_next_layer = true;
-            }
-
-            if (ready_for_next_layer)
-            {
-                current_layer_index++;
-                if (current_layer_index > (this->num_layers - 1))
-                {
-                    break;
-                }
-                else
-                {
-                    interface_check = 0;
-                    current_layer_upper_radius = this->upper_radius_bylayer_vec[current_layer_index];
-                    ready_for_next_layer       = false;
-                }
-            }
-
-            // The evaluation layout carries only the unrelaxed moduli, so the complex ones come separately.
-            c_EOSMaterialState material_state;
-            this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr, &material_state);
-
-            this->gravity_array_vec.push_back(y_interp_ptr[0]);
-            this->pressure_array_vec.push_back(y_interp_ptr[1]);
-            this->mass_array_vec.push_back(y_interp_ptr[2]);
-            this->moi_array_vec.push_back(y_interp_ptr[3]);
-            this->density_array_vec.push_back(y_interp_ptr[C_EOS_DENSITY_INDEX]);
-
-            this->complex_shear_array_vec.push_back(material_state.shear_modulus);
-            this->complex_bulk_array_vec.push_back(material_state.bulk_modulus);
-
-            this->shear_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
-            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
-            this->temperature_array_vec.push_back(y_interp_ptr[C_EOS_TEMPERATURE_INDEX]);
-            this->heat_flow_array_vec.push_back(y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]);
-
-            if (current_layer_index == 0 && radius_i == 0)
-            {
-                this->central_pressure = y_interp_ptr[1];
             }
         }
 

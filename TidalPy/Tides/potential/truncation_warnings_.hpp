@@ -53,12 +53,14 @@ inline int c_distinct_digits(double value, double limit) noexcept {
 
 // Warn when the truncations misstate the tides at this orbital state: an ignored obliquity once per owner, and each
 // range case once per owner and truncation level. `owner` names who is warned about ("world 'io'", or the standalone
-// function's name) and `remedy` says where the truncation levels are set ("its [tides] table or set_tide_config", or
-// "the eccentricity_truncation and obliquity_truncation arguments"). `spin_ratio` (spin rate / mean motion) picks the
-// spin band whose ranges apply; NaN takes the ranges for any spin rate.
+// function's name), `remedy` says where the truncation levels are set ("its [tides] table or set_tide_config", or
+// "the eccentricity_truncation and obliquity_truncation arguments"), and `obliquity_setting` names the setting that
+// turns the obliquity truncation on. `spin_ratio` (spin rate / mean motion) picks the spin band whose ranges apply; NaN
+// takes the ranges for any spin rate.
 inline void c_warn_tide_truncations(
         const std::string& owner,
         const std::string& remedy,
+        const std::string& obliquity_setting,
         double eccentricity,
         double obliquity,
         int eccentricity_truncation,
@@ -70,8 +72,8 @@ inline void c_warn_tide_truncations(
         shown.obliquity_off = true;
         TIDALPY_LOG_WARN(
             "TidalPy: {} has an obliquity of {:.3e} rad but its obliquity truncation is off, so its obliquity tides "
-            "are ignored. Set the obliquity truncation (2, 4, or 'gen') in {} to include them. Shown once.",
-            owner, obliquity, remedy);
+            "are ignored. Set the obliquity truncation to 2, 4, or 'gen' with {} to include them. Shown once.",
+            owner, obliquity, obliquity_setting);
     }
     if (obliquity_truncation != C_OBLIQUITY_OFF) {
         const double obliquity_limit = c_obliquity_truncation_limit(obliquity_truncation, max_degree_l, spin_ratio);
@@ -115,6 +117,7 @@ inline void c_warn_standalone_tide_truncations(
     static c_TruncationWarningsShown shown;
     const std::lock_guard<std::mutex> guard(shown_mutex);
     c_warn_tide_truncations(
-        function_name, "the eccentricity_truncation and obliquity_truncation arguments", eccentricity, obliquity,
-        eccentricity_truncation, obliquity_truncation, max_degree_l, spin_ratio, shown);
+        function_name, "the eccentricity_truncation and obliquity_truncation arguments",
+        "the obliquity_truncation argument (default: the configuration's [tides] obliquity_trunc_lvl)",
+        eccentricity, obliquity, eccentricity_truncation, obliquity_truncation, max_degree_l, spin_ratio, shown);
 }

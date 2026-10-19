@@ -193,3 +193,18 @@ def test_partition_radius_by_layer_splits_at_the_repeated_interface():
     assert list(first_index) == [0, 3]
     assert list(num_slices) == [3, 3]
     assert sum(num_slices) == radius.size
+
+
+@pytest.mark.parametrize("thickness", (1.0e-6, 2.0e-4, 2.0e-3, 2.0e-2))
+def test_partition_radius_by_layer_keeps_every_slice_of_a_thin_layer(thickness):
+    """A top layer 1 um to 2 cm thick under a Europa-sized radius keeps all of its slices: its slices lie closer to
+    the surface than 1e-9 of the radius, yet each is told apart from the interface copies."""
+    radius_outer = 1.5608e6
+    radius = np.concatenate((np.linspace(0.0, radius_outer - thickness, 100),
+                             np.linspace(radius_outer - thickness, radius_outer, 100)))
+    uppers = np.asarray([radius_outer - thickness, radius_outer], dtype=np.float64)
+
+    first_index, num_slices = partition_radius_by_layer(radius, uppers)
+
+    assert list(first_index) == [0, 100]
+    assert list(num_slices) == [100, 100]

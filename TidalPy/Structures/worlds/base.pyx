@@ -61,7 +61,7 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import (
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 from TidalPy.Utilities.logging.logger import log_warning
 from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name, STARTING_METHOD_NAMES, starting_method_from_name
-from TidalPy.constants import DEGREE1_FRAME_NAMES, degree1_frame_from_name
+from TidalPy.constants import DEGREE1_FRAME_NAMES, degree1_frame_from_name, p_value_from_name
 from TidalPy.exceptions import SolutionFailedError
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths, with the heavy
@@ -598,18 +598,14 @@ cdef void cy_apply_love_solve_overrides(
         cfg.max_ram_MB = <size_t>int(max_ram_MB)
 
 
+# The surface boundary conditions by name (the standalone radial_solver's solve_for entries) and the radial solver's
+# bc_model integer.
+SOLVE_FOR_MODELS = {"tidal": 1, "loading": 2, "free": 0}
+
+
 cdef int cy_resolve_solve_for(str solve_for) except? -999:
-    # Map a surface-boundary-condition name to the radial solver's bc_model integer
-    # (same names as the standalone radial_solver's solve_for entries).
-    cdef str name_lower = solve_for.lower()
-    if name_lower == 'tidal':
-        return 1
-    elif name_lower == 'loading':
-        return 2
-    elif name_lower == 'free':
-        return 0
-    raise ValueError(
-        f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
+    # Map a surface-boundary-condition name to the radial solver's bc_model integer.
+    return p_value_from_name("solve_for", solve_for, SOLVE_FOR_MODELS, ("tidal", "loading", "free"))
 
 
 cdef void cy_set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
@@ -2740,7 +2736,8 @@ cdef class BaseWorld(StructureBase):
         With a radial-solver Love method it is the volume integral of the radial solution's heating density over the
         layer (NaN when the tides config's ``layer_tidal_heating`` is off); with the ``homogeneous``, ``cpl``, or
         ``ctl`` method, the heating of the layer's own scaled Love numbers; with an analytic tide model, the total
-        times the layer's tidal scale.
+        times the layer's tidal scale. With a radial-solver Love method, a layer whose moduli are purely real at the
+        tidal frequencies (elastic, or ``use_tides`` off) takes exactly 0.
 
         Parameters
         ----------
