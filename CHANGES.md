@@ -29,6 +29,12 @@
 * The shooting method's bound on the dense solution it keeps (`max_ram_mb` of `[radial_solver]`, `max_ram_MB` of the
   solves) counted mebibytes (2^20 bytes), while the setting is documented in megabytes and CyRK's own step bound counts
   10^6 bytes. Both now count megabytes, so the bound is 4.6% lower in bytes; only a solve near the bound is affected.
+* A world and its layer views formed a reference cycle (the world caches its views, and each view held the world), so
+  a world was not freed when its last reference went: it and its C++ state (the solved structure, Love numbers, and
+  tide results) waited for Python's cyclic garbage collector. Loops that build and solve many worlds, as a fit does,
+  grew in memory between collections, by hundreds of MB in long runs. Each view now shares the world's C++ object
+  instead of holding its Python wrapper, so a world is freed as soon as it is deleted. A view kept after its world is
+  deleted stays usable, as before.
 
 #### Changes
 * The warning of a tidal solve at nonzero obliquity with the obliquity truncation off (the default, under which the
