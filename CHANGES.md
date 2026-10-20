@@ -35,6 +35,10 @@
   grew in memory between collections, by hundreds of MB in long runs. Each view now shares the world's C++ object
   instead of holding its Python wrapper, so a world is freed as soon as it is deleted. A view kept after its world is
   deleted stays usable, as before.
+* The configuration checks (`find_unknown_config_keys`, `find_invalid_config_values`, run whenever a configuration,
+  world, or system is loaded) walked nested tables with a closure that called itself, a reference cycle that left each
+  call's function and cell objects to the cyclic garbage collector. The walkers are module functions now, so loading a
+  system and deleting it leaves nothing behind for the collector.
 
 #### Changes
 * The warning of a tidal solve at nonzero obliquity with the obliquity truncation off (the default, under which the
