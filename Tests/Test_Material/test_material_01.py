@@ -194,6 +194,37 @@ def test_without_a_temperature_there_is_no_melt_state():
     assert state["phase"] == "solid"
 
 
+@pytest.mark.parametrize("temperature, switches", [
+    (1000.0, {}), (1000.0, _MELTING), (math.nan, {}), (2500.0, {})], ids=["cold", "cold_melting", "no_temp", "hot"])
+def test_a_liquid_layer_takes_the_material_fully_molten(temperature, switches):
+    """As a liquid layer sees it (is_liquid) a material that melts is its fully molten state whatever its temperature
+    and use_melting: the state above the liquidus with melting on."""
+    material = _material()
+    state = material.calc_state(1.0e9, temperature, is_liquid=True, **switches)
+    molten = material.calc_state(1.0e9, 2500.0, **_MELTING)
+    assert state["phase"] == "liquid" and state["melt_fraction"] == 1.0
+    assert state["shear_modulus"] == 0.0 and state["shear_viscosity"] == pytest.approx(0.2)
+    for key in ("density", "bulk_modulus", "adiabatic_bulk_modulus", "thermal_conductivity", "shear_viscosity",
+                "bulk_viscosity"):
+        np.testing.assert_equal(state[key], molten[key])
+    # The density stays the solid's without use_melt_density, as for a molten zone.
+    assert state["density"] == pytest.approx(3300.0)
+    assert material.calc_state(1.0e9, temperature, is_liquid=True, use_melt_density=True)["density"] == 2800.0
+    # The solid phase stays readable.
+    assert material.solid.calc_state(1.0e9, temperature)["shear_modulus"] == 7.0e10
+
+
+def test_a_liquid_layer_of_a_one_phase_material():
+    """A material without a liquid phase keeps its one phase in a liquid layer, with no rigidity; a liquid-only
+    material is unchanged."""
+    solid_only = Material(solid=_solid()).calc_state(0.0, 1000.0, is_liquid=True)
+    assert solid_only["phase"] == "liquid" and solid_only["melt_fraction"] == 1.0
+    assert solid_only["shear_modulus"] == 0.0
+    assert solid_only["shear_viscosity"] == 1.0e21 and solid_only["density"] == 3300.0
+    liquid_only = Material(liquid=_liquid())
+    np.testing.assert_equal(liquid_only.calc_state(0.0, 1000.0, is_liquid=True), liquid_only.calc_state(0.0, 1000.0))
+
+
 def test_temperature_dependent_thermal_properties():
     phase = Phase(thermal_conductivity=2.0, conductivity_temperature_exponent=-1.0, heat_capacity=2000.0,
                   heat_capacity_temperature_exponent=1.0, thermal_reference_temperature=250.0)

@@ -58,7 +58,7 @@ inline double c_solution_independence(
                 solution_ptr[2 * y_i + 1]
             );
             
-            scaled[solution_i][y_i] = scale_
+            scaled[solution_i][y_i] = scale_;
             largest = std::max(largest, std::abs(scale_));
         }
         if (!(largest > 0.0) || !std::isfinite(largest))

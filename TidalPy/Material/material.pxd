@@ -15,6 +15,7 @@ cdef extern from "material_.hpp" namespace "tidalpy" nogil:
         cpp_bool use_melting
         cpp_bool use_pressure_melting
         cpp_bool use_melt_density
+        cpp_bool is_liquid
 
     cdef enum class c_MaterialPhase:
         Solid

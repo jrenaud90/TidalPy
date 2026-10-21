@@ -1,6 +1,6 @@
 # Equation-of-State and Shear-Modulus Laws (`Material.laws`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-21_
 
 An equation-of-state law maps a pressure \[Pa\], temperature \[K\], and radius \[m\] onto a phase's density \[kg m$^{-3}$\], its isothermal and adiabatic bulk moduli \[Pa\], and its thermal expansivity \[K$^{-1}$\]. The analytic laws calculate the density from the pressure; the interpolated law looks it up by radius. A shear-modulus law maps the same point onto the phase's static (unrelaxed) shear modulus \[Pa\]. Each law fills one slot of a [phase](materials.md). The frequency dependence of the moduli belongs to the [rheology](../Rheology/rheology_models.md), and melt weakening to the material.
 
@@ -168,7 +168,21 @@ $$P(\eta, T) = P_\mathrm{cold}(\eta) + \alpha_0 K_0 \left( T - T_\mathrm{ref} \r
 
 taking $\alpha K_T$ as constant, its high-temperature limit (Anderson 1995). The density comes from the cold law at $P - \alpha_0 K_0 (T - T_\mathrm{ref})$, with expansivity $\alpha = \alpha_0 K_0 / K_T$ at that density. The constant and interpolated laws scale their density by $\exp[-\alpha_0 (T - T_\mathrm{ref})]$ instead, an expansivity of $\alpha_0$. The polytrope and the modified polytrope ignore the temperature.
 
-A law gives its athermal density when $\alpha_0 = 0$ (the default), when the `thermal` flag is off, or when the temperature is not finite. Its expansivity is still reported.
+A law gives its athermal density when $\alpha_0 = 0$ (the default), when the `thermal` flag is off, or when the temperature is not finite. Its expansivity is still reported. A pressure law with a [temperature-dependent bulk modulus](#temperature-dependent-bulk-modulus) is the exception: under pressure its density sees the temperature through its stiffness even then.
+
+### Temperature-Dependent Bulk Modulus
+
+Through the thermal pressure, a pressure law's zero-pressure $K_T$ stiffens by $K_0' \alpha_0 K_0$ per kelvin of cooling ($\delta_T = K_0'$), and only when the `thermal` flag is on. Some phases stiffen otherwise. Ice Ih keeps stiffening on cooling below about 100 K, where its expansivity nearly vanishes, which a constant $\alpha_0$ cannot represent. Birch-Murnaghan, Vinet, and Murnaghan therefore take an optional isobaric derivative $(\partial K_T / \partial T)_P$ at zero pressure, `bulk_modulus_temperature_derivative` (config key `bulk_modulus_temperature_derivative_pa_k`). With it set, $K_0$ follows the temperature,
+
+$$K_0(T) = K_0 + \left( \frac{\partial K_T}{\partial T} \right)_P (T - T_\mathrm{ref}) + K_0' \alpha_0 K_0 \left( T - T_\mathrm{ref} \right)_\mathrm{thermal},$$
+
+where the last term, present only when the density sees the temperature, gives back what the thermal pressure adds. So the zero-pressure $K_T$ changes by the stated slope with the `thermal` flag on or off, as a shear law's temperature derivative does. A law's pressure at a fixed compression is proportional to $K_0$, so the density comes from $K_0(T)$ by the same inversion, the reported $K_T$ stays $\rho (\partial P / \partial \rho)_T$, and the expansivity includes the stiffness term. With the `thermal` flag off, or at $T_\mathrm{ref}$, the zero-pressure density does not change; with it on, the thermal pressure is inverted against $K_0(T)$, so away from $T_\mathrm{ref}$ the zero-pressure density moves slightly (`ice_ih`: 943.6 kg m$^{-3}$ at 50 K and 917.23 kg m$^{-3}$ at 270 K, against 945.6 and 917.26 with $K_0$ fixed). Unset (NaN, the default), $K_0$ is fixed.
+
+The slope is linear, so it holds over its fit only. Far from it, a falling $K_0$ would reach zero and take the density with it (`ice_ih` near 1040 K), so the law has a range in temperature: where $K_0(T)$ would fall below a tenth of its reference value, the law holds it there, as if at the end of that range (`ice_ih` with the `thermal` flag off: above 963 K). A law's own evaluation (`calc_eos`, a phase's or material's `calc_state`) returns the held state, so the solid phase of a fully molten point stays finite. A world's EOS solve that uses the law past that temperature fails with a message naming the layer (see [When the EOS Solve Fails](../Structures/worlds/worlds.md#when-the-eos-solve-fails)).
+
+The Murnaghan law gives back the thermal pressure's stiffening only below $T_\mathrm{ref}$, where its cold pressure at zero pressure is positive and $K$ rises by $K_0'$ per pascal; above it that cold pressure is in tension, where $K = K_0$. The choice follows the temperature, not the pressure, so $K_T$ and the expansivity are continuous in pressure and the zero-pressure slope is the stated one on both sides.
+
+MatPack's `ice_ih` sets -1.11e7 Pa K$^{-1}$, fitted with its Gruneisen parameter to the adiabatic bulk modulus of Neumeier (2018), so with its shear law its Poisson's ratio stays near the measured 0.33 from 50 K to its melting point.
 
 ### Expansivity Under Compression
 
@@ -188,7 +202,7 @@ A tide deforms a planet faster than heat can diffuse, so the deformation is adia
 
 $$K_S = K_T \left( 1 + \alpha \gamma T \right).$$
 
-For a silicate at 2000 K with $\alpha$ = 3e-5 K$^{-1}$ and $\gamma$ = 1.2, $K_S / K_T$ is about 1.07. The radial solver reads $K_S$.
+For a silicate at 2000 K with $\alpha$ = 3e-5 K$^{-1}$ and $\gamma$ = 1.2, $K_S / K_T$ is about 1.07; for ice Ih, IAPWS-06 gives 1.03 near its melting point and 1.001 at 100 K, and MatPack's `ice_ih`, whose expansivity stays near its 250 K value, gives 1.03 and 1.009. The radial solver reads $K_S$.
 
 ### Pressure Inversion
 
@@ -239,6 +253,7 @@ Each parameter has a constructor keyword (also an attribute) and a config key (T
 | `reference_bulk_modulus` | `reference_bulk_modulus_pa` | 1.0e11 (Murnaghan 2.0e10) | Pa | Birch-Murnaghan, Vinet, Murnaghan |
 | `bulk_modulus_derivative` | `bulk_modulus_derivative` | 4.0 (Murnaghan 5.0) | - | Birch-Murnaghan, Vinet, Murnaghan |
 | `invert_rtol`, `invert_max_iters` | same | unset | - | Birch-Murnaghan, Vinet |
+| `bulk_modulus_temperature_derivative` | `bulk_modulus_temperature_derivative_pa_k` | unset (NaN) | Pa K$^{-1}$ | Birch-Murnaghan, Vinet, Murnaghan |
 | `polytropic_constant` | `polytropic_constant` | 2.0e5 | Pa (m$^3$ kg$^{-1}$)$^{1 + 1/n}$ | Polytrope |
 | `polytropic_index` | `polytropic_index` | 1.0 | - | Polytrope |
 | `polytrope_coefficient` | `polytrope_coefficient` | 0.00349 | kg m$^{-3}$ Pa$^{-n}$ | Modified polytrope |
@@ -265,7 +280,8 @@ Each parameter has a constructor keyword (also an attribute) and a config key (T
 - Pressure beyond a Birch-Murnaghan or Vinet law's monotonic range: the compression at that end of the range (see [Pressure Inversion](#pressure-inversion)). Murnaghan continues into tension as $\rho_0 e^{P / K_0}$.
 - Non-positive pressure: zero density and bulk modulus for the polytrope; $\rho_0$ for the modified polytrope, with a bulk modulus of 0 for $n < 1$.
 - Outside a table: the end values.
-- Non-finite temperature: the athermal density; the linear shear law drops its temperature term.
+- Non-finite temperature: the athermal density; the linear shear law and a pressure law's bulk-modulus temperature derivative drop their temperature terms.
+- Temperature past where a temperature-dependent $K_0$ falls to a tenth of its reference value: $K_0$ held there (see [Temperature-Dependent Bulk Modulus](#temperature-dependent-bulk-modulus)).
 - Parameter outside its bounds (a non-positive density or reference temperature, for example): `ValueError` when the law is built.
 
 ## Serialization
@@ -295,7 +311,7 @@ c_EOSPoint result;
 rock->calc_eos(point, true, result);   // true: the density sees the temperature
 ```
 
-A `c_ThermoPoint` holds the pressure, temperature (NaN for none), and radius; a `c_EOSPoint` the four fields of `calc_eos`. `c_EOSBase` provides `calc_eos(point, thermal, out)`, `calc_density(point, thermal)`, `calc_thermal_pressure(temperature, thermal)`, `get_pressure_law_range()` (unbounded for a law without one), `get_reference_temperature()`, and `calc_eos_vectorize(pressure, temperature, radius, thermal, ...)`. `c_ShearModulusBase` provides `calc_shear_modulus(point)` and `calc_shear_modulus_vectorize(pressure, temperature, radius, out)`. The vectorized calls take vectors of one value per point or a single value for every point, and fill caller-supplied output vectors.
+A `c_ThermoPoint` holds the pressure, temperature (NaN for none), and radius; a `c_EOSPoint` the four fields of `calc_eos`. `c_EOSBase` provides `calc_eos(point, thermal, out)`, `calc_density(point, thermal)`, `calc_thermal_pressure(temperature, thermal)`, `get_pressure_law_range(temperature, thermal)` (unbounded for a law without one; its pressures scale with a temperature-dependent $K_0$), `get_bulk_modulus_temperature_range(thermal)` (a `c_TemperatureRange`, unbounded unless $K_0$ follows the temperature), `get_reference_temperature()`, and `calc_eos_vectorize(pressure, temperature, radius, thermal, ...)`. `c_ShearModulusBase` provides `calc_shear_modulus(point)` and `calc_shear_modulus_vectorize(pressure, temperature, radius, out)`. The vectorized calls take vectors of one value per point or a single value for every point, and fill caller-supplied output vectors.
 
 `c_find_eos(name, params)` and `c_find_shear_modulus(name, params)` build a law by name or alias as a `std::unique_ptr` and throw `std::invalid_argument` for an unknown name or parameter. `c_eos_from_binary(stream, force)` and `c_shear_modulus_from_binary(stream, force)` rebuild the law a binary record names, and `c_eos_canonical_name(name)`, `c_eos_model_names()`, and the shear-modulus pair resolve names.
 
@@ -305,7 +321,7 @@ The pressure laws are free functions of `(eta, K0, K0_prime)`: `eos_bm_pressure`
 
 An equation-of-state law `Foo` (a shear-modulus law is the same, in `shear_modulus_law_.hpp`) needs:
 
-1. `c_FooEOS : public c_SpecModel<c_FooEOS, c_EOSBase>` in `eos_law_.hpp`: a `parameter_specs()` table (argument name, config key, member, default, bounds, description) ending in `p_append_thermal_specs(rows)`, `C_CLASS_ID`, two constructors that call `p_initialize`, and `p_calc_law(point, temperature_offset, out)`, which fills the density and $K_T$ (the base adds the expansivity and $K_S$). Override `p_thermal_pressure(temperature_offset)` for a thermal pressure and `p_calc_thermal_expansion(law_point)` when the expansivity is not the constant $\alpha_0$ (a pressure law returns `p_thermal_pressure_expansion(K0, law_point)`, which is $\alpha_0 K_0 / K_T$); `p_validate` and `p_update_derived` take cross-parameter checks and cached values.
+1. `c_FooEOS : public c_SpecModel<c_FooEOS, c_EOSBase>` in `eos_law_.hpp`: a `parameter_specs()` table (argument name, config key, member, default, bounds, description) ending in `p_append_thermal_specs(rows)`, `C_CLASS_ID`, two constructors that call `p_initialize`, and `p_calc_law(point, temperature_offset, sees_temperature, out)`, which fills the density and $K_T$ (the base adds the expansivity and $K_S$). Override `p_thermal_pressure(temperature_offset)` for a thermal pressure and `p_calc_thermal_expansion(law_point)` when the expansivity is not the constant $\alpha_0$ (a pressure law returns `p_thermal_pressure_expansion(K0, law_point)`, which is $\alpha_0 K_0 / K_T$); `p_validate` and `p_update_derived` take cross-parameter checks and cached values.
 2. A row in `c_eos_registry()`, and a `BinaryClassID::FooEOSLaw` in `Utilities/binary/binary_.hpp` (EOS laws 61X, shear-modulus laws 62X).
 3. `cdef class FooEOS(EOSBase)` in `laws.pyx` with a docstring and `MODEL_NAME = "foo"`, added to the `ModelFamily` list and exported from `TidalPy/Material/laws/__init__.py`.
 4. Physics tests in `Tests/Test_Material/test_eos_laws_01.py` (the density against a closed form, and an inversion cross-check); `Tests/Test_Utilities/Test_Classes/test_spec_models_01.py` covers parameters, config, binary record, and errors unchanged. Then document the law here with its formula and references.
@@ -320,5 +336,6 @@ An equation-of-state law `Foo` (a shear-modulus law is the same, in `shear_modul
 - Anderson, O. L. (1967). Equation for thermal expansivity in planetary interiors. *Journal of Geophysical Research*, 72(14), 3661-3668. The Anderson-Gruneisen relation for the expansivity.
 - Anderson, O. L. (1995). *Equations of State of Solids for Geophysics and Ceramic Science*. Oxford University Press. Thermal pressure, the near constancy of $\alpha K_T$ at high temperature, and $K_S / K_T$.
 - Chopelas, A., and Boehler, R. (1992). Thermal expansivity in the lower mantle. *Geophysical Research Letters*, 19(19), 1983-1986. The decrease of the Anderson-Gruneisen parameter with compression.
+- Neumeier, J. J. (2018). Elastic constants, bulk modulus, and compressibility of H2O ice Ih for the temperature range 50 K-273 K. *Journal of Physical and Chemical Reference Data*, 47, 033101. The ice Ih bulk modulus temperature derivative.
 - Poirier, J.-P. (2000). *Introduction to the Physics of the Earth's Interior*, second edition. Comparison of the finite-strain and universal forms.
 - Dziewonski, A. M., and Anderson, D. L. (1981). Preliminary reference Earth model. *Physics of the Earth and Planetary Interiors*, 25(4), 297-356.

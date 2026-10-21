@@ -47,6 +47,9 @@ struct c_MaterialSwitches {
     bool use_melting           = false;   // the liquid phase, melt fraction, and weakening take part
     bool use_pressure_melting  = false;   // the solidus and liquidus follow the pressure (else read at zero pressure)
     bool use_melt_density      = false;   // the density mixes the phases' by melt fraction (else the solid's)
+    // Not a physics switch: the layer is liquid throughout (c_Layer::get_is_liquid), so the material is fully molten
+    // whatever its temperature and use_melting (c_Material::calc_state). The layer sets it from its state.
+    bool is_liquid             = false;
 };
 
 enum class c_MaterialPhase : uint8_t {
@@ -453,7 +456,13 @@ public:
     //     an adiabat inside the range is shallower than the melting curve it nears while the one outside is steeper,
     //     and the two meet on the curve, which no integrator can step along.
     // Without a finite temperature there is no melt state: the solid phase with a NaN melt fraction (a liquid-only
-    // material stays liquid with a melt fraction of 1). A single melting temperature (a step) adds no latent heat:
+    // material stays liquid with a melt fraction of 1).
+    //
+    // In a liquid layer (switches.is_liquid) a material that can melt is fully molten (phi = 1, as above the liquidus)
+    // whatever its temperature and use_melting, so it reports what the radial solver's liquid equations use: no
+    // rigidity unless its liquid phase has a shear law, and the liquid's viscosity. A material without a liquid phase
+    // keeps its one phase there, with a zero shear modulus. Either way the material's solid phase stays readable
+    // through get_solid. A single melting temperature (a step) adds no latent heat:
     // there is no range to spread it over, so the boundary between the solid and liquid zones of a layer carries it
     // (the world's thermal network, c_zone_boundary_latent_capacity).
     void calc_state(
@@ -475,7 +484,7 @@ public:
     // The density alone [kg m-3], what the structure integration asks for.
     double calc_density(const c_ThermoPoint& point, const c_MaterialSwitches& switches) const noexcept {
         const bool thermal = switches.use_thermal_expansion;
-        if (!(switches.use_melting && switches.use_melt_density && this->get_can_melt())) {
+        if (!(switches.use_melt_density && this->p_has_melt_state(switches))) {
             return this->get_base_phase().calc_density(point, thermal);
         }
         c_MaterialState state;
@@ -486,12 +495,33 @@ public:
     // Whether calc_density can change with pressure: through an equation of state, or through the melt fraction where
     // the melt density is mixed in and the melting range moves with pressure.
     bool get_density_depends_on_pressure(const c_MaterialSwitches& switches) const noexcept {
-        if (!(switches.use_melting && switches.use_melt_density && this->get_can_melt())) {
+        if (!(switches.use_melt_density && this->p_has_melt_state(switches))) {
             return this->get_base_phase().get_eos().get_density_depends_on_pressure();
         }
+        // Fully molten in a liquid layer: the liquid's density alone.
+        if (switches.is_liquid) { return this->p_components.liquid->get_eos().get_density_depends_on_pressure(); }
         return switches.use_pressure_melting
             || this->p_components.solid->get_eos().get_density_depends_on_pressure()
             || this->p_components.liquid->get_eos().get_density_depends_on_pressure();
+    }
+
+    // Which phases' equations of state describe the material at a point, as a layer with these switches sees it: the
+    // base phase where the material is not fully molten or where its density stays the base phase's (use_melt_density
+    // off), and the liquid where any of it has melted (all of a liquid layer). A law that describes nothing at a point
+    // (the solid of a molten point whose density is the liquid's) has nothing there to represent.
+    void calc_phases_in_use(
+            const c_ThermoPoint& point,
+            const c_MaterialSwitches& switches,
+            bool& base_in_use,
+            bool& liquid_in_use) const noexcept {
+        base_in_use   = true;
+        liquid_in_use = false;
+        if (!this->p_has_melt_state(switches)) { return; }
+        c_MaterialState state;
+        this->p_evaluate(point, switches, false, state);
+        if (!(state.melt_fraction > 0.0)) { return; }   // solid, or no melt state at a non-finite temperature
+        liquid_in_use = true;
+        base_in_use   = (state.melt_fraction < 1.0) || !switches.use_melt_density;
     }
 
     // ln(mu / mu_min), the post-melt shear modulus against a threshold [Pa]: positive while the material is solid
@@ -555,6 +585,12 @@ protected:
         return components;
     }
 
+    // Whether the material can be anything but its base phase for a layer with these switches: it has both phases,
+    // and melting is on or the layer is liquid throughout.
+    bool p_has_melt_state(const c_MaterialSwitches& switches) const noexcept {
+        return this->get_can_melt() && (switches.use_melting || switches.is_liquid);
+    }
+
     void p_evaluate(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
@@ -572,17 +608,26 @@ protected:
         out.latent_heat_capacity = 0.0;
         out.solidus       = TidalPyConstants::d_NAN;
         out.liquidus      = TidalPyConstants::d_NAN;
-        if (!(switches.use_melting && this->get_can_melt())) { return; }
+        if (switches.is_liquid && !liquid_only && !this->get_can_melt()) {
+            // A liquid layer of a material without a liquid phase: its one phase, with no rigidity.
+            out.phase         = c_MaterialPhase::Liquid;
+            out.melt_fraction = 1.0;
+            out.shear_modulus = 0.0;
+            return;
+        }
+        if (!this->p_has_melt_state(switches)) { return; }
 
         this->calc_melting_range(point.pressure, switches, out.solidus, out.liquidus);
         const double temperature = point.temperature;
-        if (!std::isfinite(temperature)) {
+        if (!switches.is_liquid && !std::isfinite(temperature)) {
             out.melt_fraction = TidalPyConstants::d_NAN;
             return;
         }
         const double span = out.liquidus - out.solidus;
         const bool step = !(span > TidalPyConstants::d_EPS);
-        double phi = step ? ((temperature > out.solidus) ? 1.0 : 0.0) : (temperature - out.solidus) / span;
+        // A liquid layer is fully molten whatever its temperature.
+        double phi = switches.is_liquid ? 1.0
+            : (step ? ((temperature > out.solidus) ? 1.0 : 0.0) : (temperature - out.solidus) / span);
         if (!(phi > 0.0)) { return; }   // solid (a NaN melting curve leaves the solid too)
         if (phi > 1.0) { phi = 1.0; }
         out.melt_fraction = phi;

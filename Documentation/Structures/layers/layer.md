@@ -1,6 +1,6 @@
 # Layer (`Structures.layers`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-21_
 
 `TidalPy.Structures.layers.Layer` is one spherically symmetric shell of a world: its radii \[m\] and mass \[kg\], its material, the physics switches that say how much of that material it uses, its temperature \[K\], the assumptions the radial (Love number) solver makes inside it, and optional rheology overrides and cooling and radiogenics models. Rock, ice, iron, an ocean, or a gas envelope differ only in material and switches. A world's EOS solve evaluates the layer's material at every radius it integrates, and the layer's profile getters read those values back. `Layer` is a `StructureBase` (C++ `c_Layer`).
 
@@ -94,7 +94,7 @@ The four material switches and `use_heating` default to off, the simplest and fa
 | Switch | Default | Off | On |
 |---|---|---|---|
 | `use_thermal_expansion` | `False` | The density ignores the temperature. | The density and the thermal pressure follow the temperature. The expansivity shapes an adiabat either way. |
-| `use_melting` | `False` | The material's base phase only (its solid, or the liquid of a liquid-only material), so the state is fixed. | The liquid phase, melt fraction, and melt weakening take part, and the layer can split into solid and liquid zones. |
+| `use_melting` | `False` | The material's base phase only (its solid, or the liquid of a liquid-only material), so the state is fixed; a liquid layer is fully molten either way ([State and Zones](#state-and-zones)). | The liquid phase, melt fraction, and melt weakening take part, and the layer can split into solid and liquid zones. |
 | `use_pressure_melting` | `False` | The solidus and liquidus are read at zero pressure. | They follow the local pressure, and inside a melting range the latent heat also steepens an adiabat (`latent_expansion`). |
 | `use_melt_density` | `False` | The density is the solid phase's. | The density mixes the two phases' by melt fraction. |
 | `use_heating` | `False` | The layer generates no heat, whatever models it carries. | The world's heat sources (radiogenic, tidal, prescribed) act inside it during a thermal EOS solve. |
@@ -115,6 +115,8 @@ The four material switches and `use_heating` default to off, the simplest and fa
 
 With `state = "auto"` the material decides: a liquid-only material (`water`, `simple_liquid_iron`, `h2_he_molecular`) makes a liquid layer (`is_liquid`), any other a solid one. A solid layer whose material melts and that has `use_melting` on can change state (`can_change_state`): the world's EOS solve splits it into solid and liquid zones where its post-melt rigidity $\mu / (\bar{\rho} g R)$ crosses `[numerical] minimum_solid_rigidity`, and the Love solve takes each zone as a layer (see [Pieces and Zones](../worlds/worlds.md#pieces-and-zones)). `"solid"` or `"liquid"` forces the state for an idealized problem (`"liquid"` sets `is_liquid`), and the layer is never split.
 
+A liquid layer (`is_liquid`) evaluates its material fully molten, whatever its temperature and `use_melting`: everywhere the material is read (the EOS solve, the thermal network, the getters, the complex moduli, and the radial solver's inputs) it is the state above the liquidus with melting on. A material with a liquid phase (`iron_sulfide`, `ice_ih`, `peridotite`, ...) then reports its liquid's shear modulus (0 unless the liquid phase has a shear law), viscosity, bulk modulus, and thermal properties, with a melt fraction of 1; its density is the liquid's with `use_melt_density` and the solid's without, as for a molten zone. Without `use_melt_density` a dynamic liquid layer (`is_static = False`) pairs the solid's density and its slopes with the liquid's bulk modulus, so its buoyancy frequency $N^2$ comes from two different laws and is not zero even where each law alone is neutrally stratified; set `use_melt_density` on a dynamic liquid layer of a material with two phases. A material without a liquid phase keeps its one phase with a zero shear modulus. So a core set liquid reports what the liquid equations use, as a liquid-only material does. The material's solid phase stays readable through `layer.material.solid.calc_state(pressure, temperature)`, and the material in another state through `layer.material.calc_state(...)` with switches of your own.
+
 ### Changes That Clear a Solve
 
 When something the EOS solve reads changes, the layer's world forgets its solved structure (see [Solved State](../worlds/worlds.md#solved-state)):
@@ -122,7 +124,7 @@ When something the EOS solve reads changes, the layer's world forgets its solved
 - The material, the temperature, any of the four material switches, `use_heating`, or `is_volume_fixed`
 - The cooling or radiogenics model
 - The radii, moved with `set_radii`
-- A `state` change that changes `can_change_state` (the EOS solve looks for zones only in a layer that can change state)
+- A `state` change that changes `can_change_state` (the EOS solve looks for zones only in a layer that can change state) or `is_liquid` (the material is then evaluated fully molten)
 
 The rheologies, `use_tides`, `tidal_scale`, `is_static`, `is_incompressible`, and other `state` changes are read afresh by each Love or tidal solve and leave the solved structure standing.
 
@@ -147,7 +149,7 @@ print(mantle.calc_radiogenic_heating(1.4516496e17, 4.0e24))   # [W] at the datas
 
 ## Rheology Overrides
 
-A rheology maps the static modulus and viscosity onto a complex modulus at a forcing frequency (see [Rheology Models](../../Rheology/rheology_models.md)). A material's phase may carry default shear and bulk rheologies (MatPack rocks carry Andrade), and the layer may override either. `shear_rheology` and `bulk_rheology` return the rheology in effect: the override, else the material's default, else `None`. Setting one sets the override (a model, name, or config table, shared rather than consumed); `None` clears it. With no rheology the complex modulus is the real static modulus: perfectly elastic.
+A rheology maps the static modulus and viscosity onto a complex modulus at a forcing frequency (see [Rheology Models](../../Rheology/rheology_models.md)). A material's phase may carry default shear and bulk rheologies (MatPack rocks carry Andrade), and the layer may override either. `shear_rheology` and `bulk_rheology` return the rheology in effect: the override, else the material's default (its liquid phase's in a liquid layer, its base phase's otherwise), else `None`. Setting one sets the override (a model, name, or config table, shared rather than consumed); `None` clears it. With no rheology the complex modulus is the real static modulus: perfectly elastic.
 
 ```python
 from TidalPy.Rheology import Maxwell
@@ -170,7 +172,7 @@ A world's EOS solve populates every layer's profile, and the getters read it bac
 | `get_density`, `get_gravity`, `get_pressure` | Density \[kg m$^{-3}$\], gravity \[m s$^{-2}$\], and pressure \[Pa\]. |
 | `get_shear_modulus`, `get_bulk_modulus` | Post-melt static shear modulus and adiabatic bulk modulus \[Pa\]. |
 | `get_shear_viscosity`, `get_bulk_viscosity` | Post-melt viscosities \[Pa s\]. |
-| `get_melt_fraction` | Melt fraction: 0 for a layer that does not melt, 1 for a liquid-only material. |
+| `get_melt_fraction` | Melt fraction: 0 for a layer that does not melt, 1 for a liquid layer (`is_liquid`). |
 | `get_static_viscoelastics(radius)` | `(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)` from one evaluation per radius. |
 | `get_state(radius)` | Every profile above as a dict. |
 | `calc_complex_shear_modulus(radius, frequency)`, `calc_complex_bulk_modulus(radius, frequency)` | The rheology in effect applied to the solved post-melt modulus and viscosity at `radius`, at a frequency \[rad s$^{-1}$\]. |
@@ -245,7 +247,7 @@ A layer that names no material takes `[layers] material` of `TidalPy_Configs.tom
 
 ## C++ API
 
-`c_Layer : c_StructureBase` is built from a `c_LayerConfig` holding the constructor's scalars (`state` as a `c_LayerState`, the switches as `c_MaterialSwitches`). The material is a `shared_ptr<const c_Material>` (`set_material`, `get_material`), and the rheology overrides and models are shared pointers too (`set_shear_rheology`, `set_bulk_rheology`, `set_cooling`, `set_radiogenics`). `get_shear_rheology()` returns the rheology in effect and `apply_shear_rheology(static_modulus, viscosity, frequency)` makes a complex modulus. `calc_state(point, out)` fills a `c_MaterialState` with the layer's switches. `get_is_liquid()`, `get_can_change_state()`, the vectorized reads `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)` and `calc_complex_moduli`, and `c_layer_state_from_name` / `c_layer_state_name` complete it.
+`c_Layer : c_StructureBase` is built from a `c_LayerConfig` holding the constructor's scalars (`state` as a `c_LayerState`, the switches as `c_MaterialSwitches`). The material is a `shared_ptr<const c_Material>` (`set_material`, `get_material`), and the rheology overrides and models are shared pointers too (`set_shear_rheology`, `set_bulk_rheology`, `set_cooling`, `set_radiogenics`). `get_shear_rheology()` returns the rheology in effect and `apply_shear_rheology(static_modulus, viscosity, frequency)` makes a complex modulus. `calc_state(point, out)` fills a `c_MaterialState` with `calc_material_switches()`, the layer's switches plus `is_liquid` from its state, which the world's EOS solve also evaluates the material with. `get_is_liquid()`, `get_can_change_state()`, the vectorized reads `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)` and `calc_complex_moduli`, and `c_layer_state_from_name` / `c_layer_state_name` complete it.
 
 ## References
 

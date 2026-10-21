@@ -589,7 +589,8 @@ cdef class Layer(StructureBase):
 
     @property
     def state(self) -> str:
-        """How the radial solver treats the layer: ``"auto"``, ``"solid"``, or ``"liquid"``."""
+        """How the radial solver treats the layer: ``"auto"``, ``"solid"``, or ``"liquid"``. A liquid layer's material
+        is fully molten (``is_liquid``)."""
         self._check_ptr()
         return c_layer_state_name(self._layer_ptr.get().get_state()).decode("utf-8")
 
@@ -600,7 +601,9 @@ cdef class Layer(StructureBase):
 
     @property
     def is_liquid(self) -> bool:
-        """Whether the radial solver treats the whole layer as a liquid."""
+        """Whether the radial solver treats the whole layer as a liquid. Its material is then evaluated fully molten,
+        whatever its temperature and ``use_melting``: the liquid phase's shear modulus (none, so 0) and viscosity. A
+        material without a liquid phase keeps its one phase with a zero shear modulus."""
         self._check_ptr()
         return self._layer_ptr.get().get_is_liquid()
 
@@ -634,7 +637,8 @@ cdef class Layer(StructureBase):
         self._layer_ptr.get().set_is_incompressible(bool(value))
 
     def calc_state(self, pressure, temperature=None, radius=None) -> dict:
-        """The layer's material at a point, with the layer's switches (see ``Material.calc_state``).
+        """The layer's material at a point, with the layer's switches and ``is_liquid`` (see
+        ``Material.calc_state``).
 
         Parameters
         ----------
@@ -662,15 +666,17 @@ cdef class Layer(StructureBase):
             use_thermal_expansion=switches.use_thermal_expansion,
             use_melting=switches.use_melting,
             use_pressure_melting=switches.use_pressure_melting,
-            use_melt_density=switches.use_melt_density)
+            use_melt_density=switches.use_melt_density,
+            is_liquid=self._layer_ptr.get().get_is_liquid())
 
     # =================================================================================================================
     # Rheology
     # =================================================================================================================
     @property
     def shear_rheology(self):
-        """The shear rheology in effect: the layer's override, else its material's default; None for none. Setting it
-        sets the override (a model, a model name, or a config table); None clears the override."""
+        """The shear rheology in effect: the layer's override, else its material's default (its liquid phase's in a
+        liquid layer); None for none. Setting it sets the override (a model, a model name, or a config table); None
+        clears the override."""
         self._check_ptr()
         return cy_wrap_model(self._layer_ptr.get().share_shear_rheology_model(False))
 

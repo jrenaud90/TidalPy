@@ -277,8 +277,16 @@ public:
     bool get_material_set() const noexcept { return this->p_material != nullptr; }
 
     const c_MaterialSwitches& get_switches() const noexcept { return this->p_switches; }
+    // The switches the material is evaluated with everywhere (the EOS solve, the thermal network, calc_state): the
+    // layer's own, plus whether it is liquid throughout, so a liquid layer's material is fully molten
+    // (c_Material::calc_state).
+    c_MaterialSwitches calc_material_switches() const noexcept {
+        c_MaterialSwitches switches = this->p_switches;
+        switches.is_liquid = this->get_is_liquid();
+        return switches;
+    }
     // Every switch changes what the EOS solve evaluates, so each setter makes the owning world forget its solved
-    // structure (c_LayerOwner).
+    // structure (c_LayerOwner). The layer's state, not the switches given here, decides is_liquid.
     void set_switches(const c_MaterialSwitches& switches) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_switches = switches;
@@ -309,14 +317,14 @@ public:
         this->p_update_owner_after_change();
     }
 
-    // The layer's material at a point (pressure [Pa], temperature [K], radius [m]) with the layer's switches. A layer
-    // without a material reports NaN throughout.
+    // The layer's material at a point (pressure [Pa], temperature [K], radius [m]) with the layer's switches and state
+    // (calc_material_switches). A layer without a material reports NaN throughout.
     void calc_state(const c_ThermoPoint& point, c_MaterialState& out) const noexcept {
         if (!this->p_material) {
             out = c_MaterialState();
             return;
         }
-        this->p_material->calc_state(point, this->p_switches, out);
+        this->p_material->calc_state(point, this->calc_material_switches(), out);
     }
 
     // The layer's material at zero pressure, its own temperature, and its mid-radius: the layer-constant state the
@@ -332,18 +340,21 @@ public:
     // How the radial solver treats the layer.
     c_LayerState get_state() const noexcept { return this->p_state; }
     // The radial solver reads it afresh at every Love solve, so the EOS solve stands, unless the change decides whether
-    // the layer can change state (get_can_change_state): the EOS solve finds its solid and liquid zones only where it
-    // can, so then the owning world forgets its solved structure. Takes the owner's call lock so it never changes
-    // under a solve.
+    // the layer can change state (get_can_change_state: the EOS solve finds its solid and liquid zones only where it
+    // can) or whether it is liquid throughout (get_is_liquid: its material is then fully molten). Then the owning
+    // world forgets its solved structure. Takes the owner's call lock so it never changes under a solve.
     void set_state(c_LayerState state) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         const bool could_change_state = this->get_can_change_state();
+        const bool was_liquid         = this->get_is_liquid();
         this->p_state = state;
-        if (could_change_state != this->get_can_change_state()) { this->p_update_owner_after_change(); }
+        if ((could_change_state != this->get_can_change_state()) || (was_liquid != this->get_is_liquid())) {
+            this->p_update_owner_after_change();
+        }
     }
 
     // Whether the radial solver treats the whole layer as a liquid: a layer set liquid, or an automatic one made of a
-    // liquid-only material.
+    // liquid-only material. Its material is evaluated fully molten (calc_material_switches).
     bool get_is_liquid() const noexcept {
         if (this->p_state == c_LayerState::Liquid) { return true; }
         if (this->p_state == c_LayerState::Solid)  { return false; }
@@ -388,16 +399,17 @@ public:
     const c_RheologyBase* get_shear_rheology_override() const noexcept { return this->p_shear_rheology.get(); }
     const c_RheologyBase* get_bulk_rheology_override()  const noexcept { return this->p_bulk_rheology.get(); }
 
-    // The rheology in effect: the layer's override, else its material's default (its base phase's); null for none, in
-    // which case the complex modulus is the static modulus as a purely real number. Shared, so a radial-solver
-    // solution exported to Python can reproduce the complex moduli it was solved with after this layer is gone.
+    // The rheology in effect: the layer's override, else its material's default (the phase the layer is made of,
+    // p_rheology_phase); null for none, in which case the complex modulus is the static modulus as a purely real
+    // number. Shared, so a radial-solver solution exported to Python can reproduce the complex moduli it was solved
+    // with after this layer is gone.
     std::shared_ptr<const c_RheologyBase> share_shear_rheology() const noexcept {
         if (this->p_shear_rheology || !this->p_material) { return this->p_shear_rheology; }
-        return this->p_material->get_base_phase().get_components().shear_rheology;
+        return this->p_rheology_phase().get_components().shear_rheology;
     }
     std::shared_ptr<const c_RheologyBase> share_bulk_rheology() const noexcept {
         if (this->p_bulk_rheology || !this->p_material) { return this->p_bulk_rheology; }
-        return this->p_material->get_base_phase().get_components().bulk_rheology;
+        return this->p_rheology_phase().get_components().bulk_rheology;
     }
     const c_RheologyBase* get_shear_rheology() const noexcept { return this->share_shear_rheology().get(); }
     const c_RheologyBase* get_bulk_rheology()  const noexcept { return this->share_bulk_rheology().get(); }
@@ -716,6 +728,14 @@ protected:
     void p_update_owner_after_change() {
         c_LayerOwner* owner_ptr = this->p_owner_call_mutex.get_owner();
         if (owner_ptr != nullptr) { owner_ptr->update_after_layer_change(); }
+    }
+
+    // The phase whose default rheologies the layer takes, for a layer with a material: the liquid of a liquid layer,
+    // which its material is fully molten in (calc_material_switches), else the material's base phase. A layer that
+    // can change state keeps its base phase's in its liquid zones too, since it has one rheology.
+    const c_Phase& p_rheology_phase() const noexcept {
+        const c_Phase* liquid_ptr = this->p_material->get_liquid();
+        return (this->get_is_liquid() && (liquid_ptr != nullptr)) ? *liquid_ptr : this->p_material->get_base_phase();
     }
 
     // One entry of the evaluation layout at a radius, under the owner's lock.

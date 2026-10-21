@@ -4,6 +4,9 @@
 
 ### Version 0.8.1 (2026-10-21)
 
+#### New Features
+* The Birch-Murnaghan, Vinet, and Murnaghan eos now take an optional isobaric temperature derivative of the bulk modulus at zero pressure, `bulk_modulus_temperature_derivative` (config key `bulk_modulus_temperature_derivative_pa_k`; unset by default, which keeps K0 fixed). K0 follows it with thermal expansion on or off, and the density, K_T = rho dP/d rho, the expansivity, and the law's pressure range follow from the same K0; K_T and the expansivity stays continuous with pressure.
+
 #### Fixes
 * A world's radial Love solve (`solve_love_numbers`, `calc_love_numbers`, and the tides and 3D maps with the `radial_solver` or `propagation_matrix` Love method) split its radius grid into layers by a radius tolerance (1e-9 of the radius; used for EOS output sampling). This could result in tiny slices (~mm) to incorrectly be assigned to the wrong layer (solid properties to a ocean, vice versa). A layer thinner than the tolerance (1.5 mm there) failed with "No love-number solve has been run.". The solve now takes each layer's slices as its grid was built.
   * The other functions matched a layer's top radius by the same radius tolerance, so they also took the slices of a layer only millimeters thick at interfaces. Interfaces now match within 1e-9 of the thinner of the two layers that meet there, by one rule all of them share, so such layers keep every slice. Grids without thin layers are unaffected.
@@ -11,9 +14,12 @@
 * The shooting method provides a RAM limit switch (`max_ram_mb` of `[radial_solver]`), but this mistakenly used a wrong byte conversion leading to ~5% lower bound. Results were unaffected.
 * A world and its layer views formed reference loope (the world cached layer views and each layer held a world view), so a world was not freed when its last reference went. They would still be caught by Python's garbage collector, but loops that did not leave C++ would not be collected properly leading to a pseudo memory leak. Each view now shares the world's C++ object instead of holding its Python wrapper, so a world is freed as soon as it is deleted.
 * The configuration checks (`find_unknown_config_keys`, `find_invalid_config_values`, run whenever a configuration, world, or system is loaded) walked nested tables with a recursive function, this also led to objects that would not be freed until Python's garbage collector was triggered. The walkers are module functions now, so loading a system and deleting it leaves nothing behind for the collector.
+* A layer that is set as a liquid (`state = "liquid"`) whose material also has a solid phase (the MatPack `iron_sulfide`, `iron`, `ice_ih`, `peridotite`, ...) was evaluated as that solid unless its switches melted it (`use_melting` on and a temperature past the liquidus). Its getters, `calc_complex_shear_modulus`, `calc_state`, and the radial solver's inputs reported the solid's shear modulus, viscosity, and bulk modulus. A liquid layer now evaluates its material fully molten whatever its temperature and `use_melting`.
+* The EOS solve's check of each layer against its pressure law's now correctly reads the base (solid) phase's law.
 * MatPack `ice_ih` stiffened its shear modulus on cooling (-6.6e6 Pa/K) but kept its bulk modulus at 8.79 GPa at every temperature. `ice_ih` now takes the new `bulk_modulus_temperature_derivative_pa_k` (see New Features) of -1.11e7 Pa/K, the Gruneisen parameter, and a shear law fitted to Neumeier's Hill moduli. Now its Poisson's ratio stays between 0.326 to 0.334 from 273 to 50 K.
 
 #### Changes
+* `c_EOSBase::get_pressure_law_range()` takes `(temperature, thermal)` and scales with a temperature-dependent K0.
 * A warning was added when a tidal solve was used at a nonzero obliquity but that had obliquity truncation off (the default). It also describes how to change this setting.
 * An unknown integration method, starting method, degree-1 frame, or `solve_for` name raises `ValueError` naming the closest accepted name and listing the choices.
 
@@ -25,7 +31,7 @@
 * The test workflow caches compiled objects with `ccache` on Linux and macOS, per operating system and Python version, so a run recompiles only the extensions that changed. Windows keeps the isolated build.
 
 #### Tests
-* The suite runs a reduced test suite by default (skipping ones marked as `slow`). Use `pytest --full-suite` or `TIDALPY_FULL_SUITE=1` runs every test. With 8 workers the reduced set (5058 of 12422 cases) takes 41 s and the full suite 100 s, much longer if fewer workers are available as is the case when using GitHub actions.
+* The suite runs a reduced test suite by default (skipping ones marked as `slow`). Use `pytest --full-suite` or `TIDALPY_FULL_SUITE=1` runs every test. With 8 workers the reduced set (5135 of 12503 cases) takes 44 s and the full suite 82 s, much longer if fewer workers are available as is the case when using GitHub actions.
 * An `-n` run without `--dist` distributes by `worksteal` now, fixing an issue with the demo notebooks and OpenBLAS threads.
 * `Tests/Test_Demos/test_demo_notebooks_02.py` checks every demo and benchmark notebook without running it.
 * New tests for the fixes made in this patch.

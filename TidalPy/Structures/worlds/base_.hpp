@@ -1224,7 +1224,8 @@ public:
             guess_point.pressure    = cfg.surface_pressure;
             guess_point.temperature = TidalPyConstants::d_NAN;
             guess_point.radius      = 0.5 * (r_inner + r_outer);
-            const double rho_mid    = layer->get_material()->calc_density(guess_point, layer->get_switches());
+            const double rho_mid    =
+                layer->get_material()->calc_density(guess_point, layer->calc_material_switches());
             const double shell_vol = (4.0 / 3.0) * TidalPyConstants::d_PI
                                    * (r_outer * r_outer * r_outer - r_inner * r_inner * r_inner);
             total_volume  += shell_vol;
@@ -1293,7 +1294,7 @@ public:
             solve_state->materials.push_back(this->p_layers[i]->share_material());
             c_MaterialPreevalInput& material_input = solve_state->inputs[i];
             material_input.material_ptr  = solve_state->materials[i].get();
-            material_input.switches      = this->p_layers[i]->get_switches();
+            material_input.switches      = this->p_layers[i]->calc_material_switches();
             if ((material_input.material_ptr == nullptr)
                     || material_input.material_ptr->get_density_depends_on_pressure(material_input.switches)) {
                 density_independent_of_pressure = false;
@@ -1700,68 +1701,139 @@ public:
     }
 
 protected:
-    // Checks each layer of a just-finished solve against the range its material's pressure law represents
-    // (c_PressureLawRange; the Birch-Murnaghan and Vinet laws are the ones with limits), on the material's base phase.
-    // Past either end the law holds the density at that end with a bulk modulus near zero. The law sees the cold
-    // pressure: the pressure less the thermal pressure alpha0 K0 (T - T_ref) when the layer uses thermal expansion,
-    // at the layer's temperature or, in a solve that integrates temperature, the solved one.
+    // Checks each layer of a just-finished solve against the ranges its material's equations of state represent, each
+    // phase over the slices where the layer uses it (c_Material::calc_phases_in_use): the base phase where the
+    // material is not fully molten or its density stays the base phase's, and the liquid where it has melted, so a
+    // liquid layer whose density is its liquid's is checked against the liquid's law alone.
     //
-    // Past the tension end the material cannot hold together at its temperature and pressure, so what the layer
-    // reports there is the pinned state rather than a structure: the solve fails with a message naming the layer.
-    // Past the compression end (Birch-Murnaghan with K0' below 4 turns over at a finite compression) only the
-    // deepest slices are held, so the solve warns and stands.
+    // A law whose bulk modulus follows the temperature holds K0 past its range in temperature
+    // (c_EOSBase::get_bulk_modulus_temperature_range), so a slice there no longer has its material's stiffness or
+    // density: the solve fails with a message naming the layer.
+    //
+    // Pressure (c_PressureLawRange; the Birch-Murnaghan and Vinet laws are the ones with limits): past either end the
+    // law holds the density at that end with a bulk modulus near zero. The law sees the cold pressure: the pressure
+    // less the thermal pressure alpha0 K0 (T - T_ref) when the layer uses thermal expansion, at the layer's
+    // temperature or, in a solve that integrates temperature, the solved one. A law whose bulk modulus follows the
+    // temperature has its range there, so each slice is checked against its own. Past the tension end the material
+    // cannot hold together at its temperature and pressure, so what the layer reports there is the pinned state rather
+    // than a structure: the solve fails with a message naming the layer. Past the compression end (Birch-Murnaghan
+    // with K0' below 4 turns over at a finite compression) only the deepest slices are held, so the solve warns and
+    // stands.
     void p_check_pressure_law_ranges(c_EOSSolution& solution, const c_EOSSolveState& solve_state, std::size_t slices) {
         const std::size_t n_layers = std::min(this->p_layers.size(), solve_state.materials.size());
         for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
             if (!solve_state.materials[layer_index] || (layer_index >= solve_state.inputs.size())) { continue; }
-            const c_EOSBase& eos = solve_state.materials[layer_index]->get_base_phase().get_eos();
-            const c_PressureLawRange law_range = eos.get_pressure_law_range();
-            if (!std::isfinite(law_range.pressure_min) && !std::isfinite(law_range.pressure_max)) { continue; }
-
-            // The coldest and the most compressed slice of the layer, in the pressure the law sees.
+            const c_Material& material = *solve_state.materials[layer_index];
             const c_MaterialPreevalInput& input = solve_state.inputs[layer_index];
-            const bool thermal                  = input.switches.use_thermal_expansion;
-            const std::size_t slice_start       = layer_index * slices;
-            const std::size_t slice_end = std::min(slice_start + slices, solution.pressure_array_vec.size());
-            double cold_pressure_min    = TidalPyConstants::d_INF;
-            double cold_pressure_max    = -TidalPyConstants::d_INF;
-            double thermal_pressure_min = 0.0;   // at the slice of cold_pressure_min [Pa]
-            for (std::size_t slice_i = slice_start; slice_i < slice_end; ++slice_i) {
-                const double temperature =
-                    (input.use_state_temperature && (slice_i < solution.temperature_array_vec.size()))
-                    ? solution.temperature_array_vec[slice_i] : input.temperature;
-                const double thermal_pressure = eos.calc_thermal_pressure(temperature, thermal);
-                const double cold_pressure = solution.pressure_array_vec[slice_i] - thermal_pressure;
-                if (cold_pressure < cold_pressure_min) {
-                    cold_pressure_min    = cold_pressure;
-                    thermal_pressure_min = thermal_pressure;
-                }
-                cold_pressure_max = std::max(cold_pressure_max, cold_pressure);
-            }
-
-            if (cold_pressure_min < law_range.pressure_min) {
-                std::ostringstream message;
-                message << std::setprecision(4)
-                    << "TidalPy: layer '" << this->p_layers[layer_index]->get_name() << "' of world '"
-                    << this->get_name() << "' is in tension past what its material's pressure law represents: the "
-                       "pressure the law sees (the pressure less a thermal pressure alpha0 K0 (T - T_ref) of "
-                    << thermal_pressure_min << " Pa) falls to " << cold_pressure_min << " Pa, below the law's tension "
-                       "limit of " << law_range.pressure_min << " Pa, where its density is held at the law's smallest "
-                       "compression with a bulk modulus near zero. Lower the layer's temperature or its material's "
-                       "thermal expansivity, or check the law's reference bulk modulus and its derivative.";
-                solution.success = false;
-                solution.message = message.str();
+            if (!this->p_check_phase_law_ranges(solution, material, input, layer_index, slices, false)) { return; }
+            if (material.get_can_melt()
+                    && !this->p_check_phase_law_ranges(solution, material, input, layer_index, slices, true)) {
                 return;
             }
-            if (cold_pressure_max > law_range.pressure_max) {
-                TIDALPY_LOG_WARN(
-                    "TidalPy: layer '{}' of world '{}' reaches {:.4e} Pa in the pressure its material's law sees, past "
-                    "the {:.4e} Pa the law represents; its density is held at the law's largest compression there. "
-                    "Check the law's bulk modulus derivative (a Birch-Murnaghan K0' below 4 turns over).",
-                    this->p_layers[layer_index]->get_name(), this->get_name(), cold_pressure_max,
-                    law_range.pressure_max);
+        }
+    }
+
+    // One phase of a layer's material, its base phase or (`liquid`) its liquid, against its law's ranges over the
+    // slices where the layer uses it (see p_check_pressure_law_ranges). False when it fails the solve.
+    bool p_check_phase_law_ranges(
+            c_EOSSolution& solution,
+            const c_Material& material,
+            const c_MaterialPreevalInput& input,
+            std::size_t layer_index,
+            std::size_t slices,
+            bool liquid) {
+        const c_EOSBase& eos = liquid ? material.get_liquid()->get_eos() : material.get_base_phase().get_eos();
+        const bool thermal   = input.switches.use_thermal_expansion;
+        const c_PressureLawRange layer_range       = eos.get_pressure_law_range(input.temperature, thermal);
+        const c_TemperatureRange temperature_range = eos.get_bulk_modulus_temperature_range(thermal);
+        const bool pressure_bounded =
+            std::isfinite(layer_range.pressure_min) || std::isfinite(layer_range.pressure_max);
+        const bool temperature_bounded =
+            std::isfinite(temperature_range.temperature_min) || std::isfinite(temperature_range.temperature_max);
+        if (!pressure_bounded && !temperature_bounded) { return true; }
+        // Which law the messages name: a material of two phases has one per phase.
+        const std::string law_name = !material.get_can_melt() ? "its material's pressure law"
+            : (liquid ? "its material's pressure law (its liquid phase's)"
+                      : "its material's pressure law (its solid phase's)");
+        const std::string& layer_name = this->p_layers[layer_index]->get_name();
+
+        // The slices furthest past either end of their own range, in the pressure the law sees.
+        const std::size_t slice_start = layer_index * slices;
+        const std::size_t slice_end   = std::min(slice_start + slices, solution.pressure_array_vec.size());
+        double tension_margin     = TidalPyConstants::d_INF;    // least cold pressure less its tension limit [Pa]
+        double compression_margin = -TidalPyConstants::d_INF;   // most cold pressure less its compression limit
+        double cold_pressure_min    = 0.0;   // at the slice of tension_margin [Pa]
+        double thermal_pressure_min = 0.0;
+        double tension_limit        = 0.0;
+        double cold_pressure_max    = 0.0;   // at the slice of compression_margin [Pa]
+        double compression_limit    = 0.0;
+        for (std::size_t slice_i = slice_start; slice_i < slice_end; ++slice_i) {
+            c_ThermoPoint point;
+            point.pressure    = solution.pressure_array_vec[slice_i];
+            point.temperature = (input.use_state_temperature && (slice_i < solution.temperature_array_vec.size()))
+                ? solution.temperature_array_vec[slice_i] : input.temperature;
+            if (slice_i < solution.radius_array_vec.size()) { point.radius = solution.radius_array_vec[slice_i]; }
+            bool base_in_use   = true;
+            bool liquid_in_use = false;
+            material.calc_phases_in_use(point, input.switches, base_in_use, liquid_in_use);
+            if (!(liquid ? liquid_in_use : base_in_use)) { continue; }
+
+            const double temperature = point.temperature;
+            const bool too_hot  = temperature > temperature_range.temperature_max;
+            const bool too_cold = temperature < temperature_range.temperature_min;
+            if (too_hot || too_cold) {
+                std::ostringstream message;
+                message << std::setprecision(6)
+                    << "TidalPy: layer '" << layer_name << "' of world '" << this->get_name() << "' reaches "
+                    << temperature << " K, " << (too_hot ? "above" : "below") << " the "
+                    << (too_hot ? temperature_range.temperature_max : temperature_range.temperature_min)
+                    << " K past which " << law_name << " holds its bulk modulus: its temperature derivative "
+                       "(bulk_modulus_temperature_derivative_pa_k) takes K0 below a tenth of its reference value "
+                       "there, far outside any fit, so the layer's density and bulk modulus no longer follow its "
+                       "material. Check the layer's temperature or that derivative.";
+                solution.success = false;
+                solution.message = message.str();
+                return false;
+            }
+            if (!pressure_bounded) { continue; }
+
+            const double thermal_pressure = eos.calc_thermal_pressure(temperature, thermal);
+            const double cold_pressure    = point.pressure - thermal_pressure;
+            const c_PressureLawRange law_range = eos.get_pressure_law_range(temperature, thermal);
+            if (cold_pressure - law_range.pressure_min < tension_margin) {
+                tension_margin       = cold_pressure - law_range.pressure_min;
+                cold_pressure_min    = cold_pressure;
+                thermal_pressure_min = thermal_pressure;
+                tension_limit        = law_range.pressure_min;
+            }
+            if (cold_pressure - law_range.pressure_max > compression_margin) {
+                compression_margin = cold_pressure - law_range.pressure_max;
+                cold_pressure_max  = cold_pressure;
+                compression_limit  = law_range.pressure_max;
             }
         }
+
+        if (tension_margin < 0.0) {
+            std::ostringstream message;
+            message << std::setprecision(4)
+                << "TidalPy: layer '" << layer_name << "' of world '" << this->get_name() << "' is in tension past "
+                   "what " << law_name << " represents: the pressure the law sees (the pressure less a thermal "
+                   "pressure alpha0 K0 (T - T_ref) of " << thermal_pressure_min << " Pa) falls to " << cold_pressure_min
+                << " Pa, below the law's tension limit of " << tension_limit << " Pa, where its density is held at "
+                   "the law's smallest compression with a bulk modulus near zero. Lower the layer's temperature or its "
+                   "material's thermal expansivity, or check the law's reference bulk modulus and its derivative.";
+            solution.success = false;
+            solution.message = message.str();
+            return false;
+        }
+        if (compression_margin > 0.0) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: layer '{}' of world '{}' reaches {:.4e} Pa in the pressure {} sees, past the {:.4e} Pa the "
+                "law represents; its density is held at the law's largest compression there. Check the law's bulk "
+                "modulus derivative (a Birch-Murnaghan K0' below 4 turns over).",
+                layer_name, this->get_name(), cold_pressure_max, law_name, compression_limit);
+        }
+        return true;
     }
 
     // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built

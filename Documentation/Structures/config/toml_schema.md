@@ -111,7 +111,7 @@ Each `[layers.<layer_name>]` table builds one [`Layer`](../layers/layer.md), nam
 | `use_tides` | optional | Whether the layer dissipates. Off, it has no share in the quasi-homogeneous Love methods and is elastic (static moduli) in the radial solver, so it adds no heating. Default `true`. |
 | `tidal_scale` | optional | The layer's share in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Default: its volume over the planet's. Unused by the radial solver. |
 | `is_volume_fixed` | optional | `false` makes the layer hold its mass, not its volume: the EOS solve ends it where it encloses that mass, and the layers above move with it. Default `true`. |
-| `state` | optional | `"auto"` (the material decides; a melting layer splits into solid and liquid zones), `"solid"`, or `"liquid"`. Default `"auto"`. |
+| `state` | optional | `"auto"` (the material decides; a melting layer splits into solid and liquid zones), `"solid"`, or `"liquid"` (the material fully molten whatever `temperature_k` and `use_melting`: no shear modulus and the liquid's viscosity). Default `"auto"`. |
 | `is_static` | optional | No inertia in the radial solve. Default `true`, so a liquid layer or zone is static unless this is `false`. |
 | `is_incompressible` | optional | Incompressible radial solve. Default `false`. |
 | `temperature_k` | optional | Temperature \[K\]. Default `0.0`, the cold rigid limit of the viscosity laws; a 0 K layer takes no part in a thermal solve, and a solve warns once when it leaves the layer rigid. |
