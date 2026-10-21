@@ -4,16 +4,16 @@
 # The hydrosphere is MatPack's ice_ih with melting on, solid below its pressure-dependent melting point and liquid
 # above it, so its ocean grows or freezes with its temperature. At 268.197 K the solid zone is the 100 km shell that
 # keeps the ocean uplift under Sputnik Planitia (Kihoulou et al. 2022; 65 to 90 km from the basin's forebulge, Schmidt
-# and Salvini 2024), over a 196.1 km ocean of 1027.5 to 1083.6 kg/m3.
-# The hydrated-silicate core reference density, 3000 kg/m3 (as charon.toml), is fixed, and the 892.155 km core radius is
+# and Salvini 2024), over a 196.2 km ocean of 1027.5 to 1083.6 kg/m3.
+# The hydrated-silicate core reference density, 3000 kg/m3 (as charon.toml), is fixed, and the 892.149 km core radius is
 # fitted to the mass. Core, ocean, and shell hold 68.8, 19.6, and 11.6 percent of it.
 # g = 0.6156 m/s2; central pressure 1.22 GPa. C/MR2 = 0.31807 is a model output, since none is measured.
 # The ice's diffusion creep gives 2.7e14 Pa s at 268 K. The core's silicate law (1e21 Pa s at 1600 K, E = 300 kJ/mol)
 # leaves the 600 K core elastic; at that temperature its conduction carries about its present radiogenic heat.
 # Both use Andrade creep with zeta = 1 (the Andrade time equals the Maxwell time).
-# k2 = 0.3202, Q = 4.3 at the 6.3872 day mutual period, nearly all of the heating in the ice (no measured k2). With the
-# layer frozen through at 250 K, k2 = 0.0053.
-# With the temperature solved under a 32.5 K surface, the shell thins to 81.7 km and k2 = 0.348, Q = 5.0. Its ice
+# k2 = 0.3204, Q = 4.4 at the 6.3872 day mutual period, nearly all of the heating in the ice (no measured k2). With the
+# layer frozen through at 250 K, k2 = 0.0054.
+# With the temperature solved under a 32.5 K surface, the shell thins to 81.7 km and k2 = 0.349, Q = 5.1. Its ice
 # convects at the layer temperature under a conducting boundary layer about 1 km thick.
 # With these cooling models a thermal Pluto loses heat about 700 times faster than its radiogenic heating replaces
 # it. Over 1 Gyr of System.evolve the hydrosphere cools from about 268 K to about 151 K and the ocean freezes, while
@@ -33,7 +33,7 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 892154.7870          # fitted to the mass
+radius_outer_m = 892148.6017          # fitted to the mass
 use_tides = true
 temperature_k = 600.0
 use_heating = true

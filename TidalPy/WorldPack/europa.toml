@@ -7,7 +7,7 @@
 # (E = 300 kJ/mol, law as in io.toml), with the shell at 250 K and 1.8e15 Pa s (ice_ih diffusion creep).
 # Without an ocean it responds as a solid body, with k2 = 0.0153 and Q = 99 at the orbital period (about 0.26 with an
 # ocean) and 7.2e10 W with Jupiter's mass and Europa's orbit (e = 0.0094), far below the 1e12 W class of an
-# ocean-decoupled shell. The mantle takes 0.668 of the heating, the shell 0.331, and the core 4.9e-4.
+# ocean-decoupled shell. The mantle takes 0.667 of the heating, the shell 0.332, and the core 4.9e-4.
 # With the temperature solved under a 93 K surface the base of the shell reaches 281 K (8e13 Pa s) and Q = 86. That ice
 # would melt in nature; a two-phase layer, as in pluto.toml, would grow an ocean there.
 # Spin is the synchronous rate for a 3.551181 day period. In a System keep it synchronous with

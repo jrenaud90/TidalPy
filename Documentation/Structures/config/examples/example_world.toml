@@ -141,6 +141,8 @@ invert_max_iters = 50
 thermal_expansion_1_k = 2.5e-5      # alpha0; alpha = alpha0 K0 / K_T falls with compression
 gruneisen_parameter = 1.2           # tidal bulk modulus K_S = K_T (1 + alpha gamma T)
 reference_temperature_k = 300.0
+bulk_modulus_temperature_derivative_pa_k = -2.0e7   # isobaric dK_T / dT at P = 0 with thermal expansion on or off
+                                    # (absent: K0 fixed); here the thermal pressure's own -K0' alpha0 K0
 
 [layers.lower_mantle.material.solid.shear_modulus]
 model = "linear"                    # mu = mu0 + mu_P (P - P_ref) + mu_T (T - T_ref) | constant | interpolate
