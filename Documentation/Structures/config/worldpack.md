@@ -1,6 +1,6 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-10-10_
+_Updated: 2026-10-21_
 
 WorldPack is TidalPy's set of example world files (stars, gas giants, terrestrial bodies, and systems), installed into a user-editable data directory and found by name. The [TOML schema](toml_schema.md) describes their keys.
 
@@ -47,7 +47,7 @@ A file with a `[worlds.<name>]` table is a system, any other a world (`config_ki
 | `sol_system` | system | The Sun with Earth and Jupiter. |
 | `pluto_charon_system` | system | Pluto and Charon as a mutually synchronous pair (Brozovic and Jacobson 2024 orbit), lit by the Sun at Pluto's mean heliocentric orbit. |
 
-Each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year), and the test suite checks those claims. The layered bodies share these choices:
+Each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year), and the test suite checks those claims. A Q they quote is TidalPy's quality factor of $k_2$, $|k_2| / (-\mathrm{Im}\, k_2)$ (`love_q_k`, as `RadialSolverSolution.Q_k`), from the radial solver. It exceeds $\mathrm{Re}\, k_2 / (-\mathrm{Im}\, k_2)$ by the factor $\sqrt{1 + 1/Q^2}$, which shows only in the most dissipative worlds (Pluto 4.39 against 4.27, Triton 5.94 against 5.85). The layered bodies share these choices:
 
 - Each layer's material is a table of fitted values ([The Material Table](toml_schema.md#the-material-table)). Each layer states a temperature and each solid layer a viscosity at it, so every solid layer dissipates. `tidal_scale` values come from the 3D heating integral.
 - The liquid cores of Luna, Mercury, Earth-Simple, and the TRAPPIST-1 planets are static and of constant density. The `_dynamic` worlds solve their liquid dynamically on a pressure-dependent law, which keeps it neutrally stratified. A constant-density compressible liquid solved dynamically is unstably stratified, and its solve takes steps in proportion to the forcing period ([Dense Radial Solutions](../../RadialSolver/dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)). The `_dynamic` worlds' $k_2$ at the default tolerances agrees with `rtol = 1e-12` solves to 2e-9 or better from a one-day period down to forcing frequencies of 1e-16 rad/s, where it is the static liquid's, and to 7e-7 or better with the temperature solved.

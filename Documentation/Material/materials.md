@@ -1,6 +1,6 @@
 # Phases and Materials (`Material`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-21_
 
 A `Phase` is one phase of a material, a solid or its melt: an [equation-of-state law](material_eos.md), an optional shear-modulus law, optional shear and bulk [viscosity laws](../Viscosity/viscosity_models.md), optional default [rheologies](../Rheology/rheology_models.md), and its thermal conductivity and heat capacity. A `Material` is a solid phase, a liquid phase, or both. With both it melts between a solidus and a liquidus, through a melt-weakening law and optional bulk-mixing laws ([`PartialMelt`](../PartialMelt/partial_melt_models.md)); with one it is that phase everywhere.
 
@@ -196,6 +196,8 @@ A layer passes four switches to its material, so one material can serve layers t
 
 A layer's other switches and flags (`use_heating`, `use_tides`, `state`), and the split of a melting layer into solid and liquid zones where its post-melt shear modulus falls to `[numerical] minimum_solid_rigidity` (default 0, so only where it vanishes) times the world's $\rho g R$, are documented with the [layer](../Structures/layers/layer.md#physics-switches-and-flags). `Layer.calc_state(pressure, temperature=None, radius=None)` evaluates the layer's material with the layer's switches, at its own temperature and mid-radius unless given.
 
+`calc_state(..., is_liquid=True)` evaluates the material as a liquid layer (`Layer.is_liquid`: `state = "liquid"`, or a liquid-only material) sees it, which is how every layer passes its state: a material that melts is fully molten ($\phi = 1$, the state above the liquidus with `use_melting` on) whatever the temperature and `use_melting`, and a material without a liquid phase keeps its one phase with a zero shear modulus and a melt fraction of 1. The density still follows `use_melt_density`. The solid phase's own values stay available from `material.solid.calc_state(pressure, temperature)`.
+
 ## State
 
 `calc_state` returns a dict of floats (and `phase` a string) for float inputs, and of arrays of the broadcast shape otherwise.
@@ -220,7 +222,7 @@ A layer's other switches and flags (`use_heating`, `use_tides`, `state`), and th
 
 | Member | Returns | Description |
 |---|---|---|
-| `calc_state(pressure, temperature=nan, radius=nan, *, use_thermal_expansion=False, use_melting=False, use_pressure_melting=False, use_melt_density=False)` | `dict` | The [state](#state) at a point, with the given switches (`Material`). |
+| `calc_state(pressure, temperature=nan, radius=nan, *, use_thermal_expansion=False, use_melting=False, use_pressure_melting=False, use_melt_density=False, is_liquid=False)` | `dict` | The [state](#state) at a point, with the given switches, as a liquid layer sees it with `is_liquid` (`Material`). |
 | `calc_state(pressure, temperature=nan, radius=nan, use_thermal_expansion=False)` | `dict` | The phase's own state at one point, without melting (`Phase`). |
 | `calc_melting_range(pressure, use_pressure_melting=True)` | `tuple` | `(solidus, liquidus)` \[K\] at a pressure \[Pa\]; NaN for a material that cannot melt. |
 | `solid`, `liquid`, `solidus`, `liquidus`, `weakening`, `bulk_modulus_mixing`, `bulk_viscosity_mixing` | model or `None` | The material's slots, each wrapped in its class. |
@@ -250,7 +252,7 @@ The scalar parameters have the members of every physics model (see [`PhysicsBase
 
 | Type | Contents |
 |---|---|
-| `c_MaterialSwitches` | `use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density` (all false by default). |
+| `c_MaterialSwitches` | `use_thermal_expansion`, `use_melting`, `use_pressure_melting`, `use_melt_density` (all false by default), and `is_liquid`, which a layer sets from its state (`c_Layer::calc_material_switches`). |
 | `c_MaterialPhase` | `Solid`, `Partial`, `Liquid`. |
 | `c_PhaseState`, `c_MaterialState` | One phase's properties, and the material's [state](#state), at a point. |
 | `c_PhaseComponents`, `c_MaterialComponents` | The slots as shared pointers; `set(slot, model)` throws `std::invalid_argument` for a model of the wrong family. |

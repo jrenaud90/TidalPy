@@ -1,13 +1,13 @@
 # Triton: a rock core under one water layer, ice Ih over an ocean, on a retrograde synchronous orbit about Neptune.
 # Radius 1352.6 km; mass 2.1402926e22 kg from GM = 1428.49546 km3/s2 (JPL satellite ephemeris NEP097), mean
-# density 2065 kg/m3. The 1064 km core radius is TidalPy 0.7's; the core reference density, 3213.4729 kg/m3, is fitted
+# density 2065 kg/m3. The 1064 km core radius is TidalPy 0.7's; the core reference density, 3213.4222 kg/m3, is fitted
 # to the mass.
 # The hydrosphere is MatPack's ice_ih with melting on (see pluto.toml). At 255 K it is a 230.4 km shell over a 58.2 km
-# ocean, likely but unconfirmed (Hussmann et al. 2006); at 250 K it freezes through and k2 = 0.0070.
+# ocean, likely but unconfirmed (Hussmann et al. 2006); at 250 K it freezes through and k2 = 0.0071.
 # Core, ocean, and shell hold 76.3, 4.4, and 19.3 percent of the mass; g = 0.7808 m/s2; central pressure 1.90 GPa.
-# C/MR2 = 0.31694 is a model output, since none is measured.
-# k2 = 0.1849, Q = 5.8 at the 5.8769 day period, nearly all of the heating in the ice; the orbit is nearly circular
-# (e = 1.6e-5). With the temperature solved under a 33 K surface, the ocean is 87.5 km and k2 = 0.206, Q = 5.9.
+# C/MR2 = 0.31695 is a model output, since none is measured.
+# k2 = 0.1862, Q = 5.9 at the 5.8769 day period, nearly all of the heating in the ice; the orbit is nearly circular
+# (e = 1.6e-5). With the temperature solved under a 33 K surface, the ocean is 85.7 km and k2 = 0.206, Q = 6.1.
 # Core viscosity and rheology are as in pluto.toml. Spin is the synchronous rate of the 5.876854 day period.
 schema_version = "0.2.0"
 name = "Triton"
@@ -33,7 +33,7 @@ thermal_conductivity_w_mk = 3.75
 
 [layers.core.material.solid.eos]
 model = "birch_murnaghan"
-reference_density_kg_m3 = 3213.4729   # fitted to the mass
+reference_density_kg_m3 = 3213.4222   # fitted to the mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 thermal_expansion_1_k = 5.2e-5

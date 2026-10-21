@@ -226,12 +226,14 @@ def test_without_a_per_layer_split_the_tides_are_spread_by_mass():
 
 
 def test_the_per_layer_tidal_heating_matches_the_3d_volume_integral():
-    """calc_tides takes each layer's share from the same integral calc_3d_tides gives with every axis summed."""
+    """calc_tides takes each layer's share from the same integral calc_3d_tides gives with every axis summed, except
+    that the elastic core, whose integral is the solve's round-off, takes exactly 0."""
     world, tides = _tidal_world()
     per_layer = np.asarray(world.calc_3d_tides(
         *tides, latitude_summed=True, longitude_summed=True, radial_summed=True)["per_layer"], dtype=float)
+    assert world.get_layer_tidal_heating(0) == 0.0
     shares = np.array([world.get_layer_tidal_heating(0), world.get_layer_tidal_heating(1)]) / world.get_tidal_heating()
-    np.testing.assert_allclose(shares, per_layer / per_layer.sum(), rtol=1.0e-10)
+    np.testing.assert_allclose(shares, per_layer / per_layer.sum(), rtol=1.0e-10, atol=1.0e-15)
 
 
 def test_tidal_heating_in_a_layer_reaching_the_center():

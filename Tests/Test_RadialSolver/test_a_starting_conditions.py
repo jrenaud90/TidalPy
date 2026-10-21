@@ -75,5 +75,5 @@ def test_starting_method_names_and_aliases(name, canonical):
 
 def test_unknown_starting_method_is_refused():
     """An unknown name raises ValueError listing the accepted names."""
-    with pytest.raises(ValueError, match="Unsupported starting method"):
+    with pytest.raises(ValueError, match="unknown starting method"):
         _run_starting(0, False, False, "bessel", 2)

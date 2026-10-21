@@ -300,7 +300,8 @@ inline int c_shooting_solver(
     CySolverResult* integration_solution_ptr = nullptr;
     // Bytes of the dense results kept so far, which max_ram_MB bounds over the whole solve.
     size_t retained_bytes = 0;
-    const size_t ram_limit_bytes = inputs.max_ram_MB * 1024 * 1024;
+    const size_t ram_limit_bytes =
+        static_cast<size_t>(static_cast<double>(inputs.max_ram_MB) * TidalPyConstants::d_BYTES_PER_MB);
 
     // Extra diffeq arguments beyond y and r.
     std::vector<char> diffeq_args_vec(sizeof(c_RadialSolverArgs));

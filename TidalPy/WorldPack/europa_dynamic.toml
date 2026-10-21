@@ -5,9 +5,9 @@
 # (see Demos/Physics/P12_dynamic_liquids.ipynb); it runs from 1015 to 1082 kg/m3.
 # The mantle reference density, 3497.9758 kg/m3, is fitted to the mass (g = 1.3147 m/s2; central pressure 4.79 GPa).
 # C/MR2 = 0.3457, within 0.346 +/- 0.005 (Anderson et al. 1998) and below 0.3547 +/- 0.0024 (Gomez Casajus et al. 2021).
-# k2 = 0.2628, Q = 109 at the 3.551181 day orbital period (europa.toml: 0.0153); a static ocean is within 1.3e-3.
+# k2 = 0.2630, Q = 111 at the 3.551181 day orbital period (europa.toml: 0.0153); a static ocean is within 1.3e-3.
 # The shell is MatPack's ice_ih, kept solid over the 273 K ocean, so with the temperature solved under a 93 K surface
-# its viscosity stays above 1.7e14 Pa s and Q = 112.
+# its viscosity stays above 1.7e14 Pa s and Q = 114.
 # Temperatures, viscosities, and spin are otherwise as in europa.toml.
 schema_version = "0.2.0"
 name = "Europa-Dynamic"

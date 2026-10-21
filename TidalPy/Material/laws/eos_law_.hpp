@@ -16,6 +16,15 @@
  * A law evaluated with `thermal` off, or at a non-finite temperature, gives the athermal density; its expansivity is
  * still reported, since the adiabat needs it either way.
  *
+ * The pressure laws may also take an isobaric temperature derivative of their bulk modulus, dK_T/dT at zero pressure,
+ * for a phase whose stiffness changes with temperature more than its thermal pressure gives (ice Ih, whose expansivity
+ * nearly vanishes at low temperature while it keeps stiffening). K0 then follows the temperature, and the law keeps
+ * that slope with `thermal` on or off: with it on, the thermal pressure alone stiffens the law by K0' alpha0 K0 per
+ * kelvin of cooling, which K0 gives back. The law's pressure at a fixed compression is proportional to K0, so the
+ * density still follows from the law's own bulk modulus; under pressure it sees the temperature through the stiffness
+ * even with `thermal` off. Where the linear slope would take K0 below a tenth of its reference value, K0 is held there
+ * (get_bulk_modulus_temperature_range), and a world's structure solve that uses the law past that temperature fails.
+ *
  * Each law also gives the partial derivatives of its density in pressure, temperature, and radius, which the radial
  * solver's dynamic liquids need as d rho / dr along the structure (c_preeval_material). A density held at the end of a
  * law's range or of a table has zero slope there.
@@ -58,7 +67,27 @@ struct c_EOSPoint {
     double density_pressure_slope    = TidalPyConstants::d_NAN;   // [kg m-3 Pa-1]
     double density_temperature_slope = TidalPyConstants::d_NAN;   // [kg m-3 K-1]
     double density_radius_slope      = TidalPyConstants::d_NAN;   // [kg m-4]
+    // (d P / d T) at a fixed density that a bulk modulus following the temperature adds to the law [Pa K-1].
+    double stiffness_pressure_slope  = 0.0;
 };
+
+// The fraction of its reference value a pressure law's temperature-dependent K0 is held at. A linear dK_T/dT that
+// takes K0 lower is far outside any fit, and toward zero the law's density runs away; the temperatures where K0 stays
+// above it are the law's range in temperature (get_bulk_modulus_temperature_range).
+inline constexpr double d_EOS_HELD_BULK_MODULUS_FRACTION = 0.1;
+
+// The temperatures [K] a law represents, unbounded for a law whose stiffness does not follow the temperature.
+struct c_TemperatureRange {
+    double temperature_min = -TidalPyConstants::d_INF;
+    double temperature_max = TidalPyConstants::d_INF;
+};
+
+// A pressure law's pressure at a fixed compression is proportional to K0, so its range at another K0 scales with it.
+inline c_PressureLawRange c_scale_pressure_law_range(c_PressureLawRange range, double scale) noexcept {
+    range.pressure_min *= scale;
+    range.pressure_max *= scale;
+    return range;
+}
 
 class c_EOSBase : public c_PhysicsBase {
 public:
@@ -69,10 +98,15 @@ public:
 
     // The law at a point. `thermal` says whether the density sees the temperature (a layer's use_thermal_expansion).
     void calc_eos(const c_ThermoPoint& point, bool thermal, c_EOSPoint& out) const noexcept {
-        this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), out);
+        const bool sees_temperature = this->p_sees_temperature(point.temperature, thermal);
+        out.stiffness_pressure_slope = 0.0;
+        this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), sees_temperature, out);
         out.thermal_expansion = this->p_calc_thermal_expansion(out);
-        out.density_temperature_slope =
-            this->p_sees_temperature(point.temperature, thermal) ? this->p_calc_density_temperature_slope(out) : 0.0;
+        // A density blind to the temperature's expansion still sees it, under pressure, through a stiffness that
+        // follows the temperature.
+        out.density_temperature_slope = sees_temperature
+            ? this->p_calc_density_temperature_slope(out)
+            : -out.density_pressure_slope * out.stiffness_pressure_slope;
         const bool adiabatic = (this->p_gruneisen_parameter != 0.0) && std::isfinite(point.temperature)
             && std::isfinite(out.thermal_expansion);
         out.adiabatic_bulk_modulus = adiabatic
@@ -83,13 +117,23 @@ public:
     // The density alone [kg m-3], what the structure integration asks for.
     double calc_density(const c_ThermoPoint& point, bool thermal) const noexcept {
         c_EOSPoint law_point;
-        this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), law_point);
+        this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal),
+                         this->p_sees_temperature(point.temperature, thermal), law_point);
         return law_point.density;
     }
 
-    // The pressures a pressure law represents (the cold pressure, less any thermal pressure); unbounded for a law
-    // with no such limit.
-    virtual c_PressureLawRange get_pressure_law_range() const noexcept { return c_PressureLawRange{}; }
+    // The pressures a pressure law represents at a temperature [K] (the cold pressure, less any thermal pressure);
+    // unbounded for a law with no such limit. They follow the temperature only through a temperature-dependent K0.
+    virtual c_PressureLawRange get_pressure_law_range(double /*temperature*/, bool /*thermal*/) const noexcept {
+        return c_PressureLawRange{};
+    }
+
+    // The temperatures [K] over which a temperature-dependent K0 stays above d_EOS_HELD_BULK_MODULUS_FRACTION of its
+    // reference value; past them the law holds K0 there, as if at the end temperature. Unbounded for a law whose K0
+    // is fixed. `thermal` as in calc_eos.
+    virtual c_TemperatureRange get_bulk_modulus_temperature_range(bool /*thermal*/) const noexcept {
+        return c_TemperatureRange{};
+    }
 
     // Whether the density can change with pressure. A law whose density is set by its temperature and radius alone
     // says no, which lets the structure solve expect its surface pressure to follow the central pressure one for one.
@@ -140,9 +184,12 @@ public:
 
 protected:
     // The law itself: density and isothermal bulk modulus at a point, with the temperature above the reference
-    // (zero for the athermal law).
+    // (zero for the athermal law) and whether the density sees the temperature.
     virtual void p_calc_law(
-        const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept = 0;
+        const c_ThermoPoint& point,
+        double temperature_offset,
+        bool sees_temperature,
+        c_EOSPoint& out) const noexcept = 0;
 
     // The expansivity [1/K] at a point the law has evaluated: alpha0, the expansivity of a density scaled by
     // exp(-alpha0 (T - T_ref)).
@@ -151,10 +198,12 @@ protected:
     }
 
     // The expansivity of a density inverted at the pressure less the thermal pressure alpha0 K0 (T - T_ref):
-    // alpha K_T stays alpha0 K0, so alpha = alpha0 K0 / K_T. alpha0 where the law gives no positive bulk modulus.
+    // alpha K_T stays alpha0 K0, so alpha = alpha0 K0 / K_T, plus what a temperature-dependent K0 adds at a fixed
+    // density. alpha0 where the law gives no positive bulk modulus.
     double p_thermal_pressure_expansion(double reference_bulk_modulus, const c_EOSPoint& law_point) const noexcept {
         if (!(law_point.bulk_modulus > 0.0)) { return this->p_thermal_expansion; }
-        return this->p_thermal_expansion * reference_bulk_modulus / law_point.bulk_modulus;
+        return (this->p_thermal_expansion * reference_bulk_modulus + law_point.stiffness_pressure_slope)
+            / law_point.bulk_modulus;
     }
 
     // The thermal pressure at a temperature above the reference; zero for a law that scales its density instead.
@@ -166,11 +215,69 @@ protected:
         return -this->p_thermal_expansion * law_point.density;
     }
 
-    // The slope through a thermal pressure alpha0 K0 (T - T_ref): -(d rho / dP) alpha0 K0.
+    // The slope through a thermal pressure alpha0 K0 (T - T_ref) and a temperature-dependent K0:
+    // -(d rho / dP) (alpha0 K0 + (dP / dT) at a fixed density from K0).
     double p_thermal_pressure_temperature_slope(
             double reference_bulk_modulus,
             const c_EOSPoint& law_point) const noexcept {
-        return -law_point.density_pressure_slope * this->p_thermal_expansion * reference_bulk_modulus;
+        return -law_point.density_pressure_slope
+            * (this->p_thermal_expansion * reference_bulk_modulus + law_point.stiffness_pressure_slope);
+    }
+
+    // K0 at a temperature [Pa] and its temperature slope [Pa K-1], for a pressure law with reference bulk modulus K0
+    // and derivative K0'. With the isobaric dK_T/dT unset (NaN), K0 is fixed and the bulk modulus follows the
+    // temperature only through the thermal pressure. With it set, the law's zero-pressure K_T changes by dK_T/dT per
+    // kelvin whether or not the density sees the temperature: where it does, the thermal pressure stiffens the law by
+    // K0' alpha0 K0 per kelvin of cooling, which K0 gives back (K0' is the derivative the zero-pressure K_T takes on
+    // that side of T_ref). Past the law's range in temperature K0 is held at d_EOS_HELD_BULK_MODULUS_FRACTION of its
+    // reference value, with no slope.
+    void p_calc_reference_bulk_modulus(
+            double reference_bulk_modulus,
+            double bulk_modulus_derivative,
+            double temperature,
+            double temperature_offset,
+            bool sees_temperature,
+            double& out_bulk_modulus,
+            double& out_slope) const noexcept {
+        out_bulk_modulus = reference_bulk_modulus;
+        out_slope        = 0.0;
+        const double isobaric_slope = this->p_bulk_modulus_temperature_derivative;
+        if (!std::isfinite(isobaric_slope) || !std::isfinite(temperature)) { return; }
+        const double thermal_stiffening =
+            sees_temperature ? bulk_modulus_derivative * this->p_thermal_expansion * reference_bulk_modulus : 0.0;
+        out_slope        = isobaric_slope + thermal_stiffening;
+        out_bulk_modulus = reference_bulk_modulus + isobaric_slope * (temperature - this->p_reference_temperature)
+            + thermal_stiffening * temperature_offset;
+        const double held_bulk_modulus = d_EOS_HELD_BULK_MODULUS_FRACTION * reference_bulk_modulus;
+        if (!(out_bulk_modulus > held_bulk_modulus)) {
+            out_bulk_modulus = held_bulk_modulus;
+            out_slope        = 0.0;
+        }
+    }
+
+    // The temperatures where K0 (T) of p_calc_reference_bulk_modulus stays above its held value, for the K0 slopes
+    // [Pa K-1] below and above T_ref. Unbounded with dK_T/dT unset.
+    c_TemperatureRange p_calc_bulk_modulus_temperature_range(
+            double reference_bulk_modulus,
+            double slope_below,
+            double slope_above) const noexcept {
+        c_TemperatureRange range;
+        if (!std::isfinite(this->p_bulk_modulus_temperature_derivative)) { return range; }
+        const double drop = (1.0 - d_EOS_HELD_BULK_MODULUS_FRACTION) * reference_bulk_modulus;
+        if (slope_above < 0.0) { range.temperature_max = this->p_reference_temperature - drop / slope_above; }
+        if (slope_below > 0.0) { range.temperature_min = this->p_reference_temperature - drop / slope_below; }
+        return range;
+    }
+
+    // The K0 slope [Pa K-1] of p_calc_reference_bulk_modulus at a finite temperature, with K0' the derivative its
+    // thermal stiffening takes.
+    double p_bulk_modulus_temperature_slope(
+            double reference_bulk_modulus,
+            double bulk_modulus_derivative,
+            bool thermal) const noexcept {
+        const bool stiffens = thermal && (this->p_thermal_expansion != 0.0);
+        return this->p_bulk_modulus_temperature_derivative
+            + (stiffens ? bulk_modulus_derivative * this->p_thermal_expansion * reference_bulk_modulus : 0.0);
     }
 
     // Whether the density sees the temperature at all (p_temperature_offset is zero otherwise).
@@ -196,9 +303,19 @@ protected:
                          "Gruneisen parameter gamma in K_S = K_T (1 + alpha gamma T); 0 makes K_S equal K_T."});
     }
 
+    // The pressure laws' isobaric temperature derivative of the bulk modulus, as a row of a model's parameter table.
+    template <class Model>
+    static void p_append_bulk_modulus_temperature_spec(std::vector<c_ParamSpec<Model>>& specs) {
+        specs.push_back({"bulk_modulus_temperature_derivative", "bulk_modulus_temperature_derivative_pa_k",
+                         &Model::p_bulk_modulus_temperature_derivative, TidalPyConstants::d_NAN, c_ParamBounds::Any,
+                         "Isobaric dK_T/dT at zero pressure [Pa K-1], kept with thermal expansion on or off; unset, "
+                         "K0 is fixed and K_T follows the temperature only through the thermal pressure."});
+    }
+
     double p_thermal_expansion            = 0.0;
     double p_reference_temperature        = d_EOS_REFERENCE_TEMPERATURE;
     double p_gruneisen_parameter          = 0.0;
+    double p_bulk_modulus_temperature_derivative = TidalPyConstants::d_NAN;
 };
 
 // Uniform density (aliases "uniform", "constant_density"): rho0 exp(-alpha0 (T - T_ref)), with a constant bulk
@@ -231,6 +348,7 @@ protected:
     void p_calc_law(
             const c_ThermoPoint& /*point*/,
             double temperature_offset,
+            bool /*sees_temperature*/,
             c_EOSPoint& out) const noexcept override {
         out.density      = this->p_reference_density * c_safe_exp(-this->p_thermal_expansion * temperature_offset);
         out.bulk_modulus = this->p_bulk_modulus;
@@ -245,13 +363,27 @@ protected:
 
 // Density from pressure through an analytic pressure law (Birch-Murnaghan or Vinet), inverted at the pressure less
 // the thermal pressure alpha0 K0 (T - T_ref), so its expansivity is alpha0 K0 / K_T. Beyond the range the law rises
-// over, the density holds at that end.
+// over, the density holds at that end. An isobaric dK_T/dT makes K0 follow the temperature.
 template <class Derived, c_PressureLaw LAW>
 class c_PressureLawEOSModel : public c_SpecModel<Derived, c_EOSBase> {
 public:
     using c_SpecModel<Derived, c_EOSBase>::c_SpecModel;
 
-    c_PressureLawRange get_pressure_law_range() const noexcept override { return this->p_law_range; }
+    c_PressureLawRange get_pressure_law_range(double temperature, bool thermal) const noexcept override {
+        double bulk_modulus_0       = 0.0;
+        double bulk_modulus_0_slope = 0.0;
+        this->p_calc_reference_bulk_modulus(
+            this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative, temperature,
+            this->p_temperature_offset(temperature, thermal), this->p_sees_temperature(temperature, thermal),
+            bulk_modulus_0, bulk_modulus_0_slope);
+        return c_scale_pressure_law_range(this->p_law_range, bulk_modulus_0 / this->p_reference_bulk_modulus);
+    }
+
+    c_TemperatureRange get_bulk_modulus_temperature_range(bool thermal) const noexcept override {
+        const double slope = this->p_bulk_modulus_temperature_slope(
+            this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative, thermal);
+        return this->p_calc_bulk_modulus_temperature_range(this->p_reference_bulk_modulus, slope, slope);
+    }
 
     static const std::vector<c_ParamSpec<Derived>>& parameter_specs() {
         static const std::vector<c_ParamSpec<Derived>> specs = [] {
@@ -268,27 +400,41 @@ public:
                  "Iteration cap of the density inversion; unset (-1) takes [numerical] eos_invert_max_iters."},
             };
             c_EOSBase::p_append_thermal_specs(rows);
+            c_EOSBase::p_append_bulk_modulus_temperature_spec(rows);
             return rows;
         }();
         return specs;
     }
 
 protected:
-    void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
+    void p_calc_law(
+            const c_ThermoPoint& point,
+            double temperature_offset,
+            bool sees_temperature,
+            c_EOSPoint& out) const noexcept override {
+        double bulk_modulus_0       = 0.0;   // K0 at this temperature [Pa]
+        double bulk_modulus_0_slope = 0.0;   // d K0 / dT [Pa K-1]
+        this->p_calc_reference_bulk_modulus(
+            this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative, point.temperature, temperature_offset,
+            sees_temperature, bulk_modulus_0, bulk_modulus_0_slope);
+        const c_PressureLawRange law_range =
+            c_scale_pressure_law_range(this->p_law_range, bulk_modulus_0 / this->p_reference_bulk_modulus);
         const double pressure_target = point.pressure - this->p_thermal_pressure(temperature_offset);
         const double eta = eos_invert_eta(
-            pressure_target, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative,
-            p_law_function(), this->p_law_range, this->p_resolved_rtol, this->p_resolved_max_iters);
+            pressure_target, bulk_modulus_0, this->p_bulk_modulus_derivative,
+            p_law_function(), law_range, this->p_resolved_rtol, this->p_resolved_max_iters);
         double pressure = 0.0;
         double bulk_modulus = 0.0;
-        p_law_function()(eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative, pressure, bulk_modulus);
+        p_law_function()(eta, bulk_modulus_0, this->p_bulk_modulus_derivative, pressure, bulk_modulus);
         out.density      = this->p_reference_density * eta;
         out.bulk_modulus = bulk_modulus;
         // K_T = rho dP / d rho inside the range; the density holds at either end beyond it.
         const bool in_range =
-            (pressure_target > this->p_law_range.pressure_min) && (pressure_target < this->p_law_range.pressure_max);
-        out.density_pressure_slope = in_range ? out.density / bulk_modulus : 0.0;
-        out.density_radius_slope   = 0.0;
+            (pressure_target > law_range.pressure_min) && (pressure_target < law_range.pressure_max);
+        out.density_pressure_slope   = in_range ? out.density / bulk_modulus : 0.0;
+        out.density_radius_slope     = 0.0;
+        out.stiffness_pressure_slope =
+            (bulk_modulus_0_slope != 0.0) ? pressure * bulk_modulus_0_slope / bulk_modulus_0 : 0.0;
     }
 
     double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
@@ -347,7 +493,8 @@ public:
 // rho0 exp(P / K0) for K0' = 0 or in tension, which joins it smoothly at P = 0 (the Murnaghan density has no real
 // value past P = -K0 / K0'). Its rho / (d rho / dP) is its bulk modulus, so a layer of it is neutrally stratified
 // under the bulk modulus the tidal equations see. Its thermal pressure is alpha0 K0 (T - T_ref), so its expansivity
-// is alpha0 K0 / K_T. Suited to melts and liquids over modest pressures.
+// is alpha0 K0 / K_T; an isobaric dK_T/dT makes K0 follow the temperature. Suited to melts and liquids over modest
+// pressures.
 class c_MurnaghanEOS final : public c_SpecModel<c_MurnaghanEOS, c_EOSBase> {
 public:
     static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::MurnaghanEOSLaw;
@@ -364,6 +511,7 @@ public:
                  c_ParamBounds::NonNegative, "Pressure derivative of the bulk modulus, K0' [dimensionless]."},
             };
             p_append_thermal_specs(rows);
+            p_append_bulk_modulus_temperature_spec(rows);
             return rows;
         }();
         return specs;
@@ -372,12 +520,36 @@ public:
     c_MurnaghanEOS() : c_MurnaghanEOS(c_ParamMap{}) {}
     explicit c_MurnaghanEOS(const c_ParamMap& params) : c_SpecModel("murnaghan") { this->p_initialize(params); }
 
+    c_TemperatureRange get_bulk_modulus_temperature_range(bool thermal) const noexcept override {
+        return this->p_calc_bulk_modulus_temperature_range(
+            this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_temperature_slope(this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative,
+                                                   thermal),
+            this->p_bulk_modulus_temperature_slope(this->p_reference_bulk_modulus, 0.0, thermal));
+    }
+
 protected:
-    void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
-        const double k0 = this->p_reference_bulk_modulus;
+    void p_calc_law(
+            const c_ThermoPoint& point,
+            double temperature_offset,
+            bool sees_temperature,
+            c_EOSPoint& out) const noexcept override {
         const double kp = this->p_bulk_modulus_derivative;
         const double pressure = point.pressure - this->p_thermal_pressure(temperature_offset);
+        // What K0 gives back is the stiffening the thermal pressure adds at zero pressure. Below T_ref the cold
+        // pressure there is positive, on the branch whose K rises by K0' per pascal; above it the cold pressure is in
+        // tension, where K does not rise, so there is nothing to give back. The choice follows the temperature alone,
+        // so K0 and with it K and the expansivity are continuous in pressure, and the zero-pressure slope is exactly
+        // the stated one on both sides.
+        const double branch_derivative = (temperature_offset < 0.0) ? kp : 0.0;
+        double k0       = 0.0;   // K0 at this temperature [Pa]
+        double k0_slope = 0.0;   // d K0 / dT [Pa K-1]
+        this->p_calc_reference_bulk_modulus(
+            this->p_reference_bulk_modulus, branch_derivative, point.temperature, temperature_offset,
+            sees_temperature, k0, k0_slope);
         out.density_radius_slope = 0.0;
+        // Both branches' pressure at a fixed density is proportional to K0.
+        out.stiffness_pressure_slope = (k0_slope != 0.0) ? pressure * k0_slope / k0 : 0.0;
         if ((kp == 0.0) || (pressure <= 0.0)) {
             out.density      = this->p_reference_density * c_safe_exp(pressure / k0);
             out.bulk_modulus = k0;
@@ -434,6 +606,7 @@ protected:
     void p_calc_law(
             const c_ThermoPoint& point,
             double /*temperature_offset*/,
+            bool /*sees_temperature*/,
             c_EOSPoint& out) const noexcept override {
         out.density_radius_slope = 0.0;
         if (!(point.pressure > 0.0)) {
@@ -495,6 +668,7 @@ protected:
     void p_calc_law(
             const c_ThermoPoint& point,
             double /*temperature_offset*/,
+            bool /*sees_temperature*/,
             c_EOSPoint& out) const noexcept override {
         out.density_radius_slope = 0.0;
         if (!(point.pressure > 0.0)) {
@@ -564,7 +738,11 @@ public:
     bool get_density_depends_on_pressure() const noexcept override { return false; }
 
 protected:
-    void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
+    void p_calc_law(
+            const c_ThermoPoint& point,
+            double temperature_offset,
+            bool /*sees_temperature*/,
+            c_EOSPoint& out) const noexcept override {
         const double thermal_factor = c_safe_exp(-this->p_thermal_expansion * temperature_offset);
         out.density = thermal_factor * this->p_lookup.interpolate(point.radius, this->p_radius, this->p_density);
         out.bulk_modulus = this->p_lookup.interpolate(point.radius, this->p_radius, this->p_bulk_modulus);

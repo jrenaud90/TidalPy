@@ -4,6 +4,7 @@ data-directory copies are installed, preferred, and checked like the WorldPack's
 import os
 import warnings
 
+import numpy as np
 import pytest
 import toml
 
@@ -118,6 +119,40 @@ def test_values_match_their_sources():
     iron = load_material("liquid_iron").calc_state(0.0, 1811.0, use_thermal_expansion=True)
     assert iron["adiabatic_bulk_modulus"] == pytest.approx(1.097e11, rel=2.0e-3)
     assert iron["density"] == pytest.approx(7019.0)
+
+
+# Polycrystalline ice Ih (Neumeier 2018, J. Phys. Chem. Ref. Data 47, 033101, Table 1): temperature [K], adiabatic
+# bulk modulus [Pa], and the Hill average of the shear modulus [Pa]. Poisson's ratio is 0.325 to 0.336.
+_ICE_TEMPERATURE = (50.0, 100.0, 150.0, 200.0, 250.0, 270.0)
+_ICE_BULK_MODULUS = (11.00e9, 10.58e9, 10.09e9, 9.534e9, 8.914e9, 8.647e9)
+_ICE_SHEAR_MODULUS = (4.05e9, 4.01e9, 3.90e9, 3.74e9, 3.52e9, 3.42e9)
+
+
+@pytest.mark.parametrize("thermal", [False, True])
+def test_ice_ih_moduli_follow_measured_ice(thermal):
+    """The bulk and shear moduli a tide sees stay within 2.5 percent of measured ice from 50 to 270 K, and Poisson's
+    ratio within the measured 0.325 to 0.336 from 50 K to the melting point, with thermal expansion on or off."""
+    ice = load_material("ice_ih")
+    for temperature, bulk_modulus, shear_modulus in zip(_ICE_TEMPERATURE, _ICE_BULK_MODULUS, _ICE_SHEAR_MODULUS):
+        state = ice.calc_state(0.0, temperature, use_thermal_expansion=thermal)
+        assert state["adiabatic_bulk_modulus"] == pytest.approx(bulk_modulus, rel=2.5e-2)
+        assert state["shear_modulus"] == pytest.approx(shear_modulus, rel=2.5e-2)
+    state = ice.calc_state(0.0, np.linspace(50.0, 273.15, 50), use_thermal_expansion=thermal)
+    bulk_modulus, shear_modulus = state["adiabatic_bulk_modulus"], state["shear_modulus"]
+    poisson_ratio = (3.0 * bulk_modulus - 2.0 * shear_modulus) / (2.0 * (3.0 * bulk_modulus + shear_modulus))
+    assert poisson_ratio.min() >= 0.325
+    assert poisson_ratio.max() <= 0.336
+
+
+def test_ice_ih_density_at_its_reference_state_is_iapws():
+    """The temperature-dependent bulk modulus leaves the IAPWS-06 density (Feistel and Wagner 2006) at the 250 K
+    reference: 920.0 kg m-3 at zero pressure and 930.2 kg m-3 at 100 MPa."""
+    ice = load_material("ice_ih")
+    for thermal in (False, True):
+        assert ice.calc_state(0.0, 250.0, use_thermal_expansion=thermal)["density"] == 920.0
+        assert ice.calc_state(1.0e8, 250.0, use_thermal_expansion=thermal)["density"] == pytest.approx(930.2, abs=0.2)
+    # Without thermal expansion the zero-pressure density holds at every temperature.
+    assert ice.calc_state(0.0, 100.0)["density"] == 920.0
 
 
 # A point inside each solid material's range, below its solidus: (pressure [Pa], temperature [K]).

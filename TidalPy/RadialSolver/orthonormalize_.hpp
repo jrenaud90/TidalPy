@@ -53,9 +53,13 @@ inline double c_solution_independence(
         double largest = 0.0;
         for (size_t y_i = 0; y_i < num_ys; ++y_i)
         {
-            scaled[solution_i][y_i] =
-                std::complex<double>(solution_ptr[2 * y_i], solution_ptr[2 * y_i + 1]) * y_weights_ptr[y_i];
-            largest = std::max(largest, std::abs(scaled[solution_i][y_i]));
+            const std::complex<double> scale_ = y_weights_ptr[y_i] * std::complex<double>(
+                solution_ptr[2 * y_i],
+                solution_ptr[2 * y_i + 1]
+            );
+            
+            scaled[solution_i][y_i] = scale_;
+            largest = std::max(largest, std::abs(scale_));
         }
         if (!(largest > 0.0) || !std::isfinite(largest))
         {
@@ -102,7 +106,11 @@ inline double c_solution_independence_event(double radius, double* y_ptr, char* 
     (void)radius;
     const c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<const c_RadialSolverArgs*>(args_ptr);
     const double independence = c_solution_independence(
-        y_ptr, rs_args_ptr->num_solutions, rs_args_ptr->num_ys, rs_args_ptr->y_weights.data());
+        y_ptr,
+        rs_args_ptr->num_solutions,
+        rs_args_ptr->num_ys,
+        rs_args_ptr->y_weights.data()
+    );
     return independence - rs_args_ptr->independence_floor;
 }
 
@@ -118,7 +126,12 @@ inline void c_orthonormalize_solutions(
         c_BasisChange& basis_change) noexcept
 {
     using c_SolutionMatrix = Eigen::Matrix<
-        std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor, C_MAX_NUM_Y, C_MAX_NUM_SOL>;
+        std::complex<double>,
+        Eigen::Dynamic,
+        Eigen::Dynamic,
+        Eigen::ColMajor,
+        C_MAX_NUM_Y,
+        C_MAX_NUM_SOL>;
     c_SolutionMatrix scaled(num_ys, num_solutions);
     for (size_t solution_i = 0; solution_i < num_solutions; ++solution_i)
     {
@@ -152,8 +165,8 @@ inline void c_orthonormalize_solutions(
 }
 
 
-/// A dynamic liquid's two starting solutions recombined, in place, into one whose P is exactly 0 and one that carries
-/// the layer's P: with s_j the solution of larger P, s_j scaled to a largest weighted component of 1, and
+/// A dynamic liquid's two starting solutions recombined, in place, into one whose Pressure is exactly 0 and one that
+// carries the layer's P: with s_j the solution of larger P, s_j scaled to a largest weighted component of 1, and
 /// s_k - (P_k / P_j) s_j with its P set to 0. A physical solution's P is of order omega^2 (c_pressure_unit), and the
 /// integration carries it to y1 through y3 = -P / (rho omega^2 r), so the combination of the starting solutions that
 /// cancels P is formed here, before its roundoff is divided by omega^2. basis_change receives T, so that the solutions

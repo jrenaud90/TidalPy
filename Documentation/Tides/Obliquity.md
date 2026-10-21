@@ -71,7 +71,7 @@ recommend_obliquity_truncation(np.radians(23.4), spin_ratio=10.0)  # 4: a fast r
 ### Defaults and Warnings
 
 - The default is `"off"` (the configured `[tides]` `obliquity_trunc_lvl`) for every world and for the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`).
-- A world running `calc_tides` at nonzero obliquity with the truncation off logs a warning once, since its obliquity tides are ignored.
+- The default ignores the obliquity tides: at truncation `"off"` (level 0) every obliquity function takes its $I = 0$ value, so a nonzero `obliquity` adds no heating and no torque. A world's tidal solve at nonzero obliquity with the truncation off (`calc_tides`, the 3D maps and heating, and a `System`'s rates and `evolve`) logs a warning once per world naming the setting to change (`set_tide_config(obliquity_truncation=...)` or the `[tides]` `obliquity_trunc_lvl`); the standalone functions warn once per session, naming their `obliquity_truncation` argument. The eccentricity truncation has no such level: every level is exact at $e = 0$.
 - At level 2 or 4, `calc_tides` warns once per world and level past the level's 10% limit for its spin band and degree range (`obliquity_accuracy_limit(level, 0.1, max_degree_l, spin_ratio)`).
 - A level passed directly must be tabulated. An untabulated level read from a configuration (e.g., the earlier levels 1 and 10) is promoted with a once-per-session warning: 1 to 2, and anything past 4 to `"gen"`.
 

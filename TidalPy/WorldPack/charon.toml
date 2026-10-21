@@ -2,15 +2,15 @@
 # Radius 606.0 km (Nimmo et al. 2017); mass 1.5896798e21 kg from GM = 106.1 km3/s2, mean density 1705 kg/m3
 # (Brozovic and Jacobson 2024).
 # As in pluto.toml, the hydrosphere is MatPack's ice_ih with melting on, and the hydrated-silicate core reference
-# density, 3000 kg/m3, is fixed; the 437.497 km core radius is fitted to the mass. Shell 168.5 km; the core holds 66.3
+# density, 3000 kg/m3, is fixed; the 437.526 km core radius is fitted to the mass. Shell 168.5 km; the core holds 66.3
 # percent of the mass (Pluto 68.8).
-# g = 0.2889 m/s2; central pressure 0.29 GPa. C/MR2 = 0.31197 is a model output, since none is measured.
+# g = 0.2889 m/s2; central pressure 0.29 GPa. C/MR2 = 0.31196 is a model output, since none is measured.
 # Charon is frozen through and cold, as a conducting shell carrying its small radiogenic heat would be. Its tectonics
 # point to an ocean that has since refrozen; above about 269 K the layer grows one again at the base of the shell.
 # The hydrosphere is at 150 K (2e23 Pa s) and the core at 260 K, where its conduction carries about its radiogenic heat.
-# k2 = 0.00113, Q = 2500 at the 6.3872 day mutual period, nearly all of the heating in the ice. Andrade creep keeps the
-# cold ice dissipating; the layer at 200 K gives Q = 78 and at 240 K Q = 12.
-# With the temperature solved under a 41 K surface the base of the shell warms to 187 K, no ocean forms, and Q = 660.
+# k2 = 0.00118, Q = 2500 at the 6.3872 day mutual period, nearly all of the heating in the ice. Andrade creep keeps the
+# cold ice dissipating; the layer at 200 K gives Q = 77 and at 240 K Q = 12.
+# With the temperature solved under a 41 K surface the base of the shell warms to 187 K, no ocean forms, and Q = 650.
 # A warm, convecting hydrosphere (above about 165 K) is nearly fluid at forcing frequencies near 1e-16 rad/s, where k2
 # approaches 0.48.
 # Its cooling models are those of pluto.toml, so a long thermal System.evolve run behaves similarly (see there).
@@ -29,7 +29,7 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 437497.0629          # fitted to the mass
+radius_outer_m = 437525.5278          # fitted to the mass
 use_tides = true
 temperature_k = 260.0
 use_heating = true

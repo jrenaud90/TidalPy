@@ -4,7 +4,13 @@
 import TidalPy
 import scipy
 
+from libcpp.string cimport string
+from libcpp.vector cimport vector
+
 from CyRK cimport ODEMethod
+
+cdef extern from "Utilities/classes/model_names_.hpp" namespace "tidalpy" nogil:
+    string c_did_you_mean(const string& name, const vector[string]& candidates) except +
 
 cdef extern from "RadialSolver/starting/starting_method_.hpp" nogil:
     cdef enum class c_StartingMethod(int):
@@ -144,6 +150,41 @@ ODE_METHOD_NAMES = {
 ODE_METHOD_INTS = {name.lower(): value for value, name in ODE_METHOD_NAMES.items()}
 
 
+def p_value_from_name(str kind, name, dict aliases, choices=None) -> int:
+    """The value `aliases` maps a name to, in any case (every name of `aliases` lowercase).
+
+    Parameters
+    ----------
+    kind : str
+        What the name selects, for the message (for example ``"degree-1 frame"``).
+    name : str
+        The name.
+    aliases : dict
+        Every accepted name, lowercase, mapped to its value.
+    choices : iterable of str, optional
+        The names the message lists; default every name of `aliases`.
+
+    Returns
+    -------
+    int
+        The value.
+
+    Raises
+    ------
+    ValueError
+        If the name is not accepted, naming the closest accepted one (the C++ factories' rule).
+    """
+    cdef vector[string] candidates
+    key = str(name).lower()
+    if key in aliases:
+        return aliases[key]
+    for candidate in aliases:
+        candidates.push_back(candidate.encode("utf-8"))
+    hint = c_did_you_mean(key.encode("utf-8"), candidates).decode("utf-8")
+    listed = ", ".join(sorted(aliases) if choices is None else choices)
+    raise ValueError(f"TidalPy: unknown {kind} '{name}'{hint}; choose from {listed} (any case).")
+
+
 def ode_method_from_name(name: str) -> int:
     """CyRK ``ODEMethod`` value for an integration method name.
 
@@ -163,11 +204,7 @@ def ode_method_from_name(name: str) -> int:
     ValueError
         If the name is not a supported method.
     """
-    try:
-        return ODE_METHOD_INTS[str(name).lower()]
-    except KeyError:
-        raise ValueError(
-            f'Unsupported integration method "{name}". Supported: {sorted(ODE_METHOD_INTS)}.') from None
+    return p_value_from_name("integration method", name, ODE_METHOD_INTS)
 
 
 # The canonical (saved-config) name of each shooting-method starting-condition method, and every name the solvers
@@ -209,11 +246,7 @@ def starting_method_from_name(name: str) -> int:
     ValueError
         If the name is not a starting method.
     """
-    try:
-        return STARTING_METHOD_ALIASES[str(name).lower()]
-    except KeyError:
-        raise ValueError(
-            f'Unsupported starting method "{name}". Supported: {sorted(STARTING_METHOD_ALIASES)}.') from None
+    return p_value_from_name("starting method", name, STARTING_METHOD_ALIASES)
 
 
 # The canonical (saved-config) name of each reference frame of the degree-1 load Love numbers (Blewitt 2003), mapped
@@ -249,12 +282,7 @@ def degree1_frame_from_name(name: str) -> int:
     ValueError
         If the name is not a frame.
     """
-    try:
-        return DEGREE1_FRAME_ALIASES[str(name).lower()]
-    except KeyError:
-        raise ValueError(
-            f'Unsupported degree-1 frame "{name}". Supported: {sorted(DEGREE1_FRAME_NAMES.values())} (any case).'
-            ) from None
+    return p_value_from_name("degree-1 frame", name, DEGREE1_FRAME_ALIASES, sorted(DEGREE1_FRAME_NAMES.values()))
 
 
 def update_constants():

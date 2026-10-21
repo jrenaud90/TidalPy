@@ -17,8 +17,10 @@ from TidalPy.Material import Material
 from TidalPy.RadialSolver import build_rs_input_homogeneous_layers
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.Structures import build_world
+from TidalPy.Structures.configs.worldpack import resolve_world_path
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Utilities.data_pack import parse_toml
 
 DAY = 86400.0
 TIGHT = dict(rtol=1.0e-12, atol=1.0e-14)
@@ -62,8 +64,34 @@ INDEPENDENT_LONG_PERIOD = {
 }
 
 
+# The references were recorded before MatPack's ice Ih took its measured temperature dependence of the moduli (0.8.1):
+# its shear law then, a bulk modulus fixed in temperature, and no Gruneisen parameter. These tests rebuild the bundled
+# worlds with that ice (and Pluto with the core radius fitted to the mass with it), not with the shipped `ice_ih`, so
+# each reference stays that of the structure it was recorded on. The shipped worlds' Love numbers are checked in
+# Tests/Test_Structures/Test_Config/test_bundled_bodies_01.py.
+_RECORDED_ICE = {"preset": "ice_ih", "solid": {
+    "eos": {"model": "birch_murnaghan", "gruneisen_parameter": 0.0,
+            "bulk_modulus_temperature_derivative_pa_k": math.nan},
+    "shear_modulus": {"model": "linear", "shear_modulus_pa": 3.62e9, "temperature_derivative_pa_k": -6.6e6}}}
+_RECORDED_CORE_RADIUS = {"pluto_dynamic": 892154.7870}   # [m]
+
+
+def _bundled(name):
+    """A bundled world as its references were recorded."""
+    with open(resolve_world_path(name), encoding="utf-8") as file:
+        config = parse_toml(file.read())
+    if "layers" not in config:
+        return build_world(name)   # a profile world (earth_prem), built from its data file
+    for layer in config["layers"].values():
+        if layer.get("material") == "ice_ih":
+            layer["material"] = _RECORDED_ICE
+    if name in _RECORDED_CORE_RADIUS:
+        config["layers"]["core"]["radius_outer_m"] = _RECORDED_CORE_RADIUS[name]
+    return build_world(config)
+
+
 def _world(name, liquid=None, **eos_kwargs):
-    world = build_world(name)
+    world = _bundled(name)
     if liquid is not None:
         for layer in world.layers:
             if layer.is_liquid:
@@ -309,7 +337,7 @@ def test_a_supplied_liquid_bulk_modulus_sets_the_stratification(factor):
     frequency the solve reads moves with the modulus."""
     frequency = _frequency(3.551)
     slices = 200
-    world = build_world("europa_dynamic")
+    world = _bundled("europa_dynamic")
     radius = np.ascontiguousarray(world.solve_eos(slices_per_layer=slices)["radius"], dtype=np.float64)
     shear = np.empty(radius.size, dtype=np.complex128)
     bulk = np.empty(radius.size, dtype=np.complex128)
@@ -402,7 +430,7 @@ def test_neutral_liquids_reach_the_static_limit(name, frequency, nondimensionali
     by 1e-6 between tolerances in either form.)"""
     dynamic = _world(name)
     dynamic.solve_love_numbers(frequency, 2, warnings=False, nondimensionalize=nondimensionalize)
-    static = build_world(name)
+    static = _bundled(name)
     for layer in static.layers:
         if layer.is_liquid or layer.can_change_state:
             layer.is_static = True

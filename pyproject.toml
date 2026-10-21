@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.8.0'
+version = '0.8.1'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in C++, Cython, and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -110,9 +110,10 @@ graphics = [
 ]
 
 # The extension modules are declared in setup.py (setuptools has no pyproject.toml equivalent for them).
+# Setuptools 77 is the first to read the SPDX `license` string and `license-files` of [project].
 [build-system]
 requires = [
-    'setuptools>=64.0.0',
+    'setuptools>=77.0.0',
     'numpy >= 1.22, <2.6',
     "scipy>=1.9.3",
     'cython>=3.0.0',

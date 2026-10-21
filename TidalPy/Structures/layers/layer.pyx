@@ -222,7 +222,6 @@ cdef class Layer(StructureBase):
 
     def __cinit__(self, *args, **kwargs):
         self._is_view   = False
-        self._world_ref = None
         self._detached  = False
         self.p_index_given = True
         self.p_inner_given = True
@@ -239,10 +238,13 @@ cdef class Layer(StructureBase):
             self._layer_ptr.release()
         self._ptr      = NULL
         self._detached = True
+        # The view no longer reads the world's layers, so it no longer keeps the world alive.
+        self.p_owner_sptr.reset()
 
     cdef void _notify_world_of_move(self) except *:
-        if self._is_view and (self._world_ref is not None):
-            self._world_ref._layer_moved()
+        # The solved profile no longer lines up with the moved layer, so the world forgets it.
+        if self._is_view and (self.p_owner_sptr.get() != NULL):
+            self.p_owner_sptr.get().update_after_layer_change()
 
     def __init__(
             self,
@@ -312,22 +314,24 @@ cdef class Layer(StructureBase):
         else:
             self._layer_ptr.reset()
         self._ptr = NULL
+        # Drop this view's share of the world only after the pointer into one of its layers is released.
+        self.p_owner_sptr.reset()
 
-    cdef void _init_view(self, c_Layer* ptr, object world):
+    cdef void _init_view(self, c_Layer* ptr, shared_ptr[c_LayerOwner] owner_sptr):
         """Set this wrapper up as a non-owning view onto a world-owned C++ layer.
 
-        Keeps a reference to ``world`` so the C++ layer outlives the view; ``__dealloc__`` then releases the pointer
-        instead of deleting it.
+        Shares ownership of the C++ world that owns the layer (``owner_sptr``), so the C++ layer outlives the view;
+        ``__dealloc__`` then releases the pointer instead of deleting it.
         """
         self._layer_ptr.reset(ptr)
-        self._ptr       = <c_TidalPyBaseClass*>ptr
-        self._is_view   = True
-        self._world_ref = world
+        self._ptr         = <c_TidalPyBaseClass*>ptr
+        self._is_view     = True
+        self.p_owner_sptr = owner_sptr
 
     @staticmethod
-    cdef Layer _view(c_Layer* ptr, object world):
+    cdef Layer _view(c_Layer* ptr, shared_ptr[c_LayerOwner] owner_sptr):
         cdef Layer view = Layer.__new__(Layer)
-        view._init_view(ptr, world)
+        view._init_view(ptr, owner_sptr)
         return view
 
     def load_binary(self, path, cpp_bool force=False):
@@ -585,7 +589,8 @@ cdef class Layer(StructureBase):
 
     @property
     def state(self) -> str:
-        """How the radial solver treats the layer: ``"auto"``, ``"solid"``, or ``"liquid"``."""
+        """How the radial solver treats the layer: ``"auto"``, ``"solid"``, or ``"liquid"``. A liquid layer's material
+        is fully molten (``is_liquid``)."""
         self._check_ptr()
         return c_layer_state_name(self._layer_ptr.get().get_state()).decode("utf-8")
 
@@ -596,7 +601,9 @@ cdef class Layer(StructureBase):
 
     @property
     def is_liquid(self) -> bool:
-        """Whether the radial solver treats the whole layer as a liquid."""
+        """Whether the radial solver treats the whole layer as a liquid. Its material is then evaluated fully molten,
+        whatever its temperature and ``use_melting``: the liquid phase's shear modulus (none, so 0) and viscosity. A
+        material without a liquid phase keeps its one phase with a zero shear modulus."""
         self._check_ptr()
         return self._layer_ptr.get().get_is_liquid()
 
@@ -630,7 +637,8 @@ cdef class Layer(StructureBase):
         self._layer_ptr.get().set_is_incompressible(bool(value))
 
     def calc_state(self, pressure, temperature=None, radius=None) -> dict:
-        """The layer's material at a point, with the layer's switches (see ``Material.calc_state``).
+        """The layer's material at a point, with the layer's switches and ``is_liquid`` (see
+        ``Material.calc_state``).
 
         Parameters
         ----------
@@ -658,15 +666,17 @@ cdef class Layer(StructureBase):
             use_thermal_expansion=switches.use_thermal_expansion,
             use_melting=switches.use_melting,
             use_pressure_melting=switches.use_pressure_melting,
-            use_melt_density=switches.use_melt_density)
+            use_melt_density=switches.use_melt_density,
+            is_liquid=self._layer_ptr.get().get_is_liquid())
 
     # =================================================================================================================
     # Rheology
     # =================================================================================================================
     @property
     def shear_rheology(self):
-        """The shear rheology in effect: the layer's override, else its material's default; None for none. Setting it
-        sets the override (a model, a model name, or a config table); None clears the override."""
+        """The shear rheology in effect: the layer's override, else its material's default (its liquid phase's in a
+        liquid layer); None for none. Setting it sets the override (a model, a model name, or a config table); None
+        clears the override."""
         self._check_ptr()
         return cy_wrap_model(self._layer_ptr.get().share_shear_rheology_model(False))
 

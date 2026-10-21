@@ -1,8 +1,8 @@
 """Unnormalized associated Legendre functions with their first and second colatitude derivatives.
 
-Provides the unnormalized associated Legendre functions ``P_lm(cos theta)`` with their first and second
-colatitude derivatives (Condon-Shortley phase). ``legendre`` uses the precomputed tables (l = 2..10) and
-``legendre_generic`` the degree and order recurrences for any degree.
+Provides the unnormalized associated Legendre functions ``P_l^m(cos theta)`` with their first and second
+colatitude derivatives (Condon-Shortley phase; Kaula's P_lm is (-1)^m times it). ``legendre`` uses the precomputed
+tables (l = 2..10) and ``legendre_generic`` the degree and order recurrences for any degree.
 """
 
 from TidalPy.Utilities.legendre.legendre import legendre, legendre_generic

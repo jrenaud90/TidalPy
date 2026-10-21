@@ -221,6 +221,7 @@ def test_a_capped_despin_leaves_the_system_at_its_last_step():
         pair["Planet"].spin_ratio[-1], rel=1e-12)
 
 
+@pytest.mark.slow
 def test_degree_3_references_are_its_commensurabilities():
     """With degree-3 tides a spin's references are the ratios j / m with m up to 3, the spins at which a mode is
     resonant."""
@@ -276,6 +277,7 @@ def pluto_charon():
     return system, system.evolve("charon", (0.0, 0.3 * MYR), evolve_thermal=False)
 
 
+@pytest.mark.slow
 def test_both_synchronous_spins_hold_while_the_orbit_circularizes(pluto_charon):
     system, pair = pluto_charon
     assert pair.success, pair.message
@@ -292,6 +294,7 @@ def test_both_synchronous_spins_hold_while_the_orbit_circularizes(pluto_charon):
         assert system[name].spin_frequency == pytest.approx(pair[name].spin_frequency[-1], rel=1e-12)
 
 
+@pytest.mark.slow
 def test_either_member_gives_the_same_evolution(pluto_charon):
     """The pair is treated alike from either world."""
     from_pluto = build_pluto_charon().evolve("pluto", (0.0, 0.3 * MYR), evolve_thermal=False)
@@ -383,6 +386,7 @@ def test_angular_momentum_and_energy_balance_at_every_step(captured):
     np.testing.assert_allclose(heating, -(dorbit_energy + dspin_energy), rtol=1e-6)
 
 
+@pytest.mark.slow
 def test_a_thermal_pair_evolves_for_millions_of_years():
     """Thermal Pluto and Charon over 10 Myr at the present epoch: both spins stay synchronous and the layers' heat
     flows set their temperatures."""
@@ -399,6 +403,7 @@ def test_a_thermal_pair_evolves_for_millions_of_years():
         assert result.num_eos_solves > 0
 
 
+@pytest.mark.slow
 def test_a_cold_gyr_runs_in_seconds():
     """Cold Pluto-Charon over 1 Gyr: the performance target is about a minute per Gyr; this case takes a few
     seconds, so the bound only catches a large regression."""

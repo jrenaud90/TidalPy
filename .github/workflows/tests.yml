@@ -1,7 +1,10 @@
 # Lints TidalPy and runs the test suite. Two suite sizes share one matrix:
 #
-#   reduced   the latest two CPythons on all three operating systems (6 legs)
-#   full      every supported CPython on all three operating systems (18 legs)
+#   reduced   the latest two CPythons on all three operating systems (6 legs), the reduced test set
+#   full      every supported CPython on all three operating systems (18 legs), every test
+#
+# The reduced test set (Tests/conftest.py) skips the tests marked `slow` and runs a subset of each heavily
+# parametrized test; TIDALPY_FULL_SUITE=1 runs every test.
 #
 # TRIGGERS
 #   pull_request                                    reduced   requires admin approval
@@ -337,13 +340,75 @@ jobs:
       - name: Install Test Dependencies
         run: python -m pip install pytest pytest-xdist sympy nbformat nbclient ipykernel
 
+      # ccache keeps the compiled objects of each (OS, Python) leg between runs, so a run recompiles only the
+      # extensions its changes reach. Objects cannot be shared across Python versions: every extension includes
+      # Python.h. The masquerade directory goes first on PATH, so setuptools' bare g++ and clang++ (and its link
+      # calls, which ccache passes through) run through ccache.
+      - name: Set Up ccache
+        if: runner.os != 'Windows'
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -q
+            sudo apt-get install -y ccache
+            echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+          else
+            brew install ccache
+            echo "$(brew --prefix)/opt/ccache/libexec" >> "$GITHUB_PATH"
+          fi
+          {
+            echo "CCACHE_DIR=$HOME/.ccache"
+            echo "CCACHE_MAXSIZE=500M"
+            # The checkout gives every header a fresh time stamp; their contents are still hashed.
+            echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        if: runner.os != 'Windows'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-py${{ matrix.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ runner.os }}-py${{ matrix.python-version }}-
+
+      # pip's isolated build environment sits in a new temporary folder each run, and its numpy and CyRK include
+      # paths in every compile command would make each ccache lookup miss. With ccache the build runs without
+      # isolation, on the [build-system] requirements of pyproject.toml installed here. Windows keeps the isolated
+      # build, so this workflow still checks a plain `pip install .`.
+      - name: Install Build Dependencies
+        if: runner.os != 'Windows'
+        shell: python
+        run: |
+          import re, subprocess, sys
+          with open("pyproject.toml", encoding="utf-8") as pyproject_file:
+              text = pyproject_file.read()
+          block = re.search(r"^\[build-system\]\s*requires\s*=\s*\[(.*?)\]", text, re.M | re.S).group(1)
+          requirements = re.findall(r"""['"]([^'"]+)['"]""", block)
+          subprocess.run([sys.executable, "-m", "pip", "install", *requirements], check=True)
+
       - name: Install Package
-        run: python -m pip install -v .
+        run: |
+          ccache --zero-stats 2>/dev/null || true
+          python -m pip install -v ${{ runner.os != 'Windows' && '--no-build-isolation' || '' }} .
+          ccache --show-stats 2>/dev/null || true
+        shell: bash
+
+      # Saved right after the build, so a leg whose tests fail still keeps its objects.
+      - name: Save ccache
+        if: runner.os != 'Windows'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-py${{ matrix.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # --capture=sys leaves file-descriptor output alone, so the spdlog messages from the C++ backend still
       # reach the log; the default pytest capture would swallow them.
       #
       # `-n logical` rather than `-n auto`: psutil is present in the runner image, which makes xdist read
       # `auto` as physical cores, and that is half of what the Linux and Windows runners offer.
+      #
+      # `--dist worksteal`: the default `load` hands each worker a contiguous block of the collection up front,
+      # so the demo notebooks (minutes of work in a row) land on one worker and set the run's length.
       - name: Run pytest
-        run: pytest -n logical --capture=sys Tests/
+        env:
+          TIDALPY_FULL_SUITE: ${{ needs.decide.outputs.suite == 'full' && '1' || '0' }}
+        run: pytest -n logical --dist worksteal --capture=sys Tests/

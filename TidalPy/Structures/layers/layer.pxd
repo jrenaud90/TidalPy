@@ -40,6 +40,10 @@ cdef extern from "layer_.hpp" namespace "tidalpy" nogil:
     const char* c_layer_state_name(c_LayerState state)
     c_LayerState c_layer_state_from_name(const string& name) except +
 
+    # The world that owns a layer, as the layer sees it (c_BaseWorld derives from it).
+    cdef cppclass c_LayerOwner:
+        void update_after_layer_change() except +
+
     cdef cppclass c_LayerConfig:
         string             name
         int                layer_index
@@ -169,7 +173,10 @@ cdef object cy_eos_fields(const void* owner, cy_eos_fields_fn fill, object radiu
 cdef class Layer(StructureBase):
     cdef unique_ptr[c_Layer] _layer_ptr   # owns the C++ layer object
     cdef cpp_bool _is_view                # True => non-owning view into a world-owned layer
-    cdef object   _world_ref              # keep-alive ref to the owning world (views only)
+    # A view's share of the C++ world that owns its layer, which keeps the layer alive as long as the view. It holds
+    # the C++ world, not its Python wrapper: the wrapper caches its views, so a reference back to the wrapper would
+    # form a reference cycle that only Python's cyclic garbage collector frees.
+    cdef shared_ptr[c_LayerOwner] p_owner_sptr
     cdef cpp_bool _detached               # True => a world load replaced the layer this view pointed at
     # Whether the constructor was given a layer_index and a radius_inner; BaseWorld.add_layer fills in those not given.
     cdef cpp_bool p_index_given
@@ -182,6 +189,6 @@ cdef class Layer(StructureBase):
     cdef void _notify_world_of_move(self) except *
     cpdef dict get_config_dict(self)
     # Initialize as a non-owning view.
-    cdef void _init_view(self, c_Layer* ptr, object world)
+    cdef void _init_view(self, c_Layer* ptr, shared_ptr[c_LayerOwner] owner_sptr)
     @staticmethod
-    cdef Layer _view(c_Layer* ptr, object world)
+    cdef Layer _view(c_Layer* ptr, shared_ptr[c_LayerOwner] owner_sptr)

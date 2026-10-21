@@ -1,9 +1,14 @@
 # ice_ih: water ice Ih, melting into liquid water.
 # Solid: Birch-Murnaghan at 250 K from IAPWS-06 (Feistel and Wagner 2006; K0' derived over 0 to 200 MPa); ice III takes
 # over above about 210 MPa. Expansivity: the 250 K value (it varies from 3.0e-5 to 1.6e-4 K-1 with temperature, which no
-# law here represents).
-# Shear modulus: SeaFreeze ice Ih (Journaux et al. 2020) at 920 kg m-3 and 250 K. Conductivity: power law through
-# Petrenko and Whitworth (1999). Heat capacity: power law fit to IAPWS-06 from 100 to 273 K.
+# law here represents). Gruneisen parameter: IAPWS-06 at 250 K, so a tide sees K_S (1.03 K_T near melting).
+# Temperature dependence of the moduli: Neumeier (2018, J. Phys. Chem. Ref. Data 47, 033101), Table 1, polycrystalline
+# ice from 50 to 270 K. dK/dT fits his adiabatic bulk modulus (within 2.2 percent); the shear modulus is a linear fit to
+# his Hill shear modulus (within 0.08 GPa), with the pressure derivative of SeaFreeze ice Ih (Journaux et al. 2020).
+# Poisson's ratio stays at 0.326 to 0.334 from the melting point to 50 K (measured 0.325 to 0.336; Gammon et al. 1983
+# also find all elastic constants scaling together). Below 50 K the moduli are extrapolated.
+# Conductivity: power law through Petrenko and Whitworth (1999). Heat capacity: power law fit to IAPWS-06 from 100 to
+# 273 K.
 # Viscosity: volume-diffusion creep (Goldsby and Kohlstedt 2001) at a 0.5 mm grain size; their basal-slip,
 # grain-boundary-sliding, and dislocation mechanisms are not included.
 # Melting: a fit to the IAPWS R14-08 (2011) ice Ih curve (maximum error 0.17 K), held at about 251 K above the
@@ -27,12 +32,14 @@ reference_bulk_modulus_pa = 8.79e9
 bulk_modulus_derivative = 5.4
 thermal_expansion_1_k = 1.48e-4
 reference_temperature_k = 250.0
+gruneisen_parameter = 0.75
+bulk_modulus_temperature_derivative_pa_k = -1.11e7
 
 [solid.shear_modulus]
 model = "linear"
-shear_modulus_pa = 3.62e9
+shear_modulus_pa = 3.54e9
 pressure_derivative = -0.48
-temperature_derivative_pa_k = -6.6e6
+temperature_derivative_pa_k = -2.94e6
 reference_temperature_k = 250.0
 
 # Volume diffusion: eta = A T d^2 exp(E / (R T)), A = R / (42 V_m D0v).

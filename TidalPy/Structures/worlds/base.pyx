@@ -23,7 +23,7 @@ import numpy as np
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
-from libcpp.memory cimport make_shared
+from libcpp.memory cimport make_shared, static_pointer_cast
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.vector cimport vector
 from cpython.complex cimport PyComplex_FromDoubles
@@ -46,7 +46,7 @@ from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Tides.classes.tide cimport TideBase
 from TidalPy.Tides.classes.tide import make_tide, tide_config_keys, TIDE_CONFIG_KEYS
 from TidalPy.Structures.layers.layer cimport (
-    Layer, c_Layer, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
+    Layer, c_Layer, c_LayerOwner, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
     C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
     C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX, C_EOS_TEMPERATURE_INDEX, C_EOS_HEAT_FLOW_INDEX,
     C_EOS_MELT_FRACTION_INDEX)
@@ -61,7 +61,7 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import (
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 from TidalPy.Utilities.logging.logger import log_warning
 from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name, STARTING_METHOD_NAMES, starting_method_from_name
-from TidalPy.constants import DEGREE1_FRAME_NAMES, degree1_frame_from_name
+from TidalPy.constants import DEGREE1_FRAME_NAMES, degree1_frame_from_name, p_value_from_name
 from TidalPy.exceptions import SolutionFailedError
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths, with the heavy
@@ -77,9 +77,15 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # cannot be imported here at module load without a circular import).
 BUILDER_WORLD_TYPES = ("star", "gasgiant", "terrestrial", "layered")
 
-# A layer wrapper as a non-owning view onto a layer the world owns. The view keeps the world alive (see Layer._view).
-cdef Layer cy_wrap_layer_view(c_Layer* ptr, object world):
-    return Layer._view(ptr, world)
+# The world's C++ object as the owner its layer views share (c_BaseWorld is a c_LayerOwner).
+cdef shared_ptr[c_LayerOwner] cy_layer_owner(BaseWorld world):
+    return static_pointer_cast[c_LayerOwner, c_BaseWorld](world._world_ptr)
+
+
+# A layer wrapper as a non-owning view onto a layer the world owns. The view keeps the world's C++ object alive, not
+# its Python wrapper, so the wrapper's view cache forms no reference cycle (see Layer._view).
+cdef Layer cy_wrap_layer_view(c_Layer* ptr, BaseWorld world):
+    return Layer._view(ptr, cy_layer_owner(world))
 
 # Component order of the stress and strain grids returned by BaseWorld.calc_3d_stress_strain.
 STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", "theta_phi")
@@ -598,18 +604,14 @@ cdef void cy_apply_love_solve_overrides(
         cfg.max_ram_MB = <size_t>int(max_ram_MB)
 
 
+# The surface boundary conditions by name (the standalone radial_solver's solve_for entries) and the radial solver's
+# bc_model integer.
+SOLVE_FOR_MODELS = {"tidal": 1, "loading": 2, "free": 0}
+
+
 cdef int cy_resolve_solve_for(str solve_for) except? -999:
-    # Map a surface-boundary-condition name to the radial solver's bc_model integer
-    # (same names as the standalone radial_solver's solve_for entries).
-    cdef str name_lower = solve_for.lower()
-    if name_lower == 'tidal':
-        return 1
-    elif name_lower == 'loading':
-        return 2
-    elif name_lower == 'free':
-        return 0
-    raise ValueError(
-        f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
+    # Map a surface-boundary-condition name to the radial solver's bc_model integer.
+    return p_value_from_name("solve_for", solve_for, SOLVE_FOR_MODELS, ("tidal", "loading", "free"))
 
 
 cdef void cy_set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
@@ -823,7 +825,7 @@ cdef class BaseWorld(StructureBase):
             added_layer_ptr.set_radii(inner_before, added_layer_ptr.get_radius_outer())
             raise ValueError(rejection.decode('utf-8'))
         self._world_ptr.get().add_layer(move(layer._layer_ptr))
-        layer._init_view(added_layer_ptr, self)
+        layer._init_view(added_layer_ptr, cy_layer_owner(self))
         self._track_view(layer)
         # The layer set changed; drop the cached views so they rebuild on next access.
         self._layer_views = None
@@ -1540,10 +1542,6 @@ cdef class BaseWorld(StructureBase):
         self._issued_views = [view_ref for view_ref in self._issued_views if view_ref() is not None]
         self._issued_views.append(weakref.ref(view))
 
-    def _layer_moved(self):
-        """Called by a layer view after it moved its layer's radii: the solved profile no longer lines up."""
-        self._world_ptr.get().update_after_layer_change()
-
     @property
     def num_layers(self) -> int:
         """Number of layers in the world."""
@@ -1570,9 +1568,9 @@ cdef class BaseWorld(StructureBase):
     def get_layer(self, layer) -> Layer:
         """Return a wrapper around a layer, given by its index (0 = innermost) or its name.
 
-        The returned object is a non-owning view: the world still owns the C++ layer, so the view exposes the
-        matching subclass API but must not outlive the world (it holds a reference to the world to prevent
-        that). Views are cached, so repeated access is cheap. Negative indices count from the end. An index out of
+        The returned object is a non-owning view with the full ``Layer`` API: the world still owns the C++ layer, and
+        the view shares ownership of the world's C++ object, so a view kept after the world itself is deleted stays
+        usable. Views are cached, so repeated access is cheap. Negative indices count from the end. An index out of
         range raises ``IndexError``, and a name the world does not have ``KeyError`` (listing the layer names), as
         every method that takes a layer does.
         """
@@ -2740,7 +2738,8 @@ cdef class BaseWorld(StructureBase):
         With a radial-solver Love method it is the volume integral of the radial solution's heating density over the
         layer (NaN when the tides config's ``layer_tidal_heating`` is off); with the ``homogeneous``, ``cpl``, or
         ``ctl`` method, the heating of the layer's own scaled Love numbers; with an analytic tide model, the total
-        times the layer's tidal scale.
+        times the layer's tidal scale. With a radial-solver Love method, a layer whose moduli are purely real at the
+        tidal frequencies (elastic, or ``use_tides`` off) takes exactly 0.
 
         Parameters
         ----------

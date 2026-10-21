@@ -47,7 +47,7 @@ Please feel free to make pull requests! Also don't hesitate to make draft PRs so
 1. Fork the repo and create your branch from `main`
 2. If you've added code, please add tests
 3. If you've changed APIs, please update the documentation
-4. Ensure the test suite passes by running `pytest Tests\` (recommended you use `pytest-xdist` and use multiple threads; there are a lot of tests!).
+4. Ensure the test suite passes by running `pytest Tests\` (recommended you use `pytest-xdist` and use multiple threads; there are a lot of tests!), and once with `--full-suite` before you submit it.
 5. Submit your pull request!
 
 ## Getting Started
@@ -78,7 +78,7 @@ Please feel free to make pull requests! Also don't hesitate to make draft PRs so
    ```bash
    pip install -v ".[dev]"
    ```
-   Reinstall after every change: a change to a `.pyx`, `.pxd`, or `.hpp` file needs the extensions recompiled, which the reinstall does.
+   Reinstall after every change: a change to a `.pyx`, `.pxd`, or `.hpp` file needs the extensions recompiled, which the reinstall does. The build keeps its objects in `build/` and recompiles only the extensions whose sources, or the TidalPy headers they include, changed. Delete `build/` (and the generated `TidalPy/**/*.cpp`) for a clean build after changing `setup.py`, `cython_extensions.json`, the build requirements, the `Dependencies` submodules, or the compiler.
 
 4. **Create a new branch for your feature:**
    ```bash
@@ -181,13 +181,18 @@ def calc_tidal_heating(world, orbital_frequency, eccentricity, host_mass):
 
 ### Running Tests
 
-TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`. When `psutil` is installed, `auto` counts only physical cores, which is half the workers on a machine with hyper-threading, `-n logical` overcomes this limitation.
+TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`. When `psutil` is installed, `auto` counts only physical cores, which is half the workers on a machine with hyper-threading, `-n logical` overcomes this limitation. Without a `--dist` option, `Tests/conftest.py` makes an `-n` run distribute by `--dist worksteal`, so idle workers take tests from busy ones; xdist's default `load` hands each worker a block of consecutive tests up front, and the demo notebooks would all land on one worker.
+
+By default the suite runs a reduced set: it skips the tests marked `slow` (the slowest demo notebooks and `System.evolve` runs) and, from each test with more than 8 parametrized cases, keeps only the cases that bring a parameter value not yet run, so every value of every parameter still runs at least once. `pytest --full-suite` (or the environment variable `TIDALPY_FULL_SUITE=1`) runs every test; the GitHub workflow's full suite does. Mark a test that takes more than a few seconds with `@pytest.mark.slow`.
 
 The tests import the installed TidalPy, not the source tree: the repository's `conftest.py` removes the repository root from the import path. Run `pytest` from the repository root after reinstalling. `Tests/conftest.py` points `TIDALPY_DATA_DIR` at a fresh temporary directory before TidalPy is imported, so the suite always runs with the packaged configuration, worlds, and materials, never reads or writes your own data directory, and gives the same results whatever your `TidalPy_Configs.toml` says.
 
 ```bash
-# Run all tests
+# Run the reduced test set
 pytest Tests/  # Or with the added `-n logical` flag.
+
+# Run every test
+pytest -n logical --full-suite Tests/
 
 # Run specific test file
 pytest Tests/Test_Rheology/test_rheology_01.py

@@ -93,10 +93,10 @@ _BODIES = [
          3.551181, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["ocean"], dynamic_layers=["ocean"]),
     Body("charon", 606000.0, 1.5896798e21, 0.288915,
          ["core", "hydrosphere"], ["core", "hydrosphere"],
-         6.3872304, moi_factor=0.311972, moi_tolerance=1.0e-3, moi_measured=False),
+         6.3872304, moi_factor=0.311962, moi_tolerance=1.0e-3, moi_measured=False),
     Body("triton", 1352600.0, 2.1402926e22, 0.780801,
          ["core", "hydrosphere"], ["core", "hydrosphere"],
-         5.876854, moi_factor=0.316944, moi_tolerance=1.0e-3, moi_measured=False),
+         5.876854, moi_factor=0.316947, moi_tolerance=1.0e-3, moi_measured=False),
     # The TRAPPIST-1 planets are assumed tidally locked, so the spin period is the orbital period. Their iron cores are
     # liquid.
     Body("trappist1b", 7110044.9, 8.2058009e24, 10.833830,
@@ -360,9 +360,10 @@ _LUNA_Q_YEAR, _LUNA_Q_YEAR_UNCERTAINTY = 41.0, 9.0
 
 
 def _luna_quality(world, period_days):
+    """TidalPy's Q of k2, |k2| / -Im k2 (love_q_k), as the WorldPack files quote it."""
     world.solve_love_numbers(2.0 * math.pi / (period_days * 86400.0))
     assert world.love_success, world.love_message
-    return world.love_number_k.real / (-world.love_number_k.imag)
+    return world.love_q_k
 
 
 def test_luna_quality_factor_at_the_month_and_the_year():
@@ -408,7 +409,7 @@ def _m2_quality(world_name):
     world.solve_eos(solve_temperature=True, surface_temperature=_EARTH_SURFACE_TEMPERATURE)
     world.solve_love_numbers(2.0 * math.pi / (_M2_PERIOD_DAYS * 86400.0))
     assert world.love_success, world.love_message
-    return world, world.love_number_k.real / (-world.love_number_k.imag)
+    return world, world.love_q_k
 
 
 def test_earth_thermal_quality_factor_at_m2_is_the_solid_earths():
@@ -628,13 +629,13 @@ def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia_or_lov
 # thicknesses [m] as each file's comment quotes them. Pluto's layer temperature is fitted to the 100 km shell of
 # Kihoulou et al. (2022), and its ocean is what is left above the core fitted to the mass.
 _HYDROSPHERE_ZONES = {
-    "pluto": (196.1e3, 100.0e3),
-    "pluto_dynamic": (196.1e3, 100.0e3),
+    "pluto": (196.2e3, 100.0e3),
+    "pluto_dynamic": (196.2e3, 100.0e3),
     "charon": (0.0, 168.5e3),
     "triton": (58.2e3, 230.4e3),
 }
-_PLUTO_OCEAN_K = 0.32019
-_PLUTO_FROZEN_K = 0.00530
+_PLUTO_OCEAN_K = 0.32043
+_PLUTO_FROZEN_K = 0.00535
 _PLUTO_FROZEN_TEMPERATURE = 250.0
 
 
@@ -721,7 +722,7 @@ def test_dynamic_world_liquid_follows_its_equation_of_state(body):
 
 # k2 at the orbital or mutual period as each file's comment quotes it, and the most the same liquid solved as a
 # static one moves it.
-_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.3203, 5.0e-4), "europa_dynamic": (3.551181, 0.2628, 2.0e-3)}
+_DYNAMIC_LOVE_K = {"pluto_dynamic": (6.3872304, 0.3205, 5.0e-4), "europa_dynamic": (3.551181, 0.2630, 2.0e-3)}
 
 
 @pytest.mark.parametrize("name", list(_DYNAMIC_LOVE_K))

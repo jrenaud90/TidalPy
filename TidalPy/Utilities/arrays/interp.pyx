@@ -86,8 +86,10 @@ def partition_radius_by_layer(
     """Split an ascending radius array into one run of slices per layer.
 
     A layered profile repeats each interface radius, once for the layer below and once for the layer above.
-    This is the same C++ routine the EOS solution and the world radial solver partition with, so the three
-    cannot disagree about which copy belongs to which layer.
+    This is the same C++ routine the layered-profile world builder (``build_world_from_layered_profile``, and
+    through it the standalone ``radial_solver``) partitions with, so the two cannot disagree about which copy
+    belongs to which layer. A slice matches an interface within 1e-9 of its layer's thickness, so a layer far
+    thinner than its radius keeps all of its slices.
 
     Parameters
     ----------

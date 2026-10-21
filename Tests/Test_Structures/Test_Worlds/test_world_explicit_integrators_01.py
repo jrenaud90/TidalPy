@@ -154,5 +154,5 @@ def test_world_pin_round_trips(integration_method, tmp_path):
 def test_unknown_method_raises():
     """A name close to a new method is still refused."""
     world = build_world("io")
-    with pytest.raises(ValueError, match="Unsupported integration method"):
+    with pytest.raises(ValueError, match="unknown integration method"):
         world.solve_eos(integration_method="vern9")

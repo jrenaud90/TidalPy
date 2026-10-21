@@ -52,5 +52,5 @@ def test_world_love_solve_implicit(integration_method):
 def test_world_unknown_method_raises():
     """An unknown method name raises a ValueError."""
     world = _fresh_world()
-    with pytest.raises(ValueError, match="Unsupported integration method"):
+    with pytest.raises(ValueError, match="unknown integration method"):
         world.solve_eos(integration_method="not_a_method")

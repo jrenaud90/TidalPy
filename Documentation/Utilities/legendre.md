@@ -4,7 +4,7 @@ _Updated: 2026-09-30_
 
 The associated Legendre functions $P_{lm}(\cos\theta)$ are the angular part of the tidal potential: expanding a companion's potential over a body's surface gives one term per degree $l$ and order $m$. The 3D stress, strain, and heating fields also need the first and second colatitude derivatives, because the tangential displacements are angular gradients of the potential.
 
-Both entry points return the triple $\left(P_{lm},\ dP_{lm}/d\theta,\ d^2P_{lm}/d\theta^2\right)$ for a colatitude in radians on $[0, \pi]$, using the unnormalized functions with the Condon-Shortley phase, the convention of `scipy.special.assoc_legendre_p` with `branch_cut=2`. Conventions differ between references, and a mismatch scales tidal amplitudes by a factor that can be hard to spot.
+Both entry points return the triple $\left(P_{l}^{m},\ dP_{l}^{m}/d\theta,\ d^2P_{l}^{m}/d\theta^2\right)$ for a colatitude in radians on $[0, \pi]$, using the unnormalized functions with the Condon-Shortley phase, the convention of `scipy.special.assoc_legendre_p` with `branch_cut=2`. Conventions differ between references, and a mismatch scales tidal amplitudes by a factor that can be hard to spot. Kaula's function $P_{lm}$, which TidalPy's harmonics use, has no Condon-Shortley phase: $P_{lm} = (-1)^m P_{l}^{m}$, so $P_{11}(\cos\theta) = \sin\theta$ while $P_{1}^{1}(\cos\theta) = -\sin\theta$.
 
 ## Evaluation Paths
 

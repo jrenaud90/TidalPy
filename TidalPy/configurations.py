@@ -183,6 +183,18 @@ def drop_retired_config_keys(config: dict, source: str) -> list:
     return removed
 
 
+# The recursive walkers are module functions rather than closures: a closure that calls itself holds its own cell, a
+# reference cycle that left each call's function and cell objects to the cyclic collector.
+def _collect_unknown_keys(table: dict, reference: dict, path: str, unknown: list) -> None:
+    """Append to ``unknown`` the dotted path of each key of ``table`` (at ``path``) that ``reference`` lacks."""
+    for key, value in table.items():
+        here = f"{path}.{key}" if path else key
+        if key not in reference:
+            unknown.append(here)
+        elif isinstance(value, dict) and isinstance(reference[key], dict):
+            _collect_unknown_keys(value, reference[key], here, unknown)
+
+
 def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     """The keys of a ``TidalPy_Configs.toml`` (or an override dict) that nothing in TidalPy reads.
 
@@ -208,15 +220,6 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     from TidalPy.schema import ALLOWED_TIDES_KEYS, ALLOWED_WORLD_SCALAR_KEYS, WORLD_TYPES
 
     unknown = []
-
-    def walk(table, reference, path):
-        for key, value in table.items():
-            here = f"{path}.{key}" if path else key
-            if key not in reference:
-                unknown.append(here)
-            elif isinstance(value, dict) and isinstance(reference[key], dict):
-                walk(value, reference[key], here)
-
     for section, table in overrides.items():
         if section not in packaged:
             unknown.append(section)
@@ -247,7 +250,7 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
         elif section == "radiogenics":
             unknown.extend(f"radiogenics.{key}" for key in table if key not in packaged["radiogenics"])
         else:
-            walk(table, packaged[section], section)
+            _collect_unknown_keys(table, packaged[section], section, unknown)
     return unknown
 
 
@@ -271,6 +274,81 @@ def warn_unknown_config_keys(overrides: dict, packaged: dict, source: str) -> li
 
 # System.evolve's implicit methods (the [evolution] method).
 _EVOLUTION_METHODS = ("lsoda", "bdf", "radau")
+
+
+def _accepts_type(value, kind) -> bool:
+    """Whether ``value`` serves a setting of type ``kind``: an int also serves a float, a bool serves only a bool."""
+    if kind is bool:
+        return isinstance(value, bool)
+    if isinstance(value, bool):
+        return False
+    if kind is float:
+        return isinstance(value, (int, float))
+    return isinstance(value, kind)
+
+
+def _range_problem(path: str, section: str, key: str, value):
+    """Why a value of the right type is out of range for its setting (see find_invalid_config_values), or None."""
+    if (section in SOLVER_TABLES) and (key in SOLVER_KEY_NAMES):
+        if str(value).lower() not in SOLVER_KEY_NAMES[key]:
+            return f"must be one of {list(SOLVER_KEY_NAMES[key])} (any case)"
+    elif (section in SOLVER_TABLES) and (key in _SOLVER_KEY_RULES[section]):
+        floor = _SOLVER_KEY_RULES[section][key][1]
+        if (floor is not None) and not (math.isfinite(value) and (value > floor)):
+            return f"must be greater than {floor}"
+    elif (section == "numerical") and isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            return "must be finite"
+        if (key in CONFIG_NUMERICAL_BELOW_ONE) and not (0 <= value < 1):
+            return "must be at least 0 and below 1"
+        if (key in CONFIG_NUMERICAL_NONNEGATIVE) and (value < 0):
+            return "must not be negative"
+        if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
+            return "must be positive"
+    elif section == "evolution":
+        if key == "method":
+            if str(value).lower() not in _EVOLUTION_METHODS:
+                return "must be 'LSODA', 'BDF', or 'Radau' (any case)"
+        elif key == "max_wall_time":
+            if not (value >= 0.0):
+                return "must not be negative"
+        elif key.endswith(("_rtol", "_atol")) and not (math.isfinite(value) and (value > 0.0)):
+            return "must be finite and positive"
+    elif path in LOG_LEVEL_CONFIG_KEYS:
+        low, high = LOG_LEVEL_RANGE
+        if isinstance(value, str) and (value.lower() not in LOG_LEVELS):
+            return f"must be one of {sorted(LOG_LEVELS)} or an integer {low} to {high}"
+        if isinstance(value, int) and not (low <= value <= high):
+            return f"must be an integer {low} to {high} or a level name"
+    return None
+
+
+def _collect_invalid_values(table: dict, reference: dict, path: str, rule_path: str, invalid: list) -> None:
+    """Append to ``invalid`` a ``(dotted_key, reason)`` for each value of ``table`` (at ``path``, checked by the rules
+    at ``rule_path``) that its setting in ``reference`` cannot use."""
+    for key, value in table.items():
+        here = f"{path}.{key}" if path else key
+        rule_here = f"{rule_path}.{key}" if rule_path else key
+        if key not in reference:
+            # A per-type table takes its parent table's keys; anything else is an unknown key, reported elsewhere.
+            if (rule_path in ("tides", "worlds")) and (key in WORLD_TYPES) and isinstance(value, dict):
+                _collect_invalid_values(value, reference, here, rule_path, invalid)
+            continue
+        expected = reference[key]
+        if isinstance(expected, dict):
+            if isinstance(value, dict):
+                _collect_invalid_values(value, expected, here, rule_here, invalid)
+            elif rule_here not in CONFIG_ALTERNATE_TYPES:
+                invalid.append((here, "must be a table"))
+            continue
+        kinds = CONFIG_ALTERNATE_TYPES.get(rule_here, (type(expected),))
+        if not any(_accepts_type(value, kind) for kind in kinds):
+            names = " or ".join("table" if kind is dict else kind.__name__ for kind in kinds)
+            invalid.append((here, f"must be a {names}, not {value!r}"))
+            continue
+        reason = _range_problem(rule_here, rule_path.partition(".")[0], key, value)
+        if reason is not None:
+            invalid.append((here, f"{reason}, not {value!r}"))
 
 
 def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
@@ -298,76 +376,7 @@ def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
         ``(dotted_key, reason)`` for each invalid value, in file order; empty when every value is usable.
     """
     invalid = []
-
-    def accepts(value, kind) -> bool:
-        if kind is bool:
-            return isinstance(value, bool)
-        if isinstance(value, bool):
-            return False
-        if kind is float:
-            return isinstance(value, (int, float))
-        return isinstance(value, kind)
-
-    def check_range(path, section, key, value):
-        if (section in SOLVER_TABLES) and (key in SOLVER_KEY_NAMES):
-            if str(value).lower() not in SOLVER_KEY_NAMES[key]:
-                return f"must be one of {list(SOLVER_KEY_NAMES[key])} (any case)"
-        elif (section in SOLVER_TABLES) and (key in _SOLVER_KEY_RULES[section]):
-            floor = _SOLVER_KEY_RULES[section][key][1]
-            if (floor is not None) and not (math.isfinite(value) and (value > floor)):
-                return f"must be greater than {floor}"
-        elif (section == "numerical") and isinstance(value, (int, float)):
-            if not math.isfinite(value):
-                return "must be finite"
-            if (key in CONFIG_NUMERICAL_BELOW_ONE) and not (0 <= value < 1):
-                return "must be at least 0 and below 1"
-            if (key in CONFIG_NUMERICAL_NONNEGATIVE) and (value < 0):
-                return "must not be negative"
-            if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
-                return "must be positive"
-        elif section == "evolution":
-            if key == "method":
-                if str(value).lower() not in _EVOLUTION_METHODS:
-                    return "must be 'LSODA', 'BDF', or 'Radau' (any case)"
-            elif key == "max_wall_time":
-                if not (value >= 0.0):
-                    return "must not be negative"
-            elif key.endswith(("_rtol", "_atol")) and not (math.isfinite(value) and (value > 0.0)):
-                return "must be finite and positive"
-        elif path in LOG_LEVEL_CONFIG_KEYS:
-            low, high = LOG_LEVEL_RANGE
-            if isinstance(value, str) and (value.lower() not in LOG_LEVELS):
-                return f"must be one of {sorted(LOG_LEVELS)} or an integer {low} to {high}"
-            if isinstance(value, int) and not (low <= value <= high):
-                return f"must be an integer {low} to {high} or a level name"
-        return None
-
-    def walk(table, reference, path, rule_path):
-        for key, value in table.items():
-            here = f"{path}.{key}" if path else key
-            rule_here = f"{rule_path}.{key}" if rule_path else key
-            if key not in reference:
-                # A per-type table takes its parent table's keys; anything else is an unknown key, reported elsewhere.
-                if (rule_path in ("tides", "worlds")) and (key in WORLD_TYPES) and isinstance(value, dict):
-                    walk(value, reference, here, rule_path)
-                continue
-            expected = reference[key]
-            if isinstance(expected, dict):
-                if isinstance(value, dict):
-                    walk(value, expected, here, rule_here)
-                elif rule_here not in CONFIG_ALTERNATE_TYPES:
-                    invalid.append((here, "must be a table"))
-                continue
-            kinds = CONFIG_ALTERNATE_TYPES.get(rule_here, (type(expected),))
-            if not any(accepts(value, kind) for kind in kinds):
-                names = " or ".join("table" if kind is dict else kind.__name__ for kind in kinds)
-                invalid.append((here, f"must be a {names}, not {value!r}"))
-                continue
-            reason = check_range(rule_here, rule_path.partition(".")[0], key, value)
-            if reason is not None:
-                invalid.append((here, f"{reason}, not {value!r}"))
-
-    walk(overrides, packaged, "", "")
+    _collect_invalid_values(overrides, packaged, "", "", invalid)
     return invalid
 
 

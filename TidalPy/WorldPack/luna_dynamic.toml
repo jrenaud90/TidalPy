@@ -6,7 +6,7 @@
 # 11, 1954); reference density 4803.56 kg/m3 fitted to the 5100 kg/m3 mean of Weber et al. (2011).
 # Fitted: mantle reference density 3324.9486 kg/m3 to the mass (g = 1.6242 m/s2; central pressure 5.44 GPa);
 # crust 33.98 km to C/MR2 = 0.39312; mantle rigidity 6.385106e10 Pa to k2 = 0.02422 at 27.3217 days.
-# The zone is unchanged from luna.toml and still gives Q = 37.9 at the month and 41.0 at the year.
+# The zone is unchanged from luna.toml and still gives Q = 37.9 at the month and 40.9 at the year.
 # Temperatures, viscosities, and spin are as in luna.toml.
 schema_version = "0.2.0"
 name = "Luna-Dynamic"

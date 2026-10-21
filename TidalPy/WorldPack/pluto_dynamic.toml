@@ -1,7 +1,7 @@
 # Pluto-Dynamic: pluto.toml with the liquid zone of its hydrosphere solved as a dynamic liquid (is_static = false).
 # The ocean's density follows its bulk modulus (MatPack water, 1027.5 to 1083.6 kg/m3), which keeps the dynamic solve
 # neutrally stratified (see Demos/Physics/P12_dynamic_liquids.ipynb). Structure, mass, and C/MR2 are pluto.toml's.
-# k2 = 0.3203, Q = 4.26 at the 6.3872 day mutual period; pluto.toml's static ocean is within 2.4e-4.
+# k2 = 0.3205, Q = 4.39 at the 6.3872 day mutual period; pluto.toml's static ocean is within 2.4e-4.
 # Its k2 at the default tolerances agrees with an rtol 1e-12 solve to 1e-12 down to a forcing frequency of 1e-16 rad/s,
 # where it is pluto.toml's static ocean's.
 # Temperatures, viscosities, and spin are as in pluto.toml.
@@ -19,7 +19,7 @@ solve_temperature = false
 
 [layers.core]
 layer_index = 0
-radius_outer_m = 892154.7870          # pluto.toml
+radius_outer_m = 892148.6017          # pluto.toml
 use_tides = true
 temperature_k = 600.0
 use_heating = true

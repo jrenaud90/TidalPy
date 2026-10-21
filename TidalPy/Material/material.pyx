@@ -127,12 +127,13 @@ cdef dict cy_split_config(dict config, object slots, object parameter_keys, str 
 
 
 cdef c_MaterialSwitches cy_switches(object use_thermal_expansion, object use_melting, object use_pressure_melting,
-                                    object use_melt_density):
+                                    object use_melt_density, object is_liquid=False):
     cdef c_MaterialSwitches switches
     switches.use_thermal_expansion = True if use_thermal_expansion else False
     switches.use_melting           = True if use_melting else False
     switches.use_pressure_melting  = True if use_pressure_melting else False
     switches.use_melt_density      = True if use_melt_density else False
+    switches.is_liquid             = True if is_liquid else False
     return switches
 
 
@@ -409,7 +410,7 @@ cdef class Material(PhysicsBase):
         return solidus, liquidus
 
     def calc_state(self, pressure, temperature=d_NAN, radius=d_NAN, *, use_thermal_expansion=False,
-                   use_melting=False, use_pressure_melting=False, use_melt_density=False) -> dict:
+                   use_melting=False, use_pressure_melting=False, use_melt_density=False, is_liquid=False) -> dict:
         """Every property of the material at a point, as a layer with these switches sees it.
 
         Parameters
@@ -419,6 +420,10 @@ cdef class Material(PhysicsBase):
             broadcast together.
         use_thermal_expansion, use_melting, use_pressure_melting, use_melt_density : bool, optional
             The layer physics switches; each off, the default, is the simpler case.
+        is_liquid : bool, optional
+            As a liquid layer sees it (``Layer.is_liquid``): fully molten whatever the temperature and
+            ``use_melting``, so the liquid phase's shear modulus and viscosity. A material without a liquid phase
+            keeps its one phase, with a zero shear modulus.
 
         Returns
         -------
@@ -434,7 +439,7 @@ cdef class Material(PhysicsBase):
         """
         cdef c_Material* material_ptr = self._material()
         cdef c_MaterialSwitches switches = cy_switches(
-            use_thermal_expansion, use_melting, use_pressure_melting, use_melt_density)
+            use_thermal_expansion, use_melting, use_pressure_melting, use_melt_density, is_liquid)
         cdef vector[vector[double]] inputs
         cdef vector[c_MaterialState] states
         cdef object shape = cy_broadcast_inputs((pressure, temperature, radius), inputs, False)

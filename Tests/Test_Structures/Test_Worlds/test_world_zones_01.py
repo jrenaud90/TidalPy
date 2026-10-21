@@ -144,7 +144,7 @@ def test_a_dynamic_liquid_zone_solves_at_long_periods(is_static):
 
 def test_a_state_change_that_lets_a_layer_melt_needs_a_new_solve():
     """The solve looks for zones only in a layer that can change state, so setting a forced layer back to auto (or
-    the reverse) forgets the solve; a change between forced states does not."""
+    the reverse) forgets the solve; so does a change into or out of liquid, whose material is then fully molten."""
     layer = Layer("body", 0, 0.0, _RADIUS, material=_melting_material(), temperature=2000.0, use_melting=True,
                   use_pressure_melting=True, state="solid")
     world = BaseWorld("uniform", _RADIUS, _MASS)
@@ -152,7 +152,8 @@ def test_a_state_change_that_lets_a_layer_melt_needs_a_new_solve():
     assert world.solve_eos(G_to_use=G)["success"]
     assert [zone["state"] for zone in world.zones] == ["solid"]
     world.body.state = "liquid"
-    assert world.eos_solved
+    assert not world.eos_solved
+    assert [zone["state"] for zone in world.solve_eos(G_to_use=G)["zones"]] == ["liquid"]
     assert world.molten_regions == []
     world.body.state = "auto"
     assert not world.eos_solved
@@ -167,10 +168,17 @@ def test_a_layer_that_cannot_change_state_is_one_zone():
     result = world.solve_eos(G_to_use=G)
     assert [zone["state"] for zone in result["zones"]] == ["solid"]
     assert world.calc_layer_latent_capacity(0) == 0.0
-    # A layer forced liquid after the solve is one liquid zone to the Love solve, without a new EOS solve.
+    # A layer forced liquid is one liquid zone, after a new EOS solve: its material is then fully molten.
     world.body.state = "liquid"
+    assert not world.eos_solved
+    assert [zone["state"] for zone in world.solve_eos(G_to_use=G)["zones"]] == ["liquid"]
     assert world.molten_regions == []
-    assert world.zones[0]["state"] == "solid"
+    # Between auto and solid nothing the solve reads changes, so the solve stands.
+    world.body.state = "solid"
+    assert not world.eos_solved
+    world.solve_eos(G_to_use=G)
+    world.body.state = "auto"
+    assert world.eos_solved
 
 
 def test_a_thin_zone_takes_its_neighbors_state():

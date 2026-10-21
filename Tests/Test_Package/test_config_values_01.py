@@ -6,7 +6,8 @@ import pytest
 
 import TidalPy
 from TidalPy import paths
-from TidalPy.configurations import find_invalid_config_values, get_default_config, get_packaged_config
+from TidalPy.configurations import (find_invalid_config_values, find_unknown_config_keys, get_default_config,
+                                    get_packaged_config)
 
 
 @pytest.fixture
@@ -147,3 +148,18 @@ def test_a_relative_data_directory_is_made_absolute(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv(paths.DATA_DIR_ENVIRONMENT_VARIABLE, "relative_data")
     assert paths.get_data_dir() == os.path.join(str(tmp_path / "relative_data"), paths.get_data_version())
+
+
+def test_the_config_checks_leave_no_reference_cycles(packaged):
+    """Checking a file's keys and values (nested tables included) leaves nothing for the cyclic garbage collector."""
+    import gc
+    override = {"logging": {"console_level": "verbose"}, "radial_solver": {"rtol": -1.0, "not_a_key": 1},
+                "tides": {"terrestrial": {"fixed_q": 100.0}}, "worlds": {"terrestrial": {"albedo": "bright"}}}
+    gc.collect()
+    gc.disable()
+    try:
+        assert find_invalid_config_values(override, packaged)
+        assert find_unknown_config_keys(override, packaged)
+        assert gc.collect() == 0
+    finally:
+        gc.enable()

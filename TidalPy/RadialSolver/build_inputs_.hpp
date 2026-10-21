@@ -18,6 +18,7 @@
 #include "../constants_.hpp"
 #include "logger_.hpp"
 #include "numerics_.hpp"
+#include "../Utilities/arrays/layer_partition_.hpp"  // c_layer_boundary_tolerance
 #include "rheology_base_.hpp"
 #include "rs_constants_.hpp"   // C_RS_MIN_SLICES_PER_LAYER
 
@@ -371,14 +372,22 @@ inline void c_build_rs_input_from_data(
     for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
         const double layer_upper_radius = layer_upper_radius_bylayer[layer_i];
         const std::size_t first_output_slice = radius_use.size();
+        // Relative to the layers' thicknesses, so the slices of a layer far thinner than the planet stay distinct.
+        const double* uppers = layer_upper_radius_bylayer.data();
+        const double top_tolerance = tidalpy::c_layer_boundary_tolerance(uppers, num_layers, layer_i);
+        const double base_tolerance =
+            (layer_i == 0) ? 0.0 : tidalpy::c_layer_boundary_tolerance(uppers, num_layers, layer_i - 1);
         if (slice_i_input >= num_slices_input) {
             throw std::invalid_argument(
                 "TidalPy::build_rs_input: `radius_array` ran out of slices before layer " +
                 std::to_string(layer_i) + " (check `layer_upper_radius_tuple`).");
         }
 
-        // Base of the layer: the previous layer's top (or r = 0) must appear again.
-        if (!c_isclose(radius[slice_i_input], last_layer_upper_radius, 1.0e-9, 0.0)) {
+        // Base of the layer: the previous layer's top (or exactly r = 0) must appear again.
+        const bool base_present = (layer_i == 0)
+            ? (radius[slice_i_input] == 0.0)
+            : (std::abs(radius[slice_i_input] - last_layer_upper_radius) <= base_tolerance);
+        if (!base_present) {
             if (warnings) {
                 if (layer_i == 0) {
                     TIDALPY_LOG_WARN(
@@ -398,7 +407,7 @@ inline void c_build_rs_input_from_data(
         bool top_present = false;
         while (slice_i_input < num_slices_input) {
             const double slice_radius = radius[slice_i_input];
-            if (c_isclose(slice_radius, layer_upper_radius, 1.0e-9, 0.0)) {
+            if (std::abs(slice_radius - layer_upper_radius) <= top_tolerance) {
                 top_present = true;
             } else if (slice_radius > layer_upper_radius) {
                 break;  // First slice of the next layer.
