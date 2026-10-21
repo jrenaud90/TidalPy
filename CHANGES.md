@@ -2,89 +2,35 @@
 
 ## Version 0.8.X
 
-### Version 0.8.1 (unreleased)
+### Version 0.8.1 (2026-10-21)
 
 #### Fixes
-* A world's radial Love solve (`solve_love_numbers`, `calc_love_numbers`, and the tides and 3D maps with the
-  `radial_solver` or `propagation_matrix` Love method) split its radius grid into layers by a radius tolerance (1e-9 of
-  the radius), which gave the slices of a layer that lie within it of the layer's top to the layer above: under
-  Europa's 25 km shell, at 100 slices per layer, 76 slices of a 2 mm ocean, 15 of a 1 cm one, and 1 of a 10 cm one. A
-  layer thinner than the tolerance (1.5 mm there) failed with "No love-number solve has been run.". The solve now takes
-  each layer's slices as its grid was built, so such layers solve, and a failed setup reports its own reason (the
-  layer, its top, and its slice count). This changes the Love numbers of worlds with such thin layers; the bundled
-  worlds give the same Love numbers bit for bit.
-* The other readers of a layered radius grid matched a layer's top by the same radius tolerance, so they also took the
-  slices of a layer only millimeters thick for copies of the interface. `solve_eos` gave most of such a layer's slices
-  in its profile arrays the material of the layer above (under Europa's shell, a 2 mm ocean took the ice's density), and
-  the standalone `radial_solver` and `build_rs_input_from_data` refused a top layer of 2 cm or less ("Radius of layer 0
-  found 5 times") or gave it too few slices; `build_world_from_layered_profile` split its layers by the same rule.
-  Interfaces now match within 1e-9 of the thinner of the two layers that meet there, by one rule all of them share, so
-  such layers keep every slice. Grids without thin layers split as before.
-* With a radial-solver Love method, a layer whose complex shear and bulk moduli are purely real at the tidal
-  frequencies (no rheology, an elastic one, or `use_tides` off) takes exactly 0 tidal heating in `calc_tides`. An
-  elastic layer with `use_tides` on took the volume integral of its fields, which is the solve's round-off and can have
-  either sign, and its integral was part of the sum the layers are scaled by. The layers that dissipate now take the
-  whole total, which is unchanged. This changes the per-layer heating and heating profiles of worlds with such layers;
-  the bundled worlds have none and are unchanged.
-* The shooting method's bound on the dense solution it keeps (`max_ram_mb` of `[radial_solver]`, `max_ram_MB` of the
-  solves) counted mebibytes (2^20 bytes), while the setting is documented in megabytes and CyRK's own step bound counts
-  10^6 bytes. Both now count megabytes, so the bound is 4.6% lower in bytes; only a solve near the bound is affected.
-* A world and its layer views formed a reference cycle (the world caches its views, and each view held the world), so
-  a world was not freed when its last reference went: it and its C++ state (the solved structure, Love numbers, and
-  tide results) waited for Python's cyclic garbage collector. Loops that build and solve many worlds, as a fit does,
-  grew in memory between collections, by hundreds of MB in long runs. Each view now shares the world's C++ object
-  instead of holding its Python wrapper, so a world is freed as soon as it is deleted. A view kept after its world is
-  deleted stays usable, as before.
-* The configuration checks (`find_unknown_config_keys`, `find_invalid_config_values`, run whenever a configuration,
-  world, or system is loaded) walked nested tables with a closure that called itself, a reference cycle that left each
-  call's function and cell objects to the cyclic garbage collector. The walkers are module functions now, so loading a
-  system and deleting it leaves nothing behind for the collector.
+* A world's radial Love solve (`solve_love_numbers`, `calc_love_numbers`, and the tides and 3D maps with the `radial_solver` or `propagation_matrix` Love method) split its radius grid into layers by a radius tolerance (1e-9 of the radius; used for EOS output sampling). This could result in tiny slices (~mm) to incorrectly be assigned to the wrong layer (solid properties to a ocean, vice versa). A layer thinner than the tolerance (1.5 mm there) failed with "No love-number solve has been run.". The solve now takes each layer's slices as its grid was built.
+  * The other functions matched a layer's top radius by the same radius tolerance, so they also took the slices of a layer only millimeters thick at interfaces. Interfaces now match within 1e-9 of the thinner of the two layers that meet there, by one rule all of them share, so such layers keep every slice. Grids without thin layers are unaffected.
+* With a radial-solver Love method, a layer whose complex shear and bulk moduli are purely real at the tidal frequencies (no rheology, an elastic one, or `use_tides` off) now report 0 tidal heating in `calc_tides`. Previously, an elastic layer with `use_tides` on took the volume integral of its response which should have been close to zero but was found to have rounding errors in some cases.
+* The shooting method provides a RAM limit switch (`max_ram_mb` of `[radial_solver]`), but this mistakenly used a wrong byte conversion leading to ~5% lower bound. Results were unaffected.
+* A world and its layer views formed reference loope (the world cached layer views and each layer held a world view), so a world was not freed when its last reference went. They would still be caught by Python's garbage collector, but loops that did not leave C++ would not be collected properly leading to a pseudo memory leak. Each view now shares the world's C++ object instead of holding its Python wrapper, so a world is freed as soon as it is deleted.
+* The configuration checks (`find_unknown_config_keys`, `find_invalid_config_values`, run whenever a configuration, world, or system is loaded) walked nested tables with a recursive function, this also led to objects that would not be freed until Python's garbage collector was triggered. The walkers are module functions now, so loading a system and deleting it leaves nothing behind for the collector.
 
 #### Changes
-* The warning of a tidal solve at nonzero obliquity with the obliquity truncation off (the default, under which the
-  obliquity adds no heating or torque) names the setting that turns the obliquity tides on:
-  `set_tide_config(obliquity_truncation=...)` or the `[tides]` `obliquity_trunc_lvl` for a world, the
-  `obliquity_truncation` argument for the standalone functions.
-* An unknown integration method, starting method, degree-1 frame, or `solve_for` name raises `ValueError` naming the
-  closest accepted name and listing the choices, as the model factories do. The message starts with
-  `TidalPy: unknown ...` instead of `Unsupported ...`, so code that matches the old text needs updating.
+* A warning was added when a tidal solve was used at a nonzero obliquity but that had obliquity truncation off (the default). It also describes how to change this setting.
+* An unknown integration method, starting method, degree-1 frame, or `solve_for` name raises `ValueError` naming the closest accepted name and listing the choices.
 
 #### Build
-* `setup.py` adds to each extension's `depends` the TidalPy headers its sources reach through `#include`. Cython lists
-  only the headers a `cdef extern from` names, so a build that kept `build/` left an extension stale when a header it
-  reached only through another header changed (`world_tides_.hpp`, `base_.hpp`, and the RadialSolver headers, among
-  others); it now recompiles every extension a changed header reaches, and only those.
-* `setup.py` compiles on every core of a machine with two cores or fewer. Leaving one core free there gave a single
-  compile thread, so the GitHub runners of a private repository compiled the extensions one at a time.
-* The build requires `setuptools>=77` (it named 64), the first release that reads the SPDX `license` string of
-  `pyproject.toml`. An isolated build always fetched a newer setuptools, so only a build without isolation on an older
-  one failed, at the metadata step.
-* The test workflow caches compiled objects with ccache on Linux and macOS, per operating system and Python version,
-  so a run recompiles only the extensions its changes reach. Those builds run without pip's build isolation, whose
-  temporary include paths would defeat the cache; Windows keeps the isolated build.
+* `setup.py` changes.
+  * It now adds the TidalPy headers to each extension's `depends`. Cython lists only the headers a `cdef extern from` names, so a build that kept `build/` left an extension stale when a header it reached only through another header changed. It now recompiles every extension a changed header reaches.
+  * Previously compiled on every core of a machine with two cores or fewer. Leaving one core free there gave a single compile thread, so the GitHub action runners compiled the extensions one at a time. Now it will use all cores available if the system does not have many.
+  * The build requires `setuptools>=77` (previously pinned to 64), the first release that reads the SPDX `license` string of `pyproject.toml`.
+* The test workflow caches compiled objects with `ccache` on Linux and macOS, per operating system and Python version, so a run recompiles only the extensions that changed. Windows keeps the isolated build.
 
 #### Tests
-* The suite runs a reduced set by default: it skips the tests marked `slow` (8 demo and benchmark notebooks and 5
-  `System.evolve` runs), and from each test with more than 8 parametrized cases it keeps the cases that bring a
-  parameter value not yet run, so every value of every parameter still runs. `pytest --full-suite` or
-  `TIDALPY_FULL_SUITE=1` runs every test, as the GitHub workflow's full suite does. With 8 workers the reduced set
-  (5058 of 12422 cases) takes 41 s and the full suite 100 s.
-* An `-n` run without `--dist` distributes by `worksteal`: xdist's default `load` gave the demo notebooks to one worker
-  in a row, which set the run's length. Each test process uses one OpenBLAS thread (`OPENBLAS_NUM_THREADS=1`), since
-  each xdist worker otherwise reserves a BLAS buffer per logical processor.
-* `Tests/Test_Demos/test_demo_notebooks_02.py` checks every demo and benchmark notebook without running it: no control
-  characters in the markdown, relative links and their anchors resolve, every code cell is executed and holds no error
-  output, and no output shows a local path.
-* New tests for the fixes above: layers down to 1 um thick, the message of a failed solve setup, an elastic layer's
-  heating, and the obliquity warning of a world, a `System`, and a 3D heating call.
+* The suite runs a reduced test suite by default (skipping ones marked as `slow`). Use `pytest --full-suite` or `TIDALPY_FULL_SUITE=1` runs every test. With 8 workers the reduced set (5058 of 12422 cases) takes 41 s and the full suite 100 s, much longer if fewer workers are available as is the case when using GitHub actions.
+* An `-n` run without `--dist` distributes by `worksteal` now, fixing an issue with the demo notebooks and OpenBLAS threads.
+* `Tests/Test_Demos/test_demo_notebooks_02.py` checks every demo and benchmark notebook without running it.
+* New tests for the fixes made in this patch.
 
 #### Documentation
-* Demo S02 integrated 50 Gyr while its text described 5 Gyr, gave times in Myr as Gyr, started its sample grid at
-  1 Myr where its comment said 1 kyr, and had two broken links. It now integrates 5 Gyr and is executed again, as is
-  demo P15, which was committed unexecuted, and demo P11, for the new obliquity warning.
-* `global_tides.md` writes the derivative with respect to the argument of periapsis as $\omega_p$ (it wrote $\varpi$,
-  the symbol of the longitude of periapsis), and `legendre.md` notes that Kaula's $P_{lm}$, which TidalPy's harmonics
-  use, is $(-1)^m$ times the Condon-Shortley functions `legendre` returns.
+* Minor updates and tweaks to several doc files.
 
 ### Version 0.8.0 (2026-10-10)
 
