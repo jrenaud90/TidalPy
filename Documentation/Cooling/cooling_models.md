@@ -1,16 +1,14 @@
 # Cooling Models (`Cooling`)
 
-_Updated: 2026-10-07_
+_Updated: 2026-10-21_
 
-A cooling model says how heat moves through a layer. Its flux law maps the layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. In a world's thermal solve the same model builds its layer's temperature profile. Each `Layer` can hold one cooling model.
+A cooling model describes how heat moves through a layer. Its flux law maps the layer's physical state onto a **cooling result** which contains the surface heat flux $q$ \[W m$^{-2}$\], the thermal boundary-layer thickness \[m\], and the Rayleigh and Nusselt numbers. In a world's thermal solve the same model builds its layer's temperature profile. Each `Layer` can hold one cooling model.
 
 | Model | Aliases | Python class | Use for |
 |---|---|---|---|
-| `off` | `none` | `OffCooling` | A layer whose internal gradient does not matter, a well-mixed liquid (an ocean or a liquid core), or a layer whose temperature is set by hand. No cooling model behaves the same. |
+| `off` | `none` | `OffCooling` | Instant heat transfer through layer. |
 | `conduction` | `conductive` | `ConductiveCooling` | A stagnant lid, a crust, a thin ice shell, or a layer known to sit below the critical Rayleigh number. |
-| `convection` | `convective` | `ConvectiveCooling` | A mantle or a thick ice shell warm enough to flow. Give its material a temperature-dependent viscosity law. |
-
-The canonical names (first column) are the ones written to a config dict.
+| `convection` | `convective` | `ConvectiveCooling` | A mantle or a thick ice shell warm enough to flow on geologic timescales. |
 
 ## Quick Example
 
@@ -50,17 +48,17 @@ core = Layer(
     0.0,
     9.0e5,
     material="simple_iron_core",
-    temperature=1900.0)                  # No cooling model: isothermal
+    temperature=1900.0)          # No cooling model: isothermal
 mantle = Layer(
     "mantle",
     1,
     9.0e5,
     1.82e6,
     material="peridotite",
-    temperature=1650.0,                  # [K] at the top of its adiabatic interior
+    temperature=1650.0,          # [K] at the top of its adiabatic interior
     use_melting=True,
     use_pressure_melting=True,
-    cooling="convection")                # A model, a model name, or a config table
+    cooling="convection")        # A model, a model name, or a config table
 
 world = TerrestrialWorld("Io-like", 1.82e6, 8.93e22)
 world.add_layer(core)
@@ -75,10 +73,10 @@ print(result["layer_reference_viscosity"])   # [Pa s] over the top of the mantle
 print(result["layer_magma_ocean"])           # Whether that interior is liquid
 
 world.mantle.cooling = {"model": "convection", "critical_rayleigh": 1000.0}   # Replace it
-world.mantle.cooling = None                                                   # Remove it
+world.mantle.cooling = None                                                   # Delete it
 ```
 
-The layer shares the model rather than copying it, so one model can serve several layers. Setting `cooling` on a layer of a solved world makes the world forget its solve. In a world's TOML the model is a `[layers.<name>.cooling]` table keyed by `model` plus any parameters. See the [TOML schema](../Structures/config/toml_schema.md) and [Layer](../Structures/layers/layer.md).
+The layer shares the model rather than copying it, so one model can serve several layers. Setting `cooling` on a layer of a solved world removes the previous model. In a world's TOML, the model is defined in `[layers.<name>.cooling]` table keyed by `model` plus any parameters. See the [TOML schema](../Structures/config/toml_schema.md) and [Layer](../Structures/layers/layer.md).
 
 ## Current Models
 
@@ -88,7 +86,7 @@ The layer shares the model rather than copying it, so one model can serve severa
 | `ConductiveCooling` | $k \, \Delta T / d$ | thickness $d$ | 0 | 1 | Two conducting halves |
 | `ConvectiveCooling` | $k \, \Delta T / \delta$ | $\delta = d / \mathrm{Nu}$ | see below | see below | Boundary layers around an adiabatic interior |
 
-`ConductiveCooling` transports heat by diffusion. `ConvectiveCooling` is the parameterized boundary-layer model; its boundary layer is what makes convection so much more effective than conduction, squeezing the same temperature drop across a thin layer instead of the whole interior.
+`ConductiveCooling` transports heat by diffusion. `ConvectiveCooling` is the parameterized boundary-layer model and is much more effective than conduction.
 
 ### Convection
 
@@ -96,7 +94,7 @@ $$\mathrm{Ra} = \frac{\alpha_\mathrm{th} \rho g \, \Delta T \, d^3}{\eta \kappa}
 
 with $\alpha_\mathrm{th}$ the thermal expansivity, $\kappa$ the thermal diffusivity, $\mathrm{Nu}_\mathrm{min}$ the `[numerical]` setting `minimum_nusselt` (default 1), and the fitted constants $a$ = `convection_alpha` (default 1.0), $b$ = `convection_beta` (default 1/3), and $\mathrm{Ra}_\mathrm{crit}$ = `critical_rayleigh` (default 1100.0).
 
-The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat convection carries than conduction across the whole layer would, so $\mathrm{Nu} = 1$ is conduction. The boundary layer $\delta$ is the conducting thickness that carries the flux across the whole drop $\Delta T$. A layer cooled at its top and heated at its base splits $\Delta T$ between two boundary layers carrying the same flux, each $\delta / 2$ thick. The exponent 1/3 is the classical boundary-layer result, which makes the convective flux independent of the layer thickness.
+The Rayleigh number is the ratio of the buoyancy driving a hot region upward to the diffusion taking its heat away; above the critical value convection churn sets in. The Nusselt number is how many times more heat convection carries than conduction across the whole layer would, so $\mathrm{Nu} = 1$ is conduction. The boundary layer $\delta$ is the conducting thickness that carries the flux across the whole drop $\Delta T$. A layer cooled at its top and heated at its base splits $\Delta T$ between two boundary layers carrying the same flux, each $\delta / 2$ thick. The exponent 1/3 is the classical boundary-layer result, which makes the convective flux independent of the layer thickness.
 
 ### Magma Ocean
 
